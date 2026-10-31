@@ -3,6 +3,8 @@
   "name": "tato-pe",
   "main": "worker/index.js",
   "compatibility_date": "2026-10-01",
+  // Conserva las variables creadas en el panel de Cloudflare (TIKTOK_CLIENT_KEY, etc.) en cada deploy.
+  "keep_vars": true,
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
