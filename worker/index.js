@@ -26,6 +26,7 @@ const VIDEO_FIELDS = [
 
 export default {
   async fetch(request, env, ctx) {
+    env = cleanEnv(env);
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, '') || '/';
 
@@ -52,12 +53,22 @@ export default {
 
   // Renueva el token una vez al día para que la conexión no caduque.
   async scheduled(event, env, ctx) {
+    env = cleanEnv(env);
     const tokens = await env.TIKTOK_KV.get(TOKENS_KEY, 'json');
     if (!tokens) return;
     if (Date.now() > tokens.refresh_expires_at) return;
     await refreshTokens(env, tokens);
   },
 };
+
+// Quita espacios o saltos de línea que se cuelan al copiar y pegar las claves en Cloudflare.
+function cleanEnv(env) {
+  const out = Object.create(env);
+  for (const k of ['TIKTOK_CLIENT_KEY', 'TIKTOK_CLIENT_SECRET', 'PANEL_PASSWORD']) {
+    if (typeof env[k] === 'string') out[k] = env[k].trim();
+  }
+  return out;
+}
 
 // ---------- Acceso al panel (usuario «tato» + PANEL_PASSWORD) ----------
 
