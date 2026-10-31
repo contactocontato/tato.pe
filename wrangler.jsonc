@@ -1,10 +1,19 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "tato-pe",
+  "main": "worker/index.js",
   "compatibility_date": "2026-10-01",
   "assets": {
     "directory": "./dist",
+    "binding": "ASSETS",
     "html_handling": "auto-trailing-slash",
-    "not_found_handling": "none"
-  }
+    "not_found_handling": "none",
+    // Solo estas rutas pasan por worker/index.js; el resto de la web se sirve directo.
+    "run_worker_first": ["/api/*", "/panel/*"]
+  },
+  // Tokens de TikTok. Sin "id": wrangler crea el namespace solo en el primer deploy.
+  "kv_namespaces": [{ "binding": "TIKTOK_KV" }],
+  // Renueva el token de TikTok todos los días (09:17 UTC = 04:17 en Lima).
+  "triggers": { "crons": ["17 9 * * *"] },
+  "observability": { "enabled": true }
 }

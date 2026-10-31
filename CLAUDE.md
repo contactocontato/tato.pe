@@ -1,7 +1,7 @@
 # tato.pe — notas para Claude Code
 
 Web de Tato Studio en Astro 7 + Tailwind 4. Comandos, estructura y deploy están en `README.md`.
-Está conectada a Cloudflare Pages: lo que llega a `main` se publica solo en tato.pe.
+Se publica como el Worker `tato-pe` de Cloudflare: lo que llega a `main` se publica solo en tato.pe. El panel privado de TikTok (`/panel/tiktok/`) y su conexión viven en `worker/index.js`; cómo funciona está en `README.md`, sección «Cloudflare Worker y panel de TikTok». Nunca pongas secretos ni tokens en el repo.
 
 ## Publicar una noticia o una nota del blog
 

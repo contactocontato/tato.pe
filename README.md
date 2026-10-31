@@ -66,6 +66,18 @@ function doPost(e) {
 
 El carrito vive en `localStorage` (`src/scripts/cart.ts`). "Pagar por WhatsApp" arma el pedido con los productos y el total y abre un chat. No hay pasarela de pago: el cobro es por Yape, Plin o tarjeta a mano. Si más adelante se conecta una pasarela (Culqi, Mercado Pago, Stripe), el lugar es `src/pages/carrito.astro`.
 
+## Cloudflare Worker y panel de TikTok
+
+La web se publica como el Worker `tato-pe` (cuenta de Cloudflare de Tato). Cada push a `main` compila con `npm run build:cf` y despliega con `npx wrangler deploy`, según `wrangler.jsonc`.
+
+- La web estática sale directo de `dist/`. Solo `/api/*` y `/panel/*` pasan por `worker/index.js`.
+- **Panel privado:** `https://tato.pe/panel/tiktok/` (usuario `tato` + la contraseña `PANEL_PASSWORD`). Muestra el perfil y las cifras de los videos de @contactocontato (vistas, me gusta, comentarios, compartidos e interacción). Las mismas cifras en JSON: `/panel/tiktok/data.json`.
+- **Conexión con TikTok:** app «Tatostudio», Sandbox `tatostudio-pruebas` en TikTok Developers. Permisos `user.info.basic` y `video.list`. Redirect URI: `https://tato.pe/api/tiktok/callback`.
+- **Tokens:** se guardan en KV (`TIKTOK_KV`). El de acceso dura 24 h y se renueva solo; un cron diario (09:17 UTC) mantiene viva la conexión. «Desconectar TikTok» en el panel revoca el permiso y borra los tokens.
+- **Secretos** (Worker `tato-pe` → Configuración → Variables y secretos, tipo *Secreto*): `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET` (los del Sandbox) y `PANEL_PASSWORD`. Nunca van en el repo.
+- Para probar en local: crea `.dev.vars` con esos tres valores (está en `.gitignore`), corre `npm run build:cf` y luego `npx wrangler dev`.
+- Si se piden más datos de TikTok (por ejemplo seguidores con `user.info.stats`), primero hay que agregarlos a `src/pages/privacidad.astro`.
+
 ## Antes de publicar
 
 - Confirmar precios de los videos personalizados (`plans` en `site.ts`) y la fecha y cupos del taller.

@@ -30,3 +30,7 @@ pnpm-debug.log*
 *.zip
 # local Claude settings
 .claude/settings.local.json
+
+# secretos locales de wrangler
+.dev.vars
+.wrangler/
