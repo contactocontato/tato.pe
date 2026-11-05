@@ -54,7 +54,8 @@ export async function influencerPublicado(env, id) {
   if (/^creador-[0-9a-f]{32}$/.test(id)) {
     const c = await leerCuenta(env, id);
     return c?.alta && c.activa !== false && identidadDe(c).estado === 'aprobada'
-      ? { id, nombre: c.nombre, ...c.alta.perfil, paquetes: c.alta.paquetes }
+      ? { id, nombre: c.nombre, ...c.alta.perfil, paquetes: c.alta.paquetes,
+        telefonoVerificado: Boolean(c.whatsappVerificado?.fecha && c.whatsappVerificado.numero === c.whatsapp) }
       : null;
   }
   const i = (await catalogo(env)).find((x) => x.id === id);
@@ -79,7 +80,8 @@ export async function guardarCuenta(env, c) {
     metadata: {
       nombre: c.nombre, activa: c.activa !== false, mp: Boolean(c.mp?.accessToken),
       publico: c.alta && recibePedidos(c)
-        ? { nombre: c.nombre, region: c.alta.perfil.region, desde: Math.min(...c.alta.paquetes.map((p) => p.precio)) }
+        ? { nombre: c.nombre, region: c.alta.perfil.region, desde: Math.min(...c.alta.paquetes.map((p) => p.precio)),
+          telefonoVerificado: Boolean(c.whatsappVerificado?.fecha && c.whatsappVerificado.numero === c.whatsapp) }
         : null,
     },
   });

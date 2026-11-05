@@ -29,6 +29,10 @@ export const MENSAJES = {
   'mp-no': 'La conexión con Mercado Pago todavía no está disponible.',
   'identidad-enviada': 'Listo: le mandamos tus fotos y tu voz a Tato. Te avisa cuando las revise.',
   'alta-lista': 'Tu registro está completo. Tu perfil ya puede recibir solicitudes de negocios verificados.',
+  'telefono-ok': 'Tu número de WhatsApp quedó verificado.',
+  'publicacion-ok': 'Se actualizó el registro de publicaciones.',
+  'perfil-ok': 'Tu ficha pública quedó actualizada.',
+  'perfil-incompleto': 'Completa los cuatro campos antes de guardar tu ficha.',
   'identidad-borrada': 'Borramos tus fotos y tu voz. Tato también borra tu hoja de personaje y tu voz clonada.',
 };
 
@@ -37,7 +41,7 @@ export const fecha = (s, conHora = false) =>
 export const fechaDia = (s) => (s ? new Date(`${s}T12:00:00-05:00`).toLocaleDateString('es-PE', { timeZone: 'America/Lima', day: 'numeric', month: 'long', year: 'numeric' }) : '');
 export const multilinea = (s) => esc(s).replace(/\n/g, '<br>');
 
-export function pagina({ titulo, cuerpo, cuenta = null, aviso = '', error = '' }) {
+export function pagina({ titulo, cuerpo, cuenta = null, aviso = '', error = '', ancho = false }) {
   return `<!doctype html><html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow">
 <title>${esc(titulo)} · Tato Studio</title>
@@ -86,9 +90,9 @@ h3{font-size:1.05rem;margin:0 0 8px}
 .btn[disabled]{opacity:.6;cursor:wait}
 form{margin:0}
 label{display:block;font-weight:600;margin:14px 0 6px}
-input[type=text],input[type=password],textarea{width:100%;padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;background:#fff;font:inherit}
+input[type=text],input[type=password],input[type=url],input[type=date],input[type=number],select,textarea{width:100%;min-height:48px;padding:10px 13px;border:1.5px solid var(--line);border-radius:12px;background:#fff;color:var(--ink);font:inherit}
 textarea{min-height:96px;resize:vertical}
-input:focus,textarea:focus{outline:2px solid var(--fucsia);outline-offset:1px;border-color:transparent}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--fucsia);outline-offset:1px;border-color:transparent}
 .acciones{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;align-items:center}
 .caja{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 18px;margin-top:14px}
 .caja.toca{border:2px solid var(--fucsia);background:#fff}
@@ -135,11 +139,39 @@ label.btn:focus-within{outline:2px solid var(--fucsia);outline-offset:3px}
 .check{display:flex;gap:10px;align-items:flex-start;margin:12px 0;font-size:15px;font-weight:400}.check input{width:22px;height:22px;accent-color:var(--fucsia);flex:none;margin-top:1px}
 .faltan{color:#7A0A45;font-size:15px;padding-left:20px}
 .actuacion{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}.actuacion h4{margin:0 0 4px}
+.ancho{max-width:1320px}
+.estudio{display:grid;grid-template-columns:200px minmax(0,1fr);gap:24px;align-items:start}
+.estudio-nav{position:sticky;top:76px;display:grid;gap:4px;padding:15px;background:var(--card);border:1px solid var(--line);border-radius:18px}
+.estudio-nav strong{font:500 12px var(--mono);letter-spacing:.06em;padding:8px 9px;color:var(--soft)}
+.estudio-nav a{padding:9px;border-radius:8px;text-decoration:none;font-weight:650;font-size:14px}.estudio-nav a:hover,.estudio-nav a:focus-visible{background:#E8D7E1}
+.estudio-hero,.perfil-hero{background:radial-gradient(ellipse at 100% 0%,#531339 0,transparent 62%),#19171b;color:#fff;border-radius:22px;padding:clamp(22px,4vw,44px)}
+.estudio-hero h1 span,.perfil-hero strong{color:#ff87c8}.estudio-hero .mono,.perfil-hero .mono{font-size:12px;letter-spacing:.13em;color:#efc7dc}
+.estudio-hero p:last-child{margin-bottom:0}
+.estudio-kpi{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0}
+.estudio-kpi>div{padding:16px;background:var(--card);border:1px solid var(--line);border-radius:14px;display:grid;gap:5px}
+.estudio-kpi b{font-size:clamp(1.05rem,1.9vw,1.55rem);overflow-wrap:anywhere}.estudio-kpi span{font-size:13px;color:var(--soft)}
+.estudio-seccion{scroll-margin-top:80px;margin-top:30px}.estudio-seccion>h2{font-size:1.65rem;margin:0 0 12px}.estudio-seccion>h3{margin-top:18px}
+.estudio-doble,.publicacion-campos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.tabla-scroll{overflow-x:auto}
+.grafico-pagos{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;list-style:none;padding:0;margin:16px 0 0}
+.grafico-pagos li{display:grid;grid-template-rows:auto 65px auto;gap:4px;text-align:center;font:500 clamp(9px,1.15vw,13px)/1.2 var(--mono)}
+.grafico-pagos .barra{position:relative;border-radius:8px;background:#e5dce3;overflow:hidden}
+.grafico-pagos .barra::after{content:"";position:absolute;inset:auto 0 0;height:var(--nivel);background:var(--fucsia);border-radius:8px 8px 0 0}
+.publicacion h3{margin:6px 0 0;overflow-wrap:anywhere}.publicacion .nota{margin:0 0 10px}
+.metricas-publicacion{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:10px 0}
+.metricas-publicacion div{padding:6px;border-top:1px solid var(--line)}.metricas-publicacion dt{font-size:12px;color:var(--soft)}.metricas-publicacion dd{margin:0;font-weight:800;overflow-wrap:anywhere}
+.perfil-hero{margin-top:12px}.perfil-hero .presentacion{max-width:60ch;overflow-wrap:anywhere}.perfil-hero .sub{color:#efc7dc}
+.perfil-paquetes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.perfil-paquetes .caja{margin:0;display:flex;flex-direction:column}.perfil-paquetes p{margin:5px 0}
+.perfil-paquetes .precio{font-size:1.35rem;font-weight:800;color:var(--fucsia-tinta)}
+.pedido-creador-cuerpo{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:16px;align-items:start}
+.pedido-creador-cuerpo>.caja{margin-top:0}.pedido-creador-cuerpo select{appearance:auto}
+@media(max-width:880px){.estudio{grid-template-columns:1fr;gap:14px}.estudio-nav{position:static;display:flex;flex-wrap:wrap;gap:2px}.estudio-nav strong{flex-basis:100%}}
+@media(max-width:640px){.estudio-kpi,.metricas-publicacion{grid-template-columns:repeat(2,minmax(0,1fr))}.estudio-doble,.publicacion-campos,.pedido-creador-cuerpo,.perfil-paquetes{grid-template-columns:1fr}}
 @media (max-width:520px){.tiles{grid-template-columns:1fr 1fr}.tiles div:last-child{grid-column:span 2}.pasos li{font-size:10px}dl.datos{grid-template-columns:1fr}dl.datos dt{margin-top:6px}}
 </style></head><body>
 <header class="top"><a class="logo" href="/cuenta/" aria-label="Tu cuenta en Tato Studio"><img src="/inicio/logo-tato-cabecera.webp" alt="Tato Studio" width="120" height="38"></a>
 ${cuenta ? `<div class="quien"><span>${esc(cuenta.nombre)}</span><form method="post" action="/cuenta/salir"><button type="submit">Salir</button></form></div>` : ''}</header>
-<main${cuenta ? '' : ' class="angosto"'}>
+<main${ancho ? ' class="ancho"' : cuenta ? '' : ' class="angosto"'}>
 ${aviso ? `<p class="aviso" role="status">${esc(aviso)}</p>` : ''}${error ? `<p class="aviso err" role="alert">${esc(error)}</p>` : ''}
 ${cuerpo}
 </main>

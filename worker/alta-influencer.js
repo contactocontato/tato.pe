@@ -3,6 +3,7 @@ import { idDeAlta } from '../src/lib/id-alta.js';
 import { json } from './ui.js';
 import { cifrarClave, claveCorrecta, contar, crearSesion, formatoClave, mismoOrigen, usos } from './seguridad.js';
 import { guardarCuenta, leerCuenta } from './pedidos.js';
+import { comprobarCodigo, configVerificacion, telefonoPE } from './verificacion.js';
 
 export async function handleAltaInfluencer(request, env) {
   if (request.method !== 'POST') return json({ error: 'Usa el formulario de registro.' }, 405);
@@ -28,7 +29,7 @@ export async function handleAltaInfluencer(request, env) {
   const campo = (nombre, max) => typeof datos?.[nombre] === 'string' ? datos[nombre].trim().slice(0, max) : '';
   const token = campo('token', 37);
   const nombre = campo('nombre', 80);
-  const whatsapp = campo('whatsapp', 22).replace(/\D/g, '').replace(/^51(?=9\d{8}$)/, '');
+  const whatsapp = telefonoPE(campo('whatsapp', 22));
   const region = campo('region', 80);
   const redes = campo('redes', 200);
   const contenido = campo('contenido', 500);
@@ -50,10 +51,17 @@ export async function handleAltaInfluencer(request, env) {
       return json({ error: 'Ya existe esta cuenta. Entra con el ID que recibiste al crearla.' }, 409);
     }
   } else {
+    const verificacion = configVerificacion(env).estado;
+    if (verificacion === 'pendiente') return json({ error: 'La verificación por WhatsApp todavía no está disponible.' }, 503);
+    if (verificacion === 'activa') {
+      const error = await comprobarCodigo(env, { desafio: campo('desafio', 33), codigo: campo('codigo', 7), numero: whatsapp, titular: `alta:${token}` });
+      if (error) return json({ error }, 400);
+    }
     await contar(env, limite, 86400);
     await guardarCuenta(env, {
       id, nombre, whatsapp, clave: await cifrarClave(clave), cambiarClave: false,
       activa: true, aceptaPedidos: true,
+      ...(verificacion === 'activa' ? { whatsappVerificado: { numero: whatsapp, fecha: new Date().toISOString() } } : {}),
       porcentajeTato: planes.porcentajeTato,
       produccion: Object.fromEntries(planes.paquetes.map((p) => [p.nombre, p.produccion])),
       alta: { fecha: new Date().toISOString(), version: planes.version, perfil: { region, redes, contenido }, paquetes: planes.paquetes },

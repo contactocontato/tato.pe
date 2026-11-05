@@ -9,13 +9,15 @@ import {
   cerrarSesionesDe, mismoOrigen, contar, usos, borrarConteo,
 } from './seguridad.js';
 import {
-  leerCuenta, guardarCuenta, leerPedido, listarPedidos, accionInfluencer, cuentasDe, metodoSaldo, ajustes,
+  leerCuenta, guardarCuenta, leerPedido, listarPedidos, accionInfluencer, cuentasDe, metodoSaldo, ajustes, texto,
   ESTADOS, PASOS, ACTIVOS, turno, soles, idValido, identidadDe, SUBIDAS_ABIERTAS, actuacionesQueFaltan, subirActuacion,
 } from './pedidos.js';
 import { handleIdentidad } from './identidad.js';
 import { servirArchivo } from './medios.js';
 import { json } from './ui.js';
 import { mpListo, urlConexion, canjearCodigo } from './mercadopago.js';
+import { bloqueCodigoCuenta, comprobarCodigo, configVerificacion, telefonoConfirmado } from './verificacion.js';
+import { filasPublicaciones, formPublicacion, guardarPublicacion, listarPublicaciones, METRICAS } from './publicaciones.js';
 import { WHATSAPP_TATO, MENSAJES, fecha, fechaDia, multilinea, pagina, respuesta, ir } from './portal.js';
 
 const RUBROS = Object.fromEntries(reglas.rubros.map((r) => [r.id, r.nombre]));
@@ -139,19 +141,42 @@ function estadoPago(p, c) {
 }
 
 async function paginaInicio(env, cuenta, { aviso, error }) {
-  const [pedidos, aj] = await Promise.all([listarPedidos(env, (k) => k.metadata?.influencer === cuenta.id, 300), ajustes(env)]);
+  const [pedidos, aj, publicaciones] = await Promise.all([
+    listarPedidos(env, (k) => k.metadata?.influencer === cuenta.id, 300), ajustes(env), listarPublicaciones(env, cuenta.id),
+  ]);
   const metodo = metodoSaldo(env, cuenta);
   const conCuentas = pedidos.map((p) => ({ p, c: cuentasDe(p, { metodo, tasaMP: aj.tasaMP }) }));
   const toca = conCuentas.filter(({ p }) => turno(p) === 'influencer');
   const curso = conCuentas.filter(({ p }) => ACTIVOS.includes(p.estado) && turno(p) !== 'influencer');
   const fin = conCuentas.filter(({ p }) => !ACTIVOS.includes(p.estado)).slice(0, 20);
-  const cobrados = conCuentas.filter(({ p }) => p.pagos?.saldo);
-  const mes = new Date().toISOString().slice(0, 7);
-  const ganadoMes = cobrados.filter(({ p }) => String(p.pagos.saldo.fecha).slice(0, 7) === mes).reduce((s, { c }) => s + c.parteInfluencer, 0);
+  const cobrados = conCuentas.filter(({ p, c }) => p.pagos?.saldo && c);
+  const pagados = cobrados.flatMap(({ p, c }) => p.pagoInfluencer
+    ? [{ fecha: p.pagoInfluencer.fecha, monto: p.pagoInfluencer.monto }]
+    : p.pagos.saldo.metodo === 'mercadopago' ? [{ fecha: p.pagos.saldo.fecha, monto: c.parteInfluencer }] : []);
   const porCobrar = cobrados.filter(({ p }) => p.pagos.saldo.metodo === 'manual' && !p.pagoInfluencer).reduce((s, { c }) => s + c.parteInfluencer, 0);
+  const hoy = new Date();
+  const mesPE = (f) => {
+    const instante = Date.parse(f);
+    return Number.isFinite(instante) ? new Date(instante - 5 * 3600000).toISOString().slice(0, 7) : '';
+  };
+  const fechaLocal = new Date(hoy.getTime() - 5 * 3600000);
+  const meses = Array.from({ length: 6 }, (_, i) => {
+    const fechaMes = new Date(Date.UTC(fechaLocal.getUTCFullYear(), fechaLocal.getUTCMonth() - 5 + i, 15));
+    const mes = fechaMes.toISOString().slice(0, 7);
+    const monto = pagados.filter((p) => mesPE(p.fecha) === mes).reduce((s, p) => s + (Number(p.monto) || 0), 0);
+    return { nombre: fechaMes.toLocaleDateString('es-PE', { month: 'short', timeZone: 'UTC' }), monto };
+  });
+  const tope = Math.max(1, ...meses.map((m) => m.monto));
+  const serie = meses.map((m) => `<li><span>${soles(m.monto)}</span><div class="barra" style="--nivel:${Math.min(100, m.monto / tope * 100)}%"></div><b>${esc(m.nombre)}</b></li>`).join('');
+  const alcance = METRICAS.map(([k, nombre]) => {
+    const cifras = publicaciones.map((p) => p.metricas[k]).filter((n) => n != null);
+    return `<div><b>${cifras.length ? new Intl.NumberFormat('es-PE').format(cifras.reduce((s, n) => s + n, 0)) : '—'}</b><span>${esc(nombre)}</span></div>`;
+  }).join('');
   const lista = (items, vacio) => (items.length ? `<ul class="lista">${items.map(({ p, c }) => tarjeta(p, c)).join('')}</ul>` : `<p class="vacio">${vacio}</p>`);
   const pausado = cuenta.aceptaPedidos === false;
   const identidad = identidadDe(cuenta);
+  const whatsappOk = telefonoConfirmado(cuenta);
+  const telefono = cuenta.whatsapp || '';
 
   let mp;
   if (!mpListo(env)) {
@@ -171,36 +196,62 @@ async function paginaInicio(env, cuenta, { aviso, error }) {
   return pagina({
     titulo: 'Tu cuenta',
     cuenta,
+    ancho: true,
     aviso,
     error,
-    cuerpo: `<h1>Hola, <span class="fx">${esc(cuenta.nombre.split(' ')[0])}</span></h1>
-<p class="sub">${identidad.estado === 'en-revision' ? 'Tato está revisando tus fotos y tu voz. Cuando las apruebe, empiezas a recibir solicitudes.' : pausado ? 'Tus pedidos están en pausa: los negocios no pueden enviarte solicitudes nuevas.' : 'Estás recibiendo solicitudes de negocios verificados.'}</p>
-${cuenta.alta ? `<div class="acciones"><a class="btn linea" href="/influencers/perfil/${esc(cuenta.id)}/">Ver mi perfil público</a></div>` : ''}
-<div class="tiles">
-  <div><b>${toca.length}</b><span>Te toca revisar</span></div>
-  <div><b>${soles(ganadoMes)}</b><span>Ganado este mes</span></div>
-  <div><b>${soles(porCobrar)}</b><span>Por pagarte</span></div>
+    cuerpo: `<div class="estudio">
+<nav class="estudio-nav" aria-label="Intranet de creadores"><strong>TATO / CREADORES</strong>
+<a href="#resumen">Resumen</a><a href="#pedidos">Pedidos</a><a href="#ganancias">Ganancias</a><a href="#publicaciones">Publicaciones</a><a href="#perfil">Mi perfil</a></nav>
+<div class="estudio-cuerpo">
+<section id="resumen" class="estudio-hero"><p class="mono">INTRANET DE CREADORES</p>
+<h1>Hola, <span>${esc(cuenta.nombre.split(' ')[0])}</span></h1>
+<p>${identidad.estado === 'en-revision' ? 'Estamos revisando tus fotos y tu voz.' : pausado ? 'Tus pedidos están en pausa.' : 'Tu espacio para gestionar pedidos, ingresos y publicaciones.'}</p>
+${cuenta.alta ? `<div class="acciones"><a class="btn fucsia chico" href="/influencers/perfil/${esc(cuenta.id)}/">Ver mi perfil público ↗</a></div>` : ''}
+</section>
+<div class="estudio-kpi">
+  <div><span>Recibido este mes</span><b>${soles(meses.at(-1).monto)}</b></div>
+  <div><span>Por cobrar</span><b>${soles(porCobrar)}</b></div>
+  <div><span>Pedidos en curso</span><b>${toca.length + curso.length}</b></div>
+  <div><span>Publicaciones registradas</span><b>${publicaciones.length}</b></div>
 </div>
-<h2>Te toca</h2>
+<section id="pedidos" class="estudio-seccion"><h2>Pedidos</h2><div class="estudio-doble"><div><h3>Te toca revisar <span class="chip toca">${toca.length}</span></h3>
 ${lista(toca, 'Nada por ahora. Cuando un negocio te envíe una solicitud o Tato te mande un guion o un video, aparece aquí.')}
-<h2>En curso</h2>
+</div><div><h3>En curso <span class="chip">${curso.length}</span></h3>
 ${lista(curso, 'No tienes pedidos en curso.')}
-${fin.length ? `<h2>Terminados</h2>${lista(fin, '')}` : ''}
-<h2>Tus pagos</h2>
-${filasPagos ? `<div class="caja"><table class="pagos"><thead><tr><th>Pedido</th><th class="n">Tu parte</th><th>Estado</th></tr></thead><tbody>${filasPagos}</tbody></table></div>` : '<p class="vacio">Aquí vas a ver lo que ganas con cada video.</p>'}
-<h2>Tu identidad</h2>
+</div></div>
+${fin.length ? `<h3>Historial reciente</h3>${lista(fin, '')}` : ''}
+</section>
+<section id="ganancias" class="estudio-seccion"><h2>Ganancias</h2>
+<div class="caja"><h3>Pagos recibidos · últimos 6 meses</h3><ol class="grafico-pagos">${serie}</ol></div>
+${filasPagos ? `<div class="caja tabla-scroll"><table class="pagos"><thead><tr><th>Pedido</th><th class="n">Tu parte</th><th>Estado</th></tr></thead><tbody>${filasPagos}</tbody></table></div>` : '<p class="vacio">Los pagos aparecen aquí cuando un negocio paga el saldo.</p>'}
+<details class="caja"><summary>Medio de cobro</summary>${mp}</details>
+</section>
+<section id="publicaciones" class="estudio-seccion"><h2>Publicaciones y rendimiento</h2>
+<p class="sub">Registra los enlaces desde un pedido entregado. Las cifras se suman con las métricas que se ingresaron en cada publicación.</p>
+<div class="estudio-kpi">${alcance}</div>
+${filasPublicaciones(publicaciones.slice(0, 30))}
+</section>
+<section id="perfil" class="estudio-seccion"><h2>Mi perfil y seguridad</h2>
+<div class="estudio-doble">
 <div class="caja"><p>${cuenta.alta ? 'Registro de fotos y voz completo.' : identidad.estado === 'aprobada' ? 'Aprobada: Tato ya tiene tus fotos y tu voz para tu hoja de personaje y tu voz con IA.' : 'En revisión: Tato está viendo tus fotos y tu voz.'}</p>
 <div class="acciones"><a class="btn linea" href="/cuenta/identidad/">Ver mis fotos y mi voz</a></div></div>
-<h2>Mercado Pago</h2>
-<div class="caja">${mp}</div>
-<h2>Tu cuenta</h2>
+<div class="caja"><h3>WhatsApp ${telefono ? `· ••• ${esc(telefono.slice(-3))}` : ''}</h3><p>${whatsappOk ? 'Número verificado.' : 'Número pendiente de verificación.'}</p>
+${whatsappOk ? '' : '<a class="btn linea chico" href="/cuenta/telefono/">Verificar mi número</a>'}</div>
+</div>
+${cuenta.alta ? `<details class="caja"><summary>Editar mi ficha pública</summary>
+<form method="post" action="/cuenta/perfil/">
+<div class="publicacion-campos"><label>Nombre público<input type="text" name="nombre" value="${esc(cuenta.nombre)}" maxlength="80" required></label>
+<label>Ciudad o región<input type="text" name="region" value="${esc(cuenta.alta.perfil.region)}" maxlength="80" required></label></div>
+<label>Red principal<input type="text" name="redes" value="${esc(cuenta.alta.perfil.redes)}" maxlength="200" required></label>
+<label>Qué contenido haces<textarea name="contenido" maxlength="500" required>${esc(cuenta.alta.perfil.contenido)}</textarea></label>
+<div class="acciones"><button class="btn fucsia chico" type="submit">Guardar perfil</button></div></form></details>` : ''}
 <div class="caja">
   <p>Tu ID de acceso <code style="overflow-wrap:anywhere">${esc(cuenta.id)}</code></p>
   <form method="post" action="/cuenta/pausa"><input type="hidden" name="pausa" value="${pausado ? 'no' : 'si'}">
     <p>${pausado ? 'Tus pedidos están en pausa.' : '¿Te vas de viaje o necesitas un descanso? Pausa tus pedidos y nadie podrá enviarte solicitudes nuevas. Los que ya están en curso siguen.'}</p>
     <div class="acciones"><button class="btn ${pausado ? 'fucsia' : 'linea'}" type="submit">${pausado ? 'Volver a recibir solicitudes' : 'Pausar mis pedidos'}</button><a class="btn linea" href="/cuenta/clave">Cambiar contraseña</a></div>
   </form>
-</div>`,
+</div></section></div></div>`,
   });
 }
 
@@ -214,7 +265,7 @@ function filasCuentas(c, p) {
   return `<table class="plata">${filas.map(([a, b]) => `<tr><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join('')}<tr class="tuyo"><td>Tu parte (${100 - p.dinero.porcentajeTato} %)</td><td>${soles(c.parteInfluencer)}</td></tr></table>`;
 }
 
-function paginaPedido(env, cuenta, p, aj, { aviso, error }) {
+function paginaPedido(env, cuenta, p, aj, { aviso, error, publicaciones = [] }) {
   const metodo = metodoSaldo(env, cuenta);
   const c = cuentasDe(p, { metodo, tasaMP: aj.tasaMP });
   const n = p.negocio;
@@ -309,6 +360,9 @@ ${bloque}
 </dl><p class="nota">Tato habla con el negocio por ti: sus datos de contacto no se comparten.</p></div>
 <h2>Las cuentas</h2>
 <div class="caja">${plata}</div>
+${p.estado === 'entregado' ? `<section id="publicaciones"><h2>Publicaciones del pedido</h2>
+${filasPublicaciones(publicaciones, `/cuenta/pedido/${p.id}/publicaciones`)}
+<div class="caja"><h3>Registrar un video publicado</h3>${formPublicacion(`/cuenta/pedido/${p.id}/publicaciones`)}</div></section>` : ''}
 <details class="caja"><summary>Historial del pedido</summary><ol>${(p.historial || []).map((h) => `<li>${esc(fecha(h.fecha, true))} · ${esc(h.quien === 'negocio' ? 'El negocio' : h.quien)}: ${esc(h.que)}</li>`).join('')}</ol></details>`,
   });
 }
@@ -350,6 +404,41 @@ export async function handleCuenta(request, env, url, path) {
   }
   if (cuenta.cambiarClave) return post ? ir('/cuenta/clave') : respuesta(paginaClave(cuenta, { obligatoria: true, error }));
 
+  if (path === '/cuenta/telefono') {
+    const numero = cuenta.whatsapp || '';
+    const estado = configVerificacion(env).estado;
+    const confirmado = telefonoConfirmado(cuenta);
+    let mensaje = '', desafio = '';
+    if (post && !confirmado && estado === 'activa') {
+      const form = await request.formData();
+      desafio = form.get('desafio');
+      mensaje = await comprobarCodigo(env, { numero, titular: `cuenta:${cuenta.id}`, desafio, codigo: form.get('codigo') });
+      if (!mensaje) {
+        const actual = await leerCuenta(env, cuenta.id);
+        if (!actual || actual.activa === false || actual.whatsapp !== numero) return ir('/cuenta/telefono/');
+        actual.whatsappVerificado = { numero, fecha: new Date().toISOString() };
+        await guardarCuenta(env, actual);
+        return ir('/cuenta/?m=telefono-ok#perfil');
+      }
+    }
+    const bloque = confirmado ? '<p class="aviso">Tu WhatsApp está verificado.</p>'
+      : estado === 'activa' && /^9\d{8}$/.test(numero) ? bloqueCodigoCuenta(numero, desafio)
+        : '<p class="aviso ojo">El envío de códigos por WhatsApp aún no está disponible para tu cuenta.</p>';
+    return respuesta(pagina({ titulo: 'Verificar WhatsApp', cuenta, error: mensaje, cuerpo: `<a class="volver" href="/cuenta/#perfil">← Mi perfil</a><h1>Verifica tu WhatsApp</h1>${bloque}` }), mensaje ? 400 : 200);
+  }
+  if (path === '/cuenta/perfil' && post && cuenta.alta) {
+    const f = await request.formData();
+    const nombre = texto(f.get('nombre'), 80).replace(/\s+/g, ' ');
+    const region = texto(f.get('region'), 80).replace(/\s+/g, ' ');
+    const redes = texto(f.get('redes'), 200).replace(/\s+/g, ' ');
+    const contenido = texto(f.get('contenido'), 500);
+    if (!nombre || !region || !redes || !contenido) return ir('/cuenta/?e=perfil-incompleto#perfil');
+    cuenta.nombre = nombre;
+    cuenta.alta.perfil = { region, redes, contenido };
+    await guardarCuenta(env, cuenta);
+    return ir('/cuenta/?m=perfil-ok#perfil');
+  }
+
   // Antes de recibir pedidos, el influencer sube sus fotos y graba su voz (worker/identidad.js).
   if (path === '/cuenta/identidad' || path.startsWith('/cuenta/identidad/')) return handleIdentidad(request, env, url, path, cuenta, { aviso, error });
   if (path === '/cuenta' && !post && SUBIDAS_ABIERTAS.includes(identidadDe(cuenta).estado)) return ir('/cuenta/identidad/');
@@ -386,6 +475,16 @@ export async function handleCuenta(request, env, url, path) {
   }
 
   const m = path.match(/^\/cuenta\/pedido\/(P-[A-Z2-9]{6})$/);
+  const publicacion = path.match(/^\/cuenta\/pedido\/(P-[A-Z2-9]{6})\/publicaciones$/);
+  if (publicacion && post) {
+    const p = await leerPedido(env, publicacion[1]);
+    if (!p || p.influencer.id !== cuenta.id) return new Response('No encontramos ese pedido.', { status: 404 });
+    const fallo = await guardarPublicacion(env, p, await request.formData(), 'creador');
+    if (fallo) return respuesta(paginaPedido(env, cuenta, p, await ajustes(env), {
+      error: fallo, publicaciones: await listarPublicaciones(env, cuenta.id, p.id),
+    }), 400);
+    return ir(`/cuenta/pedido/${p.id}/?m=publicacion-ok#publicaciones`);
+  }
   if (m) {
     const p = await leerPedido(env, m[1]);
     if (!p || p.influencer.id !== cuenta.id) return respuesta(pagina({ titulo: 'No encontrado', cuenta, cuerpo: '<h1>No encontramos ese pedido</h1><p><a class="volver" href="/cuenta/">← Tus pedidos</a></p>' }), 404);
@@ -397,7 +496,8 @@ export async function handleCuenta(request, env, url, path) {
       const clave = { aceptar: 'aceptado', rechazar: 'rechazado' }[accion] || accion.split('-').reverse().join('-').replace('aprobar', 'ok');
       return ir(`/cuenta/pedido/${p.id}/?m=${clave}`);
     }
-    return respuesta(paginaPedido(env, cuenta, p, await ajustes(env), { aviso, error }));
+    const publicaciones = p.estado === 'entregado' ? await listarPublicaciones(env, cuenta.id, p.id) : [];
+    return respuesta(paginaPedido(env, cuenta, p, await ajustes(env), { aviso, error, publicaciones }));
   }
   return respuesta(pagina({ titulo: 'No encontrado', cuenta, cuerpo: '<h1>Esta página no existe</h1><p><a class="volver" href="/cuenta/">← Tu cuenta</a></p>' }), 404);
 }

@@ -74,7 +74,10 @@ const noEntran = negocios.palabras.map((g) => g.motivo);
           <a class="btn btn--fucsia" href="/influencers/registro/">Registra tu negocio</a>
         </div>
       )}
-      <ul class="creadores" id="creadores" hidden></ul>
+      <section class="creadores-bloque" id="creadores-bloque" hidden aria-labelledby="creadores-t">
+        <h2 class="h3" id="creadores-t">Creadores disponibles</h2>
+        <ul class="creadores" id="creadores"></ul>
+      </section>
       <button class="btn btn--line" type="button" id="mas-creadores" hidden>Ver más creadores</button>
     </div>
   </section>
@@ -117,6 +120,7 @@ const noEntran = negocios.palabras.map((g) => g.motivo);
 
 <script>
   const creadores = document.querySelector<HTMLUListElement>('#creadores')!;
+  const bloque = document.querySelector<HTMLElement>('#creadores-bloque')!;
   const vacioCatalogo = document.querySelector<HTMLElement>('#creadores-vacio');
   const mas = document.querySelector<HTMLButtonElement>('#mas-creadores')!;
   let cursor = '';
@@ -130,19 +134,34 @@ const noEntran = negocios.palabras.map((g) => g.motivo);
         const li = document.createElement('li');
         const link = document.createElement('a');
         link.href = '/influencers/perfil/' + encodeURIComponent(perfil.id) + '/';
-        link.className = 'icard';
+        link.className = 'icard creador-card';
+        const cabecera = document.createElement('div');
+        cabecera.className = 'creador-card__marca';
+        const iniciales = document.createElement('span');
+        iniciales.setAttribute('aria-hidden', 'true');
+        iniciales.textContent = perfil.nombre.trim().split(/\s+/).slice(0, 2).map((palabra: string) => Array.from(palabra)[0]).join('').toUpperCase();
+        const sello = document.createElement('small');
+        sello.textContent = perfil.telefonoVerificado ? 'WhatsApp verificado' : 'Creador Tato Studio';
+        cabecera.append(iniciales, sello);
         const titulo = document.createElement('h3');
         titulo.textContent = perfil.nombre;
         const descripcion = document.createElement('p');
-        descripcion.textContent = perfil.region + ' · Desde S/ ' + perfil.desde;
-        link.append(titulo, descripcion);
+        descripcion.textContent = perfil.region;
+        const pie = document.createElement('div');
+        pie.className = 'creador-card__pie';
+        const precio = document.createElement('b');
+        precio.textContent = 'Desde S/ ' + perfil.desde;
+        const cta = document.createElement('span');
+        cta.textContent = 'Ver perfil ↗';
+        pie.append(precio, cta);
+        link.append(cabecera, titulo, descripcion, pie);
         li.append(link);
         creadores.append(li);
       }
       cursor = datos.siguiente || '';
       mas.hidden = !cursor;
       if (creadores.childElementCount) {
-        creadores.hidden = false;
+        bloque.hidden = false;
         if (vacioCatalogo) vacioCatalogo.hidden = true;
       }
     } catch { /* El catálogo estático queda disponible. */ }
@@ -152,12 +171,6 @@ const noEntran = negocios.palabras.map((g) => g.motivo);
   void cargarCreadores();
 </script>
 
-<style>
-  .creadores { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 16px; margin: 20px 0; }
-  .creadores[hidden], #creadores-vacio[hidden] { display: none; }
-  .creadores .icard { padding: 22px; overflow-wrap: anywhere; }
-  .creadores h3 { font-size: 1.25rem; font-weight: 800; margin-bottom: 6px; }
-</style>
 
 <script>
   // Si un convenio venció después de publicar la web, su tarjeta ya no se muestra.

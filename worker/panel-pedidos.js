@@ -13,6 +13,7 @@ import {
 import { mpListo, REDIRECCION } from './mercadopago.js';
 import { servirArchivo } from './medios.js';
 import { FOTOS, ITEMS, NOMBRES, decidirIdentidad } from './identidad.js';
+import { telefonoConfirmado } from './verificacion.js';
 
 const fecha = (s) => (s ? new Date(s).toLocaleString('es-PE', { timeZone: 'America/Lima', dateStyle: 'medium', timeStyle: 'short' }) : '');
 const wa = (numero, textoMsj) => `https://wa.me/51${String(numero || '').replace(/\D/g, '').slice(-9)}?text=${encodeURIComponent(textoMsj)}`;
@@ -141,6 +142,7 @@ function bloquePedido(env, p, aj, cuentaInf, abierto) {
       ${p.motivo ? `<dt>Motivo</dt><dd>${esc(p.motivo)}</dd>` : ''}
     </dl>
     ${tablaCuentas(c, p)}
+    ${p.estado === 'entregado' ? `<p><a class="btn" href="/panel/publicaciones/?pedido=${esc(p.id)}">Ver y registrar publicaciones</a></p>` : ''}
     <details><summary class="muted">Historial</summary><ol class="muted">${(p.historial || []).map((h) => `<li>${esc(fecha(h.fecha))} · ${esc(h.quien)}: ${esc(h.que)}</li>`).join('')}</ol></details>
   </div>
 </details>`;
@@ -276,7 +278,7 @@ export async function handlePanelInfluencers(request, env, url) {
           ? ['gris', ident.estado === 'rehacer' ? 'Rehaciendo identidad' : ident.estado === 'borrada' ? 'Borró su identidad' : 'Falta su identidad']
           : cuenta.aceptaPedidos === false ? ['amarillo', 'No recibe pedidos'] : ['verde', 'Activa'];
     filas.push(`<details class="reg"><summary><span class="badge b-${estado[0]}">${estado[1]}</span><b>${esc(nombre)}</b>
-      <span class="muted">ID ${esc(id)} · ${cuenta.mp?.accessToken ? `Mercado Pago: ${esc(cuenta.mp.nombre || cuenta.mp.userId)}` : 'sin Mercado Pago'} · ${cuenta.ultimoIngreso ? `entró ${esc(fecha(cuenta.ultimoIngreso))}` : 'no entra todavía'}${cuenta.alta ? ' · registro en línea' : inf ? '' : ' · ya no está en el catálogo'}</span></summary>
+      <span class="muted">ID ${esc(id)} · ${telefonoConfirmado(cuenta) ? 'WhatsApp verificado' : 'WhatsApp sin verificar'} · ${cuenta.mp?.accessToken ? `Mercado Pago: ${esc(cuenta.mp.nombre || cuenta.mp.userId)}` : 'sin Mercado Pago'} · ${cuenta.ultimoIngreso ? `entró ${esc(fecha(cuenta.ultimoIngreso))}` : 'no entra todavía'}${cuenta.alta ? ' · registro en línea' : inf ? '' : ' · ya no está en el catálogo'}</span></summary>
       <div class="cuerpo">
         <form method="post" action="/panel/influencers/accion" class="acciones cuenta"><input type="hidden" name="id" value="${esc(id)}"><input type="hidden" name="accion" value="editar">
           ${camposCuenta(inf, cuenta, aj)}
@@ -355,6 +357,7 @@ export async function handlePanelInfluencerAccion(request, env, url) {
       if (!cuenta) return fin({ err: 'Esa cuenta no existe.' });
       const campos = leerCampos();
       if (campos.error) return fin({ err: campos.error });
+      if (campos.whatsapp !== cuenta.whatsapp) delete cuenta.whatsappVerificado;
       Object.assign(cuenta, {
         whatsapp: campos.whatsapp,
         porcentajeTato: cuenta.alta ? cuenta.porcentajeTato : campos.porcentaje,
