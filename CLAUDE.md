@@ -7,6 +7,8 @@ Se publica como el Worker `tato-pe` de Cloudflare: lo que llega a `main` se publ
 
 - Servicios y precios: `src/data/inicio.ts`. El globo de Tato muestra el precio más bajo de cada sección y se calcula solo. Al cambiar un precio, cambia también el texto de "Incluye" si lo menciona.
 - Textos de las secciones, CSS y JS: en `src/pages/index.astro`, en línea. No usan Tailwind ni `global.css`: no les pongas clases de Tailwind.
+- Color: el acento de la portada es el fucsia del logo de Tato (`--fucsia`, #E2037E), con el negro y el blanco. No uses rojo. Para textos chicos usa `--fucsia-tinta` sobre fondo claro y `--fucsia-claro` sobre fondo oscuro, que se leen mejor. Las palabras resaltadas de los títulos llevan la clase `fx`.
+- La cabecera lleva el logo de Tato Studio (`public/inicio/logo-tato-cabecera.webp`). Tiene partes en negro, así que no va sobre fondo oscuro.
 - Poses de Tato al costado: archivos en `public/inicio/tato/` y la lista `FIG` al inicio de `index.astro`. Cada sección elige su pose con `data-fig` y su globo con `data-say` (el precio va entre asteriscos). En la sección de homenajes Tato no aparece, por respeto al tema.
 - `/inicio/` tiene caché larga: si cambias una foto, una pose o un cuadro del video, súbelo con otro nombre.
 - La portada no lleva la lista de empresas que trabajaron con Tato («Han trabajado conmigo»): Tato decidió quitarla.
