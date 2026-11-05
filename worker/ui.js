@@ -46,7 +46,9 @@ export function html(body, status = 200) {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'no-store',
       'X-Robots-Tag': 'noindex, nofollow',
-      'Referrer-Policy': 'no-referrer',
+      // same-origin: no filtra las rutas del panel a otras webs, y el navegador sigue mandando Origin en los formularios
+      // (con no-referrer manda «Origin: null» y el panel rechaza sus propios botones).
+      'Referrer-Policy': 'same-origin',
     },
   });
 }

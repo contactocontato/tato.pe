@@ -3,6 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { rucValido, normalizarSunat, clasificar, handleRegistro, handleDecidir, revisarRucs } from './negocios.js';
+import { html } from './ui.js';
 
 class KVFalso {
   constructor() { this.m = new Map(); }
@@ -204,4 +205,9 @@ test('revisión diaria: si su RUC deja de estar habido, se pausa', async () => {
   const out = await revisarRucs(env);
   assert.deepEqual(out, { revisados: 1, pausados: 1 });
   assert.equal((await env.NEGOCIOS_KV.get(`negocio:${RUC.cevicheria}`, 'json')).semaforo, 'pausado');
+});
+
+test('panel: la política de referrer deja que el navegador mande Origin en los formularios', () => {
+  // Con «no-referrer», Chrome manda «Origin: null» en los POST y el panel rechazaba sus propios botones.
+  assert.notEqual(html('x').headers.get('Referrer-Policy'), 'no-referrer');
 });
