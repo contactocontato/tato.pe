@@ -1,7 +1,7 @@
 # tato.pe — notas para Claude Code
 
 Web de Tato Studio en Astro 7 + Tailwind 4. Comandos, estructura y deploy están en `README.md`.
-Se publica como el Worker `tato-pe` de Cloudflare: lo que llega a `main` se publica solo en tato.pe. El panel privado de TikTok (`/panel/tiktok/`) y su conexión viven en `worker/index.js`; cómo funciona está en `README.md`, sección «Cloudflare Worker y panel de TikTok». Nunca pongas secretos ni tokens en el repo.
+Se publica como el Worker `tato-pe` de Cloudflare: lo que llega a `main` se publica solo en tato.pe. El panel privado de TikTok (`/panel/tiktok/`) y su conexión viven en `worker/index.js`; cómo funciona está en `README.md`, sección «Cloudflare Worker y panel de TikTok». El registro de negocios y su panel (`/panel/negocios/`) viven en `worker/negocios.js` (ver «Influencers» más abajo). Nunca pongas secretos ni tokens en el repo.
 
 ## Portada
 
@@ -49,3 +49,19 @@ Cuando Tato pida "publica esta noticia" (o una nota de prompts, herramientas o p
 ## Categorías
 
 Cada categoría usa uno de los cuatro colores de la marca (noticias azul, prompts rojo, herramientas amarillo, personajes verde) en su bloque, sus tarjetas y el encabezado de sus notas. Para agregar o renombrar una, edita `src/lib/blog.ts` (id, nombre, color y frase de presentación). Sobre el rojo y el azul el texto tiene que ir grande (19 px o más) para que se lea bien. En la fila de categorías solo aparecen las que tienen notas, y la página `/blog/categoria/<id>` se crea sola con la primera nota.
+
+## Influencers
+
+Catálogo en `/influencers/`. Cada influencer con convenio tiene una ficha en `src/content/influencers/<id>.md`. El id es su URL (`tato.pe/influencers/<id>/`): minúsculas, sin tildes ni ñ, con guiones. `ejemplo-tato.md` es una ficha de ejemplo en borrador (nunca se publica): cópiala y cambia todos los datos.
+
+- Agrega a alguien solo cuando Tato confirme que firmó el convenio. El repo es público: el convenio, el DNI, el teléfono y lo que gana cada influencer no van aquí. En la ficha va solo lo que se muestra en la web.
+- Qué significa cada campo: `src/content.config.ts`. Si un texto lleva `#` o dos puntos, va entre comillas; si no, el texto se corta o la web no compila.
+- La foto (vertical 4:5, aprobada por el influencer) y los videos de muestra van en `public/influencers/<id>/`. Las muestras son videos hechos con IA que el influencer aprobó; nada con personajes de la TV.
+- No inventes seguidores, precios, fechas ni temas que no acepta: pídeselos a Tato. `cifrasAl` es el día en que se contaron los seguidores. Un paquete sin `precio` sale «A cotizar».
+- `borrador: true` solo se ve con `npm run dev`. `activo: false` lo saca de la web (convenio pausado). Con `convenioHasta`, la ficha deja de publicarse cuando vence, y si vence entre una publicación y otra, su página deja de tomar pedidos ese mismo día. Para sacar a alguien al toque: `activo: false` y publicar.
+- El link «Influencers» de la portada y el botón del catálogo en su tarjeta aparecen solos cuando hay al menos un influencer publicado.
+- Estas páginas usan `src/layouts/Studio.astro` y `src/styles/studio.css`, que repite los colores de la portada (`--fucsia` y los demás): si cambian en `index.astro`, cámbialos también ahí. Mismos colores que la portada: fucsia, negro y blanco, sin rojo.
+
+### Registro de negocios
+
+`/influencers/registro/` verifica cada negocio solo, con su RUC (`worker/negocios.js`): verde (recibe su código `TS-XXXXX`), amarillo (Tato lo revisa en `/panel/negocios/`) o rojo (no entra). Las reglas (rubros, actividades de SUNAT que no entran o piden permisos, palabras que mandan a revisión) están en `src/data/negocios.json`, que comparten el formulario y el Worker. Si cambias las reglas o el Worker, corre `npm test`. Si cambian los datos que se piden, actualiza también `src/pages/privacidad.astro`. Secretos y detalles: `README.md`, sección «Influencers y registro de negocios».

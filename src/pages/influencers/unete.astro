@@ -1,0 +1,42 @@
+---
+// Para influencers que quieren sumarse al convenio. Por ahora el contacto es por WhatsApp.
+import Studio from '../../layouts/Studio.astro';
+import { site } from '../../lib/site';
+const wa = `https://wa.me/${site.whatsappNumber}?text=${encodeURIComponent('Hola Tato, soy influencer y quiero saber más del convenio.')}`;
+---
+<Studio title="Súmate como influencer · Tato Studio" description="Tu imagen en videos con IA para negocios verificados del Perú. Tú apruebas cada guion y el ingreso es para ti." actual="influencers">
+  <section class="ihero">
+    <div class="wrap">
+      <p class="migas" style="padding-top:0;margin-bottom:24px"><a href="/influencers/">Influencers</a> / Súmate</p>
+      <h1 class="h1">Tu imagen trabaja, <span class="fx">tú decides</span></h1>
+      <p class="lead">Soy tu mánager: con IA produzco videos para negocios pequeños del Perú con tu imagen y tu estilo, sin que tengas que grabar. El ingreso es para ti y yo cobro un porcentaje por la producción.</p>
+      <div class="actions"><a class="btn btn--fucsia" href={wa} target="_blank" rel="noopener">Quiero sumarme</a></div>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="cuidado-t" style="padding-top:0">
+    <div class="wrap">
+      <h2 class="h2" id="cuidado-t">Cómo te <span class="fx">cuidamos</span></h2>
+      <ol class="pasos">
+        <li><b>Firmas un convenio</b>Dice para qué se usa tu imagen, por cuánto tiempo y cómo salirte.</li>
+        <li><b>Solo negocios verificados</b>Cada negocio pasa por su RUC en SUNAT y por la lista de rubros que no entran.</li>
+        <li><b>Tú eliges qué no aceptas</b>Lo que pongas en tu lista de «no acepto» no llega a ti.</li>
+        <li><b>Apruebas cada guion</b>Sin tu visto bueno no se produce nada.</li>
+        <li><b>Todo va etiquetado</b>Con #Publicidad y con la etiqueta de que está hecho con IA.</li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="sec dark" aria-labelledby="perfil-t">
+    <div class="wrap">
+      <h2 class="h2" id="perfil-t">Lo que va en <span class="fx">tu perfil</span></h2>
+      <p class="lead">Así te ven los negocios en el catálogo de tato.pe. Tú apruebas tu perfil antes de que salga.</p>
+      <div class="reglas">
+        <div class="regla"><h3>Quién eres</h3><ul><li>Tu nombre y tu @</li><li>Una foto que tú elijas</li><li>Tu estilo, en tus palabras</li><li>Tus redes y tus seguidores, con la fecha en que se contaron</li></ul></div>
+        <div class="regla"><h3>Cómo trabajas</h3><ul><li>Con qué negocios encajas</li><li>Lo que no aceptas</li><li>Tus paquetes, precios y tiempos</li><li>Dónde y por cuánto tiempo puede usar el video el negocio</li></ul></div>
+        <div class="regla"><h3>Tus muestras</h3><ul><li>2 o 3 videos hechos con IA con tu imagen</li><li>Aprobados por ti antes de publicarse</li><li>Rotulados como hechos con IA</li></ul></div>
+      </div>
+      <div class="actions"><a class="btn btn--fucsia" href={wa} target="_blank" rel="noopener">Escríbeme por WhatsApp</a></div>
+    </div>
+  </section>
+</Studio>

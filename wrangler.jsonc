@@ -13,9 +13,9 @@
     // Solo estas rutas pasan por worker/index.js; el resto de la web se sirve directo.
     "run_worker_first": ["/api/*", "/panel/*"]
   },
-  // Tokens de TikTok. Sin "id": wrangler crea el namespace solo en el primer deploy.
-  "kv_namespaces": [{ "binding": "TIKTOK_KV" }],
-  // Renueva el token de TikTok todos los días (09:17 UTC = 04:17 en Lima).
+  // Tokens de TikTok y registros de negocios. Sin "id": wrangler crea cada namespace solo en el primer deploy.
+  "kv_namespaces": [{ "binding": "TIKTOK_KV" }, { "binding": "NEGOCIOS_KV" }],
+  // Todos los días (09:17 UTC = 04:17 en Lima): renueva el token de TikTok y revisa el RUC de los negocios verificados.
   "triggers": { "crons": ["17 9 * * *"] },
   "observability": { "enabled": true }
 }

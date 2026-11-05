@@ -1,0 +1,51 @@
+{
+  "_nota": "Reglas para verificar a los negocios que piden videos con influencers. Las usan el formulario de /influencers/registro/ y el Worker (worker/negocios.js). nivel: permitido (pasa si su RUC está bien), permiso (se le piden sus permisos), revisar (lo revisa Tato).",
+  "rubros": [
+    { "id": "restaurante", "nombre": "Restaurante, cafetería o comida", "nivel": "permitido" },
+    { "id": "tienda", "nombre": "Tienda o comercio", "nivel": "permitido" },
+    { "id": "hospedaje", "nombre": "Hotel u hospedaje", "nivel": "permitido" },
+    { "id": "turismo", "nombre": "Turismo y viajes", "nivel": "permitido" },
+    { "id": "servicios", "nombre": "Servicios: talleres, oficinas, profesionales", "nivel": "permitido" },
+    { "id": "gimnasio", "nombre": "Gimnasio o deporte", "nivel": "permitido" },
+    { "id": "tecnologia", "nombre": "Tecnología o apps", "nivel": "permitido" },
+    { "id": "eventos", "nombre": "Eventos y entretenimiento", "nivel": "permitido" },
+    { "id": "transporte", "nombre": "Transporte", "nivel": "permitido" },
+    { "id": "belleza", "nombre": "Belleza y estética", "nivel": "permiso", "pide": "tu licencia municipal y, si haces tratamientos, tu autorización sanitaria" },
+    { "id": "salud", "nombre": "Salud: clínica, consultorio o farmacia", "nivel": "permiso", "pide": "la autorización de tu establecimiento de salud" },
+    { "id": "educacion", "nombre": "Educación: academia, colegio o cursos", "nivel": "permiso", "pide": "la autorización o licencia de tu centro" },
+    { "id": "inmobiliaria", "nombre": "Inmobiliaria o construcción", "nivel": "permiso", "pide": "la licencia o habilitación del proyecto que vas a promocionar" },
+    { "id": "alimentos", "nombre": "Alimentos o bebidas envasados", "nivel": "permiso", "pide": "el registro sanitario del producto" },
+    { "id": "alcohol", "nombre": "Bebidas alcohólicas, bar o discoteca", "nivel": "permiso", "pide": "tu licencia y, si vendes bebidas envasadas, su registro sanitario" },
+    { "id": "suplementos", "nombre": "Suplementos o productos naturales", "nivel": "permiso", "pide": "el registro sanitario del producto" },
+    { "id": "finanzas", "nombre": "Servicios financieros o préstamos", "nivel": "permiso", "pide": "tu autorización o registro en la SBS" },
+    { "id": "otro", "nombre": "Otro", "nivel": "revisar" }
+  ],
+  "_actividades": "Textos que pueden salir en la actividad económica del RUC (en mayúsculas y sin tildes). no_entra: se rechaza. pide_permiso: se le piden sus permisos aunque haya elegido otro rubro.",
+  "actividades": {
+    "no_entra": [
+      { "motivo": "apuestas o juegos de azar", "textos": ["JUEGOS DE AZAR", "APUESTAS"] },
+      { "motivo": "política", "textos": ["ORGANIZACIONES POLITICAS"] },
+      { "motivo": "armas", "textos": ["FABRICACION DE ARMAS", "ARMAS Y MUNICIONES"] },
+      { "motivo": "tabaco", "textos": ["PRODUCTOS DE TABACO"] }
+    ],
+    "pide_permiso": [
+      { "rubro": "alcohol", "textos": ["BEBIDAS ALCOHOLICAS", "BEBIDAS MALTEADAS", "ELABORACION DE VINOS", "DESTILACION"] },
+      { "rubro": "salud", "textos": ["FARMACEUTIC", "MEDICAMENTOS", "HOSPITAL", "ACTIVIDADES DE MEDICOS", "ODONTOLOG", "SALUD HUMANA"] },
+      { "rubro": "educacion", "textos": ["ENSENANZA"] },
+      { "rubro": "inmobiliaria", "textos": ["INMOBILIARIA", "CONSTRUCCION DE EDIFICIOS"] },
+      { "rubro": "finanzas", "textos": ["SERVICIOS FINANCIEROS", "INTERMEDIACION MONETARIA", "CREDITO", "PRESTAMO"] },
+      { "rubro": "alimentos", "textos": ["ELABORACION DE PRODUCTOS ALIMENTICIOS", "ELABORACION DE BEBIDAS"] }
+    ]
+  },
+  "_palabras": "Palabras en lo que el negocio dice que va a promocionar. Si aparecen, la solicitud no se rechaza sola: pasa a revisión con el motivo, porque una palabra suelta puede ser un falso aviso (un restaurante «El Milagro»).",
+  "palabras": [
+    { "motivo": "apuestas o juegos de azar", "textos": ["apuesta", "apuestas", "casino", "tragamonedas", "ruleta", "bingo", "loteria", "pronosticos deportivos"] },
+    { "motivo": "inversiones o criptomonedas que prometen ganancias", "textos": ["cripto", "criptomoneda", "criptomonedas", "bitcoin", "forex", "trading", "duplica tu dinero", "multiplica tu dinero", "rentabilidad garantizada", "ganancias garantizadas", "invierte y gana"] },
+    { "motivo": "préstamos informales", "textos": ["gota a gota", "prestamo sin garantia", "prestamos sin garantia", "presta diario"] },
+    { "motivo": "política o campañas electorales", "textos": ["partido politico", "candidato", "candidata", "campana electoral", "elecciones", "vota por", "alcaldia", "congresista", "gobernador regional"] },
+    { "motivo": "armas", "textos": ["armas", "arma de fuego", "municiones", "pistola", "revolver"] },
+    { "motivo": "tabaco o vapeadores", "textos": ["cigarro", "cigarros", "cigarrillo", "cigarrillos", "tabaco", "vape", "vapeador", "vapeadores", "vaper"] },
+    { "motivo": "contenido para adultos", "textos": ["contenido adulto", "sex shop", "erotico", "erotica", "onlyfans", "acompanantes"] },
+    { "motivo": "productos milagro", "textos": ["milagro", "milagroso", "cura el cancer", "cura la diabetes", "cura todo", "bajar de peso rapido", "adelgaza en", "sin dieta ni ejercicio", "baja de peso en"] }
+  ]
+}

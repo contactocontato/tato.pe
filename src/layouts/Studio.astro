@@ -1,0 +1,78 @@
+---
+// Marco de las páginas de Tato Studio fuera de la portada (por ahora, /influencers/):
+// cabecera con el logo, pie y la misma identidad que la portada. Estilos en src/styles/studio.css.
+import '../styles/studio.css';
+import { site } from '../lib/site';
+
+interface Props {
+  title: string;
+  description: string;
+  image?: string;
+  /** Qué link del menú va marcado. */
+  actual?: 'influencers';
+  /** Para páginas que no deben salir en Google, como el formulario de registro. */
+  noindex?: boolean;
+}
+const { title, description, image = '/poster/transformacion.jpg', actual, noindex = false } = Astro.props;
+const canonical = new URL(Astro.url.pathname, Astro.site ?? site.url);
+const wa = `https://wa.me/${site.whatsappNumber}`;
+---
+<!doctype html>
+<html lang="es-PE">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{title}</title>
+<meta name="description" content={description}>
+<link rel="canonical" href={canonical}>
+{noindex && <meta name="robots" content="noindex">}
+<meta name="theme-color" content="#E9E4DD">
+<meta property="og:title" content={title}>
+<meta property="og:description" content={description}>
+<meta property="og:image" content={new URL(image, canonical)}>
+<meta property="og:type" content="website">
+<meta property="og:locale" content="es_PE">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="sitemap" href="/sitemap-index.xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<meta name="generator" content={Astro.generator}>
+</head>
+<body>
+<div class="grain" aria-hidden="true"></div>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="/"><img src="/inicio/logo-tato-cabecera.webp" width="180" height="180" alt="Tato Studio"></a>
+    <nav aria-label="Principal">
+      <a href="/#oficina">Servicios</a>
+      <a href="/influencers/" aria-current={actual === 'influencers' ? 'page' : undefined}>Influencers</a>
+      <a href="/#videos">Videos</a>
+      <a href="/#pedido">Precios</a>
+      <a href="/#sobre-mi">Sobre mí</a>
+      <a href="/blog/">Blog</a>
+      <a href="/recarga/">Recarga</a>
+    </nav>
+    <a class="btn btn--fucsia" href={`${wa}?text=${encodeURIComponent('Hola Tato, vi tu web y quiero conversar.')}`} target="_blank" rel="noopener">Escríbeme</a>
+  </div>
+</header>
+
+<main>
+  <slot />
+</main>
+
+<footer>
+  <div class="wrap">
+    <p class="foot__mark" aria-hidden="true">Tato <span>Studio</span></p>
+    <div class="foot__grid">
+      <div><h2>Escríbeme</h2><ul><li><a href={wa} target="_blank" rel="noopener">WhatsApp +51 961 662 512</a></li><li>{site.email}</li></ul></div>
+      <div><h2>Influencers</h2><ul><li><a href="/influencers/">Catálogo</a></li><li><a href="/influencers/registro/">Registra tu negocio</a></li><li><a href="/influencers/unete/">Súmate como influencer</a></li></ul></div>
+      <div><h2>Sígueme</h2><ul><li><a href={site.tiktok} target="_blank" rel="noopener">TikTok</a></li><li><a href={site.instagram} target="_blank" rel="noopener">Instagram</a></li><li><a href={site.facebook} target="_blank" rel="noopener">Facebook</a></li></ul></div>
+      <div><h2>Más en tato.pe</h2><ul><li><a href="/">Inicio</a></li><li><a href="/blog/">Blog</a></li><li><a href="/terminos/">Términos</a></li><li><a href="/privacidad/">Privacidad</a></li></ul></div>
+    </div>
+    <p class="foot__legal">Hecho en Huaraz, Perú. Los videos de los influencers están hechos con IA, con su permiso, y cada uno aprueba sus guiones.</p>
+  </div>
+</footer>
+</body>
+</html>
