@@ -11,11 +11,16 @@
     "html_handling": "auto-trailing-slash",
     "not_found_handling": "none",
     // Solo estas rutas pasan por worker/index.js; el resto de la web se sirve directo.
-    "run_worker_first": ["/api/*", "/panel/*"]
+    "run_worker_first": ["/api/*", "/panel/*", "/cuenta", "/cuenta/*"]
   },
-  // Tokens de TikTok y registros de negocios. Sin "id": wrangler crea cada namespace solo en el primer deploy.
-  "kv_namespaces": [{ "binding": "TIKTOK_KV" }, { "binding": "NEGOCIOS_KV" }],
-  // Todos los días (09:17 UTC = 04:17 en Lima): renueva el token de TikTok y revisa el RUC de los negocios verificados.
+  // Tokens de TikTok, registros de negocios y pedidos con cuentas de influencer.
+  // Sin "id": wrangler crea cada namespace solo en el primer deploy.
+  "kv_namespaces": [{ "binding": "TIKTOK_KV" }, { "binding": "NEGOCIOS_KV" }, { "binding": "PEDIDOS_KV" }],
+  // Fotos y voz de la identidad de cada influencer, y sus actuaciones del guion. Bucket privado: nunca lo hagas público.
+  // Sin nombre: wrangler lo crea solo en el primer deploy, pero R2 tiene que estar activado en la cuenta de Cloudflare.
+  "r2_buckets": [{ "binding": "MEDIOS" }],
+  // Todos los días (09:17 UTC = 04:17 en Lima): renueva el token de TikTok, revisa el RUC de los negocios
+  // verificados y renueva las conexiones de Mercado Pago de los influencers.
   "triggers": { "crons": ["17 9 * * *"] },
   "observability": { "enabled": true }
 }

@@ -228,6 +228,16 @@ main { padding-top: var(--bar); }
 @media (max-width: 860px) { .registro { grid-template-columns: 1fr; } .lado { position: static; } }
 @media (max-width: 520px) { .form { grid-template-columns: 1fr; } }
 
+/* solicitud de un negocio verificado, en el perfil del influencer */
+.solicitud { width: min(640px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); border: 0; border-radius: 20px; padding: clamp(18px, 3vw, 28px); background: var(--paper-2); color: var(--ink); box-shadow: 0 24px 80px rgba(20, 20, 20, .35); }
+.solicitud::backdrop { background: rgba(20, 20, 20, .55); }
+.solicitud__top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.solicitud__x { width: 44px; height: 44px; flex: none; border: 0; border-radius: 999px; background: var(--card); font-size: 26px; line-height: 1; cursor: pointer; }
+.solicitud .form { margin-top: 18px; }
+.solicitud__nota { grid-column: 1 / -1; font-size: 14px; color: var(--ink-soft); }
+.solicitud .resultado { margin-top: 18px; }
+.solicitud__abrir { background: none; border: 0; padding: 0; cursor: pointer; font: inherit; color: inherit; }
+
 /* respuesta del registro */
 .resultado { margin-top: 28px; border-radius: 16px; padding: 24px; display: grid; gap: 10px; border: 1px solid var(--card-line); background: var(--card); }
 .resultado[hidden] { display: none; }

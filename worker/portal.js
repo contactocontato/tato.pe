@@ -1,0 +1,162 @@
+// Piezas compartidas de la cuenta del influencer (/cuenta/): la página con los colores de la marca,
+// los mensajes cortos que se muestran después de cada acción y las respuestas HTML.
+
+import { esc } from './ui.js';
+import { SCRIPT_CLAVE } from './seguridad.js';
+import { SCRIPT_MEDIOS } from './medios.js';
+
+export const WHATSAPP_TATO = '51961662512'; // el mismo de src/lib/site.ts
+
+export const MENSAJES = {
+  clave: 'El ID o la contraseña no coinciden.',
+  espera: 'Probaste muchas veces. Espera 15 minutos o pídele a Tato una contraseña nueva.',
+  pausada: 'Tu cuenta está pausada. Escríbele a Tato.',
+  sesion: 'Tu sesión se cerró. Vuelve a entrar.',
+  origen: 'No pudimos confirmar que el envío venga de tato.pe. Recarga la página.',
+  'clave-ok': 'Listo: tu contraseña nueva quedó guardada.',
+  'clave-mal': 'La contraseña actual no es correcta.',
+  aceptado: 'Aceptaste el pedido.',
+  rechazado: 'Listo: no aceptaste el pedido.',
+  'guion-ok': 'Aprobaste el guion. Tato empieza a producir.',
+  'guion-cambios': 'Le mandamos tus cambios a Tato.',
+  'video-ok': 'Aprobaste el video.',
+  'video-cambios': 'Le mandamos tus cambios a Tato.',
+  'pausa-on': 'Pausaste tus pedidos: los negocios no pueden enviarte solicitudes nuevas.',
+  'pausa-off': 'Listo: vuelves a recibir solicitudes.',
+  'mp-ok': 'Conectaste tu Mercado Pago.',
+  'mp-quitado': 'Quitaste la conexión con tu Mercado Pago.',
+  'mp-error': 'No se pudo conectar tu Mercado Pago. Inténtalo otra vez en unos minutos.',
+  'mp-no': 'La conexión con Mercado Pago todavía no está disponible.',
+  'identidad-enviada': 'Listo: le mandamos tus fotos y tu voz a Tato. Te avisa cuando las revise.',
+  'identidad-borrada': 'Borramos tus fotos y tu voz. Tato también borra tu hoja de personaje y tu voz clonada.',
+};
+
+export const fecha = (s, conHora = false) =>
+  s ? new Date(s).toLocaleString('es-PE', { timeZone: 'America/Lima', day: 'numeric', month: 'short', year: 'numeric', ...(conHora ? { hour: 'numeric', minute: '2-digit' } : {}) }) : '';
+export const fechaDia = (s) => (s ? new Date(`${s}T12:00:00-05:00`).toLocaleDateString('es-PE', { timeZone: 'America/Lima', day: 'numeric', month: 'long', year: 'numeric' }) : '');
+export const multilinea = (s) => esc(s).replace(/\n/g, '<br>');
+
+export function pagina({ titulo, cuerpo, cuenta = null, aviso = '', error = '' }) {
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow">
+<title>${esc(titulo)} · Tato Studio</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#E9E4DD;--card:#F4F1EC;--line:#D3CCC1;--ink:#141414;--soft:#5B5B57;--fucsia:#E2037E;--fucsia-press:#C4036D;--fucsia-tinta:#B50265;--ok:#17602F;--ok-bg:#E3F1E6;--wait:#7A5600;--wait-bg:#FBF0CF;--sans:"Archivo","Helvetica Neue",Arial,sans-serif;--mono:"DM Mono",ui-monospace,Menlo,monospace}
+*{box-sizing:border-box}
+[hidden]{display:none !important}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 17px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--fucsia);outline-offset:3px}
+.top{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px clamp(16px,4vw,32px);background:rgba(233,228,221,.94);border-bottom:1px solid var(--line)}
+.top a.logo img{height:38px;width:auto;display:block}
+.top .quien{display:flex;align-items:center;gap:12px;font:500 13px/1.2 var(--mono);color:var(--soft)}
+.top button{background:none;border:0;padding:6px 0;font:500 13px/1.2 var(--mono);color:var(--ink);text-decoration:underline;cursor:pointer}
+main{max-width:760px;margin:0 auto;padding:24px clamp(16px,4vw,32px) 72px}
+main.angosto{max-width:480px}
+h1{font-weight:900;font-stretch:112%;font-size:clamp(2.1rem,1.5rem+3vw,3.1rem);line-height:.95;letter-spacing:-.025em;margin:12px 0 8px;text-wrap:balance}
+h2{font-weight:800;font-stretch:110%;font-size:1.3rem;letter-spacing:-.01em;margin:36px 0 12px}
+h3{font-size:1.05rem;margin:0 0 8px}
+.fx{color:var(--fucsia)}
+.sub{color:var(--soft);margin:0;max-width:56ch}
+.mono{font-family:var(--mono)}
+.aviso{padding:12px 14px;border-radius:12px;margin:16px 0;background:var(--ok-bg);color:var(--ok);font-weight:600}
+.aviso.err{background:#F3E1EA;color:#7A0A45}
+.aviso.ojo{background:var(--wait-bg);color:var(--wait)}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:20px 0 0}
+.tiles div{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.tiles b{display:block;font:500 clamp(1.15rem,1rem+1vw,1.5rem)/1.15 var(--mono)}
+.tiles span{font-size:13px;color:var(--soft)}
+.lista{list-style:none;padding:0;margin:0;display:grid;gap:10px}
+.ped{display:grid;gap:5px;text-decoration:none;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.ped:hover{border-color:var(--ink)}
+.ped.toca{border-left:6px solid var(--fucsia)}
+.ped b{font-size:1.05rem}
+.ped .meta{font:400 13px/1.4 var(--mono);color:var(--soft)}
+.chip{justify-self:start;font:500 12px/1 var(--mono);padding:5px 9px;border-radius:999px;background:#DED8CF;color:var(--ink)}
+.chip.toca{background:var(--fucsia);color:#fff}
+.chip.ok{background:var(--ok-bg);color:var(--ok)}
+.vacio{color:var(--soft);background:var(--card);border:1px dashed var(--line);border-radius:14px;padding:16px}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 22px;border-radius:999px;border:0;font:700 16px/1 var(--sans);cursor:pointer;text-decoration:none;background:var(--ink);color:#fff}
+.btn.fucsia{background:var(--fucsia)}.btn.fucsia:hover{background:var(--fucsia-press)}
+.btn.linea{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--ink)}
+.btn[disabled]{opacity:.6;cursor:wait}
+form{margin:0}
+label{display:block;font-weight:600;margin:14px 0 6px}
+input[type=text],input[type=password],textarea{width:100%;padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;background:#fff;font:inherit}
+textarea{min-height:96px;resize:vertical}
+input:focus,textarea:focus{outline:2px solid var(--fucsia);outline-offset:1px;border-color:transparent}
+.acciones{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;align-items:center}
+.caja{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 18px;margin-top:14px}
+.caja.toca{border:2px solid var(--fucsia);background:#fff}
+.caja > :first-child{margin-top:0}
+.guion{white-space:pre-wrap;background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;font-size:16px;margin:10px 0 0}
+.pasos{list-style:none;padding:0;margin:22px 0 0;display:grid;grid-template-columns:repeat(6,1fr);gap:4px}
+.pasos li{font:500 11px/1.2 var(--mono);color:var(--soft);padding-top:8px;border-top:4px solid var(--line)}
+.pasos li.hecho{border-color:var(--ink);color:var(--ink)}
+.pasos li.ahora{border-color:var(--fucsia);color:var(--fucsia-tinta);font-weight:700}
+dl.datos{display:grid;grid-template-columns:minmax(110px,36%) 1fr;gap:6px 14px;margin:0}
+dl.datos dt{color:var(--soft)}dl.datos dd{margin:0;overflow-wrap:anywhere}
+table.plata{width:100%;border-collapse:collapse;font-size:15px}
+table.plata td{padding:8px 0;border-bottom:1px solid var(--line);vertical-align:top}
+table.plata td:last-child{text-align:right;font-family:var(--mono);white-space:nowrap;padding-left:12px}
+table.plata tr.tuyo td{font-weight:700;font-size:17px;border-bottom:0}
+table.pagos{width:100%;border-collapse:collapse;font-size:14px}
+table.pagos th,table.pagos td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}
+table.pagos td.n{text-align:right;font-family:var(--mono);white-space:nowrap}
+.nota{font-size:14px;color:var(--soft);margin-top:8px}
+details summary{cursor:pointer;font-weight:600}
+details ol{padding-left:18px;font-size:14px;color:var(--soft)}
+.volver{display:inline-block;margin-top:4px;font:500 14px/1.2 var(--mono);color:var(--soft)}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.btn.chico{min-height:42px;padding:0 16px;font-size:15px}
+label.btn:focus-within{outline:2px solid var(--fucsia);outline-offset:3px}
+.fotos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.foto{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;display:grid;gap:8px;align-content:start}
+.foto.hecha{border-color:var(--ok);box-shadow:inset 0 0 0 1px var(--ok)}
+.foto.rehacer{border:2px solid var(--fucsia)}
+.foto svg{width:48px;height:64px;fill:none;stroke:var(--soft);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.foto img.vista{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:10px;background:#DED8CF}
+.foto h3{margin:0;font-size:1rem}
+.foto p{margin:0;font-size:14px;color:var(--soft)}
+.progreso{height:6px;background:#DED8CF;border-radius:99px;overflow:hidden}.progreso i{display:block;height:100%;width:0;background:var(--fucsia);transition:width .2s}
+.estado-subida{font-size:14px;color:var(--ok);min-height:1.2em;margin:0}.estado-subida.err{color:#7A0A45}
+.cuento{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 18px;font-size:19px;line-height:1.65;margin-top:12px}
+.cuento h3{font-size:1.15rem}
+.codigo-voz{font:500 17px/1.4 var(--mono);background:var(--wait-bg);color:var(--wait);padding:10px 12px;border-radius:10px;margin:12px 0 0}
+.consejos{font-size:15px;color:var(--soft);padding-left:20px;margin:10px 0}
+.grabadora{display:grid;gap:10px;margin-top:12px}
+.grabadora audio,.actuacion audio,.caja audio{width:100%;margin-top:6px}
+.tiempo{font:500 30px/1 var(--mono);margin:0}
+.nivel{height:10px;background:#DED8CF;border-radius:99px;overflow:hidden}.nivel i{display:block;height:100%;width:0;background:var(--ok);transition:width 80ms linear}
+.check{display:flex;gap:10px;align-items:flex-start;margin:12px 0;font-size:15px;font-weight:400}.check input{width:22px;height:22px;accent-color:var(--fucsia);flex:none;margin-top:1px}
+.faltan{color:#7A0A45;font-size:15px;padding-left:20px}
+.actuacion{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}.actuacion h4{margin:0 0 4px}
+@media (max-width:520px){.tiles{grid-template-columns:1fr 1fr}.tiles div:last-child{grid-column:span 2}.pasos li{font-size:10px}dl.datos{grid-template-columns:1fr}dl.datos dt{margin-top:6px}}
+</style></head><body>
+<header class="top"><a class="logo" href="/cuenta/" aria-label="Tu cuenta en Tato Studio"><img src="/inicio/logo-tato-cabecera.webp" alt="Tato Studio" width="120" height="38"></a>
+${cuenta ? `<div class="quien"><span>${esc(cuenta.nombre)}</span><form method="post" action="/cuenta/salir"><button type="submit">Salir</button></form></div>` : ''}</header>
+<main${cuenta ? '' : ' class="angosto"'}>
+${aviso ? `<p class="aviso" role="status">${esc(aviso)}</p>` : ''}${error ? `<p class="aviso err" role="alert">${esc(error)}</p>` : ''}
+${cuerpo}
+</main>
+${SCRIPT_CLAVE}
+${SCRIPT_MEDIOS}
+</body></html>`;
+}
+
+export const respuesta = (htmlTexto, status = 200, extra = {}) =>
+  new Response(htmlTexto, {
+    status,
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'X-Robots-Tag': 'noindex, nofollow',
+      'Referrer-Policy': 'same-origin',
+      'X-Frame-Options': 'DENY',
+      ...extra,
+    },
+  });
+export const ir = (url, cookie) => new Response(null, { status: 303, headers: { Location: url, 'Cache-Control': 'no-store', ...(cookie ? { 'Set-Cookie': cookie } : {}) } });

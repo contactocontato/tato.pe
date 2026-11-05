@@ -137,7 +137,7 @@ import { site } from '../../lib/site';
         error.textContent = r.error || 'Algo falló. Inténtalo de nuevo en un rato.';
         return;
       }
-      mostrar(r);
+      mostrar(r, body.ruc);
     } catch (e) {
       error.hidden = false;
       error.textContent = 'No hay conexión con el servidor. Revisa tu internet e inténtalo de nuevo.';
@@ -147,12 +147,12 @@ import { site } from '../../lib/site';
     }
   });
 
-  function mostrar(r: { semaforo: string; codigo?: string; razonSocial?: string; mensaje: string; motivos?: string[] }) {
+  function mostrar(r: { semaforo: string; codigo?: string; razonSocial?: string; mensaje: string; motivos?: string[] }, ruc: string) {
     const titulos: Record<string, string> = { verde: 'Tu negocio está verificado', amarillo: 'Lo revisamos y te escribimos', rojo: 'No podemos tomar tu pedido' };
     let extra = '';
     if (r.semaforo === 'verde' && r.codigo) {
-      try { localStorage.setItem('tato-negocio', JSON.stringify({ codigo: r.codigo, razonSocial: r.razonSocial || '' })); } catch (e) { /* sin almacenamiento: igual tiene el código en pantalla */ }
-      extra = `<p class="codigo">${esc(r.codigo)}</p><p>Guárdalo: lo mencionas al pedir por WhatsApp.</p>`
+      try { localStorage.setItem('tato-negocio', JSON.stringify({ codigo: r.codigo, razonSocial: r.razonSocial || '', ruc })); } catch (e) { /* sin almacenamiento: igual tiene el código en pantalla */ }
+      extra = `<p class="codigo">${esc(r.codigo)}</p><p>Guárdalo junto con tu RUC: con los dos pides videos desde el perfil de cada influencer.</p>`
         + (para ? `<a class="btn btn--fucsia" href="/influencers/${esc(para)}/">Seguir con tu pedido</a>` : '<a class="btn btn--fucsia" href="/influencers/">Ver los influencers</a>');
     }
     const motivos = (r.motivos || []).length ? `<ul>${(r.motivos || []).map((m) => `<li>${esc(m)}</li>`).join('')}</ul>` : '';

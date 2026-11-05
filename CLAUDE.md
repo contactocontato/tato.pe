@@ -65,3 +65,12 @@ Catálogo en `/influencers/`. Cada influencer con convenio tiene una ficha en `s
 ### Registro de negocios
 
 `/influencers/registro/` verifica cada negocio solo, con su RUC (`worker/negocios.js`): verde (recibe su código `TS-XXXXX`), amarillo (Tato lo revisa en `/panel/negocios/`) o rojo (no entra). Las reglas (rubros, actividades de SUNAT que no entran o piden permisos, palabras que mandan a revisión) están en `src/data/negocios.json`, que comparten el formulario y el Worker. Si cambias las reglas o el Worker, corre `npm test`. Si cambian los datos que se piden, actualiza también `src/pages/privacidad.astro`. Secretos y detalles: `README.md`, sección «Influencers y registro de negocios».
+
+### Cuentas, pedidos y pagos
+
+- El influencer entra en `/cuenta/` (`worker/cuenta.js`). Tato crea cada cuenta en `/panel/influencers/`, nunca desde código. Las contraseñas se cifran primero en el navegador (`SCRIPT_CLAVE` en `worker/seguridad.js`): no cambies ese cálculo, porque nadie podría volver a entrar.
+- Pasos y reparto de cada pedido: `worker/pedidos.js` (adelanto = producción, para Tato; saldo menos la comisión de Mercado Pago, dividido según el porcentaje). Mercado Pago: `worker/mercadopago.js`.
+- El porcentaje de Tato, los costos de producción y la comisión de Mercado Pago se configuran en el panel (`/panel/ajustes/` y `/panel/influencers/`). No los pongas en el repo: es público.
+- `src/pages/influencers/datos.json.ts` publica los paquetes y precios que el Worker usa para armar cada pedido.
+- Fotos y voz del influencer (`worker/identidad.js`) y actuaciones del guion: son datos biométricos. Viven solo en el bucket privado R2 (`MEDIOS`): nunca los subas al repo, no los copies a `public/` ni hagas público el bucket. Si cambias el texto de la autorización (`CONSENTIMIENTO`), cambia también su `version`.
+- Si cambias pedidos, cuentas o pagos, corre `npm test`. Si cambian los datos que se guardan, actualiza `src/pages/privacidad.astro`.

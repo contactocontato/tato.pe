@@ -161,6 +161,11 @@ const contiene = (texto, frase) => {
 };
 const mayus = (s) => normalizar(s).toUpperCase();
 
+/** Los temas de `palabras` que menciona un texto (por ejemplo, lo que un negocio quiere promocionar en un pedido). */
+export function palabrasSospechosas(texto) {
+  return reglas.palabras.filter((g) => g.textos.some((x) => contiene(texto, x))).map((g) => g.motivo);
+}
+
 /**
  * Decide el semáforo de una solicitud.
  *   verde:    RUC activo y habido, rubro permitido y nada raro en lo que va a promocionar.
