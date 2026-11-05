@@ -1,0 +1,38 @@
+---
+// A esta página vuelve el negocio después de pagar en Mercado Pago (back_urls de worker/mercadopago.js).
+// El pago se confirma aparte, con el aviso de Mercado Pago al Worker: esta página solo informa.
+import Studio from '../../layouts/Studio.astro';
+import { site } from '../../lib/site';
+---
+<Studio title="Tu pago · Influencers · Tato Studio" description="Estado de tu pago de un video con influencers." actual="influencers" noindex>
+  <div class="wrap">
+    <p class="migas"><a href="/influencers/">Influencers</a> / Pago</p>
+    <div class="resultado resultado--verde" id="pago" style="max-width:640px">
+      <h1 class="h3" id="pago-t">Recibimos tu pago</h1>
+      <p id="pago-p">Te escribimos por WhatsApp con el siguiente paso.</p>
+      <p class="codigo" id="pago-n" hidden></p>
+      <a class="btn btn--fucsia" id="pago-wa" href={`https://wa.me/${site.whatsappNumber}`} target="_blank" rel="noopener">Escríbenos por WhatsApp</a>
+    </div>
+  </div>
+</Studio>
+
+<script define:vars={{ wa: site.whatsappNumber }}>
+  const q = new URLSearchParams(location.search);
+  const estado = q.get('estado') || (q.get('status') === 'approved' ? 'ok' : q.get('status') === 'pending' || q.get('status') === 'in_process' ? 'pendiente' : q.get('status') ? 'error' : 'ok');
+  const pedido = /^P-[A-Z2-9]{6}$/.test(q.get('pedido') || '') ? q.get('pedido') : '';
+  const textos = {
+    ok: ['Recibimos tu pago', 'Gracias. Te escribimos por WhatsApp con el siguiente paso.', 'verde'],
+    pendiente: ['Tu pago está pendiente', 'Cuando Mercado Pago lo confirme, seguimos con tu pedido y te avisamos por WhatsApp.', 'amarillo'],
+    error: ['El pago no se completó', 'No se cobró nada. Puedes intentarlo de nuevo con el mismo link o escribirnos por WhatsApp.', 'rojo'],
+  };
+  const [titulo, texto, clase] = textos[estado] || textos.ok;
+  document.getElementById('pago').className = `resultado resultado--${clase}`;
+  document.getElementById('pago-t').textContent = titulo;
+  document.getElementById('pago-p').textContent = texto;
+  if (pedido) {
+    const n = document.getElementById('pago-n');
+    n.textContent = pedido;
+    n.hidden = false;
+    document.getElementById('pago-wa').href = `https://wa.me/${wa}?text=${encodeURIComponent(`Hola Tato, te escribo por el pago del pedido ${pedido}.`)}`;
+  }
+</script>

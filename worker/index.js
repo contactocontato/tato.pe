@@ -6,6 +6,14 @@
 //   /api/negocios/registro     el negocio se registra con su RUC (POST)
 //   /panel/negocios/           panel privado con los registros
 //
+// Pedidos, cuentas de influencer y pagos: ver worker/pedidos.js, worker/cuenta.js y worker/mercadopago.js
+//   /api/pedidos                     un negocio verificado le pide un video a un influencer (POST)
+//   /api/influencers/<id>/estado     si el influencer está tomando pedidos
+//   /api/mp/conectado                vuelta de Mercado Pago al conectar la cuenta de un influencer
+//   /api/mp/webhook                  avisos de pago de Mercado Pago (POST)
+//   /cuenta/                         cuenta del influencer (entra con su ID y contraseña)
+//   /panel/pedidos/, /panel/influencers/, /panel/ajustes/   panel privado de Tato
+//
 // Conexión con TikTok (app «Tatostudio», Login Kit + Display API):
 //   /panel/tiktok/            panel privado con las cifras de los videos (pide contraseña)
 //   /panel/tiktok/conectar    inicia el permiso en TikTok
@@ -19,6 +27,9 @@
 
 import { page, html, json, esc } from './ui.js';
 import { handleRegistro, handlePanelNegocios, handleDecidir, revisarRucs } from './negocios.js';
+import { handlePedidoNuevo, handleEstadoInfluencer, handleWebhook, renovarConexiones } from './pedidos.js';
+import { handleCuenta, handleMpConectado } from './cuenta.js';
+import { handlePanelPedidos, handlePanelPedidoAccion, handlePanelInfluencers, handlePanelInfluencerAccion, handlePanelAjustes } from './panel-pedidos.js';
 
 const REDIRECT_URI = 'https://tato.pe/api/tiktok/callback';
 const SCOPES = 'user.info.basic,video.list';
@@ -40,6 +51,12 @@ export default {
     try {
       if (path === '/api/tiktok/callback') return await handleCallback(request, env, url);
       if (path === '/api/negocios/registro') return await handleRegistro(request, env);
+      if (path === '/api/pedidos') return await handlePedidoNuevo(request, env);
+      const estado = path.match(/^\/api\/influencers\/([a-z0-9-]{1,60})\/estado$/);
+      if (estado) return await handleEstadoInfluencer(env, estado[1]);
+      if (path === '/api/mp/webhook') return request.method === 'POST' ? await handleWebhook(request, env, url) : new Response('ok');
+      if (path === '/api/mp/conectado') return await handleMpConectado(request, env, url);
+      if (path === '/cuenta' || path.startsWith('/cuenta/')) return await handleCuenta(request, env, url, path);
 
       if (path.startsWith('/panel')) {
         const denied = checkPanelAuth(request, env);
@@ -51,19 +68,26 @@ export default {
         if (path === '/panel/tiktok/data.json') return await handleData(env);
         if (path === '/panel/negocios') return await handlePanelNegocios(request, env, url);
         if (path === '/panel/negocios/decidir' && request.method === 'POST') return await handleDecidir(request, env, url);
-        if (path === '/panel') return Response.redirect(`${url.origin}/panel/tiktok/`, 302);
+        if (path === '/panel/pedidos') return await handlePanelPedidos(request, env, url);
+        if (path === '/panel/pedidos/accion' && request.method === 'POST') return await handlePanelPedidoAccion(request, env, url);
+        if (path === '/panel/influencers') return await handlePanelInfluencers(request, env, url);
+        if (path === '/panel/influencers/accion' && request.method === 'POST') return await handlePanelInfluencerAccion(request, env, url);
+        if (path === '/panel/ajustes') return await handlePanelAjustes(request, env, url);
+        if (path === '/panel') return Response.redirect(`${url.origin}/panel/pedidos/`, 302);
       }
 
       return env.ASSETS.fetch(request);
     } catch (err) {
       console.error(err);
-      if (path.startsWith('/api/negocios')) return json({ error: 'Algo falló de nuestro lado. Inténtalo de nuevo en un rato o escríbenos por WhatsApp.' }, 500);
+      if (path.startsWith('/api/mp/webhook')) return new Response('error', { status: 500 }); // Mercado Pago vuelve a avisar
+      if (path.startsWith('/api/')) return json({ error: 'Algo falló de nuestro lado. Inténtalo de nuevo en un rato o escríbenos por WhatsApp.' }, 500);
+      if (path.startsWith('/cuenta')) return html(page('Algo falló', '<p>Algo falló de nuestro lado. Recarga la página en un rato.</p><p><a href="/cuenta/">Volver a tu cuenta</a></p>', false), 500);
       return html(page('Error', `<p class="err">Algo falló: ${esc(err.message || String(err))}</p><p><a href="/panel/tiktok/">Volver al panel</a></p>`), 500);
     }
   },
 
-  // Una vez al día: renueva el token de TikTok para que la conexión no caduque
-  // y vuelve a revisar el RUC de los negocios verificados.
+  // Una vez al día: renueva el token de TikTok para que la conexión no caduque,
+  // vuelve a revisar el RUC de los negocios verificados y renueva las conexiones de Mercado Pago.
   async scheduled(event, env, ctx) {
     env = cleanEnv(env);
     try {
@@ -78,13 +102,19 @@ export default {
     } catch (err) {
       console.error('Negocios: falló la revisión diaria', err);
     }
+    try {
+      const r = await renovarConexiones(env);
+      if (r.renovadas) console.log(`Mercado Pago: ${r.renovadas} conexiones renovadas`);
+    } catch (err) {
+      console.error('Mercado Pago: falló la renovación de conexiones', err);
+    }
   },
 };
 
 // Quita espacios o saltos de línea que se cuelan al copiar y pegar las claves en Cloudflare.
 function cleanEnv(env) {
   const out = Object.create(env);
-  for (const k of ['TIKTOK_CLIENT_KEY', 'TIKTOK_CLIENT_SECRET', 'PANEL_PASSWORD', 'RUC_API_TOKEN', 'RUC_API_URL', 'ANTHROPIC_API_KEY']) {
+  for (const k of ['TIKTOK_CLIENT_KEY', 'TIKTOK_CLIENT_SECRET', 'PANEL_PASSWORD', 'RUC_API_TOKEN', 'RUC_API_URL', 'ANTHROPIC_API_KEY', 'MP_CLIENT_ID', 'MP_CLIENT_SECRET', 'MP_ACCESS_TOKEN', 'MP_WEBHOOK_SECRET']) {
     if (typeof env[k] === 'string') out[k] = env[k].trim();
   }
   return out;

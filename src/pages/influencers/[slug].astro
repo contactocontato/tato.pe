@@ -70,41 +70,154 @@ const fecha = (x: Date) => x.toLocaleDateString('es-PE', { day: 'numeric', month
           </div>
         ))}
       </div>
-      <p class="aviso" data-aviso>Para pedir, primero registra tu negocio: lo verificamos con tu RUC en segundos. Así protegemos a los influencers.</p>
+      <p class="aviso" data-aviso>Para pedir, primero registra tu negocio: lo verificamos con tu RUC en segundos. Así protegemos a los influencers. <button type="button" class="link solicitud__abrir" data-abrir hidden>¿Ya tienes tu código? Pide aquí</button></p>
     </div>
   </section>
+
+  <dialog class="solicitud" id="solicitud" aria-labelledby="solicitud-t">
+    <div class="solicitud__top">
+      <h2 class="h3" id="solicitud-t">Pide tu video con {d.nombre}</h2>
+      <button type="button" class="solicitud__x" data-cerrar aria-label="Cerrar">×</button>
+    </div>
+    <form class="form" id="solicitud-form" novalidate>
+      <div class="field field--full">
+        <label for="s-paquete">Paquete</label>
+        <select id="s-paquete" name="paquete">
+          {d.paquetes.map((p) => <option value={p.nombre}>{p.nombre} · {p.precio ? soles(p.precio) : 'a cotizar'}</option>)}
+        </select>
+      </div>
+      <div class="field field--full">
+        <label for="s-promociona">Qué quieres promocionar</label>
+        <textarea id="s-promociona" name="promociona" maxlength="300" required placeholder="Por ejemplo, el ceviche mixto de los domingos"></textarea>
+      </div>
+      <div class="field field--full">
+        <label for="s-detalle">Detalles para el guion (opcional)</label>
+        <textarea id="s-detalle" name="detalle" maxlength="1000" placeholder="Precio, promoción, dirección, horario y lo que no puede faltar"></textarea>
+      </div>
+      <div class="field">
+        <label for="s-codigo">Código de tu negocio</label>
+        <input id="s-codigo" name="codigo" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="8" required placeholder="TS-XXXXX">
+      </div>
+      <div class="field">
+        <label for="s-ruc">RUC</label>
+        <input id="s-ruc" name="ruc" inputmode="numeric" autocomplete="off" maxlength="11" required>
+      </div>
+      <div class="field">
+        <label for="s-fecha">Para cuándo (opcional)</label>
+        <input id="s-fecha" name="fecha" type="date">
+      </div>
+      <div class="trampa" aria-hidden="true"><label for="s-sitio">No llenes este campo</label><input id="s-sitio" name="sitio" tabindex="-1" autocomplete="off"></div>
+      <p class="solicitud__nota">Si {d.nombre} acepta, te escribimos por WhatsApp con el link de pago. El pago va en dos partes: un adelanto para empezar y el saldo cuando el video está listo. Antes de entregártelo, {d.nombre} aprueba el guion y el video.</p>
+      <p class="form__error" id="s-error" role="alert" hidden></p>
+      <button class="btn btn--fucsia" type="submit" id="s-enviar">Enviar solicitud</button>
+    </form>
+    <div class="resultado resultado--verde" id="s-ok" tabindex="-1" hidden aria-live="polite"></div>
+  </dialog>
 </Studio>
 
 <script define:vars={{ wa: site.whatsappNumber }}>
-  // Si el negocio ya se verificó en este navegador, el botón abre WhatsApp con su código; si no, lo lleva al registro.
+  // Pedidos: un negocio verificado envía su solicitud desde aquí (POST /api/pedidos) y le llega al
+  // influencer en tato.pe/cuenta. Sin código, el botón lleva al registro del negocio.
   let negocio = null;
   try { negocio = JSON.parse(localStorage.getItem('tato-negocio') || 'null'); } catch (e) { negocio = null; }
   const perfil = document.querySelector('[data-influencer]');
+  const aviso = document.querySelector('[data-aviso]');
+  const botones = document.querySelectorAll('[data-pedir]');
+  const dialogo = document.getElementById('solicitud');
+  const formS = document.getElementById('solicitud-form');
+  const errorS = document.getElementById('s-error');
+  const enviarS = document.getElementById('s-enviar');
+  const okS = document.getElementById('s-ok');
+  const nombre = perfil ? perfil.dataset.influencer : '';
   const vencido = perfil && perfil.dataset.fin && Number(perfil.dataset.fin) < Date.now();
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  function cerrarPedidos(texto) {
+    botones.forEach((a) => a.remove());
+    document.querySelector('[data-abrir]')?.remove();
+    if (!aviso) return;
+    aviso.textContent = texto + ' ';
+    const a = document.createElement('a');
+    a.href = '/influencers/';
+    a.textContent = 'Mira a los demás influencers';
+    aviso.append(a, '.');
+  }
+
+  function abrir(paquete) {
+    if (!dialogo || typeof dialogo.showModal !== 'function') return false;
+    if (paquete) formS.paquete.value = paquete;
+    if (negocio) {
+      if (!formS.codigo.value) formS.codigo.value = negocio.codigo || '';
+      if (!formS.ruc.value) formS.ruc.value = negocio.ruc || '';
+    }
+    dialogo.showModal();
+    formS.promociona.focus();
+    return true;
+  }
+
   if (vencido) {
     // Su convenio venció después de publicar la web: ya no se toman pedidos con su imagen.
-    document.querySelectorAll('[data-pedir]').forEach((a) => a.remove());
     document.querySelector('.sello')?.remove();
-    const aviso = document.querySelector('[data-aviso]');
-    if (aviso) {
-      aviso.textContent = `El convenio con ${perfil.dataset.influencer} terminó y ya no tomamos pedidos con su imagen. `;
-      const a = document.createElement('a');
-      a.href = '/influencers/';
-      a.textContent = 'Mira a los demás influencers';
-      aviso.append(a, '.');
+    cerrarPedidos(`El convenio con ${nombre} terminó y ya no tomamos pedidos con su imagen.`);
+  } else if (perfil) {
+    fetch(`/api/influencers/${perfil.dataset.id}/estado`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((r) => { if (r && r.recibe === false) cerrarPedidos(`Por ahora ${nombre} no está tomando pedidos.`); })
+      .catch(() => {});
+    if (negocio && negocio.codigo) {
+      botones.forEach((a) => a.addEventListener('click', (e) => { if (abrir(a.dataset.pedir)) e.preventDefault(); }));
+      if (aviso) aviso.textContent = `Tu negocio está verificado con el código ${negocio.codigo}. Elige un paquete y cuéntanos qué quieres promocionar.`;
+    } else {
+      const abrirCodigo = document.querySelector('[data-abrir]');
+      if (abrirCodigo) {
+        abrirCodigo.hidden = false;
+        abrirCodigo.addEventListener('click', () => abrir(''));
+      }
     }
-  } else if (negocio && negocio.codigo && perfil) {
-    const nombre = perfil.dataset.influencer;
-    document.querySelectorAll('[data-pedir]').forEach((a) => {
-      const texto = `Hola Tato, soy de ${negocio.razonSocial || 'mi negocio'} (código ${negocio.codigo}). Quiero el paquete «${a.dataset.pedir}» con ${nombre}.`;
-      a.href = `https://wa.me/${wa}?text=${encodeURIComponent(texto)}`;
-      a.target = '_blank';
-      a.rel = 'noopener';
-      a.textContent = 'Pedir por WhatsApp';
-    });
-    const aviso = document.querySelector('[data-aviso]');
-    if (aviso) aviso.textContent = `Tu negocio está verificado con el código ${negocio.codigo}. Te respondo por WhatsApp.`;
   }
+
+  dialogo?.querySelector('[data-cerrar]')?.addEventListener('click', () => dialogo.close());
+  dialogo?.addEventListener('click', (e) => { if (e.target === dialogo) dialogo.close(); });
+
+  formS?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = new FormData(formS);
+    const body = Object.fromEntries(f.entries());
+    body.codigo = String(body.codigo || '').trim().toUpperCase();
+    body.ruc = String(body.ruc || '').replace(/\D/g, '');
+    body.influencer = perfil.dataset.id;
+    let problema = '';
+    if (String(body.promociona || '').trim().length < 10) problema = 'Cuéntanos en una frase qué quieres promocionar.';
+    else if (!/^TS-[A-Z2-9]{5}$/.test(body.codigo)) problema = 'Escribe el código de tu negocio verificado (TS-XXXXX). Si no lo tienes, registra tu negocio primero.';
+    else if (!/^\d{11}$/.test(body.ruc)) problema = 'Escribe el RUC de tu negocio (11 números).';
+    errorS.hidden = !problema;
+    errorS.textContent = problema;
+    if (problema) return;
+    enviarS.disabled = true;
+    enviarS.textContent = 'Enviando…';
+    try {
+      const res = await fetch('/api/pedidos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const r = await res.json().catch(() => ({ error: 'No pudimos leer la respuesta. Inténtalo de nuevo.' }));
+      if (!res.ok || r.error) {
+        errorS.hidden = false;
+        errorS.textContent = r.error || 'Algo falló. Inténtalo de nuevo en un rato.';
+        return;
+      }
+      try { localStorage.setItem('tato-negocio', JSON.stringify({ ...(negocio || {}), codigo: body.codigo, ruc: body.ruc })); } catch (err) { /* sin almacenamiento */ }
+      const texto = `Hola Tato, envié la solicitud ${r.numero || ''} para un video con ${nombre}.`;
+      okS.innerHTML = `<h2>Solicitud enviada</h2><p>${esc(r.mensaje)}</p>${r.numero ? `<p class="codigo">${esc(r.numero)}</p>` : ''}<a class="btn btn--fucsia" href="https://wa.me/${wa}?text=${encodeURIComponent(texto)}" target="_blank" rel="noopener">Escríbenos por WhatsApp</a>`;
+      formS.hidden = true;
+      okS.hidden = false;
+      okS.focus();
+    } catch (err) {
+      errorS.hidden = false;
+      errorS.textContent = 'No hay conexión con el servidor. Revisa tu internet e inténtalo de nuevo.';
+    } finally {
+      enviarS.disabled = false;
+      enviarS.textContent = 'Enviar solicitud';
+    }
+  });
+
   // Muestras: se cargan cerca de la pantalla y se reproducen solo a la vista.
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const vids = document.querySelectorAll('video[data-src]');

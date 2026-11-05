@@ -1,5 +1,7 @@
 // Páginas y respuestas del Worker: el HTML sencillo de los paneles privados y las respuestas JSON.
 
+const NAV = [['/panel/pedidos/', 'Pedidos'], ['/panel/influencers/', 'Influencers'], ['/panel/negocios/', 'Negocios'], ['/panel/ajustes/', 'Ajustes'], ['/panel/tiktok/', 'TikTok']];
+
 export function page(title, body, nav = true) {
   return `<!doctype html><html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow">
@@ -36,7 +38,17 @@ export function page(title, body, nav = true) {
   .b-verde{background:#e3f4e8;color:#17602f}.b-amarillo{background:#fff2cc;color:#7a5600}.b-rojo{background:#f0e6ec;color:#7a0a45}.b-pausado{background:#e8e8e8;color:#333}
   .acciones{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.acciones input{flex:1;min-width:200px;padding:8px;border:1px solid #ccc;border-radius:8px;font:inherit}
   .acciones button{padding:8px 14px;border-radius:8px;border:0;font:inherit;font-weight:600;cursor:pointer}.ok{background:#17602f;color:#fff}.no{background:#7a0a45;color:#fff}.pausa{background:#ddd}
-</style></head><body><main>${nav ? '<nav class="nav"><a href="/panel/tiktok/">TikTok</a><a href="/panel/negocios/">Negocios</a></nav>' : ''}<h1>${esc(title)}</h1>${body}</main></body></html>`;
+  .b-gris{background:#eee;color:#333}
+  .acciones label{display:flex;flex-direction:column;gap:4px;font-size:13px;flex:1;min-width:160px}
+  .acciones label input{min-width:0}
+  .acciones input[type=checkbox]{flex:none;min-width:0;width:auto;margin-right:6px}
+  .acciones label:has(input[type=checkbox]){flex-direction:row;align-items:center;flex:none}
+  .acciones textarea{flex-basis:100%;min-height:200px;padding:8px;border:1px solid #ccc;border-radius:8px;font:inherit}
+  .acciones.cuenta{align-items:flex-end}
+  table.plata{width:auto;min-width:min(420px,100%);margin-top:8px}
+  table.plata td{white-space:normal}
+  h2{font-size:20px;margin:28px 0 8px}
+</style></head><body><main>${nav ? `<nav class="nav">${NAV.map(([href, nombre]) => `<a href="${href}"${nombre === title ? ' aria-current="page"' : ''}>${nombre}</a>`).join('')}</nav>` : ''}<h1>${esc(title)}</h1>${body}</main></body></html>`;
 }
 
 export function html(body, status = 200) {
