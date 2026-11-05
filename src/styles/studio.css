@@ -43,6 +43,8 @@
 @media (min-width: 900px) { :root { --bar: 72px; } }
 
 * { box-sizing: border-box; }
+/* Lo marcado con hidden no se muestra nunca, aunque su clase le dé display (formularios después de enviarse, filtros). */
+[hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; scroll-padding-top: calc(var(--bar) + 16px); }
 body { margin: 0; background: var(--paper); color: var(--ink); font: 400 18px/1.5 var(--sans); -webkit-font-smoothing: antialiased; }
 @media (max-width: 600px) { body { font-size: 17px; } }
