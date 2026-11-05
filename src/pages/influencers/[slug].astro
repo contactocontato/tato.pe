@@ -1,0 +1,119 @@
+---
+// Perfil de un influencer con convenio. Se arma con su ficha de src/content/influencers/<id>.md.
+import { render } from 'astro:content';
+import Studio from '../../layouts/Studio.astro';
+import { influencersVisibles } from '../../lib/catalogo';
+import { rubroNombre, seguidores, soles, mesAnio, finConvenio } from '../../lib/influencers';
+import { site } from '../../lib/site';
+
+export async function getStaticPaths() {
+  const lista = await influencersVisibles();
+  return lista.map((i) => ({ params: { slug: i.id }, props: { i } }));
+}
+const { i } = Astro.props;
+const d = i.data;
+const { Content } = await render(i);
+const fecha = (x: Date) => x.toLocaleDateString('es-PE', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+---
+<Studio title={`${d.nombre} · Influencers · Tato Studio`} description={`Videos para tu negocio con la imagen de ${d.nombre} (@${d.usuario}), hechos con IA y con su permiso. ${d.estilo}.`} image={d.foto} actual="influencers">
+  <div class="wrap">
+    <p class="migas"><a href="/influencers/">Influencers</a> / {d.nombre}</p>
+    <article class="perfil" data-influencer={d.nombre} data-id={i.id} data-fin={d.convenioHasta ? finConvenio(d) : undefined}>
+      <div class="perfil__foto"><img src={d.foto} alt={d.fotoAlt} width="720" height="900" fetchpriority="high" /></div>
+      <div>
+        <h1 class="h1">{d.nombre}</h1>
+        <p class="perfil__user">@{d.usuario} · {d.regiones.join(', ')} · {d.rubros.map((r) => rubroNombre[r]).join(', ')}</p>
+        <p class="perfil__estilo">{d.estilo}</p>
+        <p class="sello"><i aria-hidden="true"></i>{d.convenioHasta ? `Autorizó su imagen para videos con IA hasta el ${fecha(d.convenioHasta)}` : 'Autorizó su imagen para videos con IA'}</p>
+        <ul class="redes" aria-label="Sus redes">
+          {d.redes.map((r) => <li><a href={r.url} target="_blank" rel="noopener"><b>{seguidores(r.seguidores)}</b><span>{r.red}</span></a></li>)}
+        </ul>
+        <p class="nota">Seguidores contados en {mesAnio(d.cifrasAl)}.</p>
+        <div class="bio"><Content /></div>
+        {(d.encajaCon.length > 0 || d.noAcepta.length > 0) && (
+          <div class="listas">
+            {d.encajaCon.length > 0 && <div><h2>Encaja con</h2><ul>{d.encajaCon.map((x) => <li>{x}</li>)}</ul></div>}
+            {d.noAcepta.length > 0 && <div><h2>No acepta</h2><ul>{d.noAcepta.map((x) => <li>{x}</li>)}</ul></div>}
+          </div>
+        )}
+      </div>
+    </article>
+  </div>
+
+  {d.muestras.length > 0 && (
+    <section class="sec" aria-labelledby="muestras-t" style="padding-top:0">
+      <div class="wrap">
+        <h2 class="h2" id="muestras-t">Videos <span class="fx">de muestra</span></h2>
+        <div class="muestras">
+          {d.muestras.map((m) => (
+            <figure>
+              <div class="reel"><video muted loop playsinline preload="none" poster={m.poster} data-src={m.video} aria-label={m.titulo}></video><span class="reel__ia">Hecho con IA, con permiso de {d.nombre}</span></div>
+              <figcaption>{m.titulo}</figcaption>
+            </figure>
+          ))}
+        </div>
+      </div>
+    </section>
+  )}
+
+  <section class="sec" aria-labelledby="paquetes-t" style="padding-top:0">
+    <div class="wrap">
+      <h2 class="h2" id="paquetes-t">Pide tu video con <span class="fx">{d.nombre}</span></h2>
+      <div class="paquetes">
+        {d.paquetes.map((p) => (
+          <div class="paq">
+            <p class="paq__precio">{p.precio ? soles(p.precio) : 'A cotizar'}</p>
+            <h3 class="h3">{p.nombre}</h3>
+            <ul>{p.incluye.map((x) => <li>{x}</li>)}</ul>
+            <dl><dt>Entrega</dt><dd>{p.entrega}</dd><dt>Uso del video</dt><dd>{p.uso}</dd></dl>
+            <a class="btn btn--fucsia" href={`/influencers/registro/?para=${i.id}&paquete=${encodeURIComponent(p.nombre)}`} data-pedir={p.nombre}>Pedir este paquete</a>
+          </div>
+        ))}
+      </div>
+      <p class="aviso" data-aviso>Para pedir, primero registra tu negocio: lo verificamos con tu RUC en segundos. Así protegemos a los influencers.</p>
+    </div>
+  </section>
+</Studio>
+
+<script define:vars={{ wa: site.whatsappNumber }}>
+  // Si el negocio ya se verificó en este navegador, el botón abre WhatsApp con su código; si no, lo lleva al registro.
+  let negocio = null;
+  try { negocio = JSON.parse(localStorage.getItem('tato-negocio') || 'null'); } catch (e) { negocio = null; }
+  const perfil = document.querySelector('[data-influencer]');
+  const vencido = perfil && perfil.dataset.fin && Number(perfil.dataset.fin) < Date.now();
+  if (vencido) {
+    // Su convenio venció después de publicar la web: ya no se toman pedidos con su imagen.
+    document.querySelectorAll('[data-pedir]').forEach((a) => a.remove());
+    document.querySelector('.sello')?.remove();
+    const aviso = document.querySelector('[data-aviso]');
+    if (aviso) {
+      aviso.textContent = `El convenio con ${perfil.dataset.influencer} terminó y ya no tomamos pedidos con su imagen. `;
+      const a = document.createElement('a');
+      a.href = '/influencers/';
+      a.textContent = 'Mira a los demás influencers';
+      aviso.append(a, '.');
+    }
+  } else if (negocio && negocio.codigo && perfil) {
+    const nombre = perfil.dataset.influencer;
+    document.querySelectorAll('[data-pedir]').forEach((a) => {
+      const texto = `Hola Tato, soy de ${negocio.razonSocial || 'mi negocio'} (código ${negocio.codigo}). Quiero el paquete «${a.dataset.pedir}» con ${nombre}.`;
+      a.href = `https://wa.me/${wa}?text=${encodeURIComponent(texto)}`;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.textContent = 'Pedir por WhatsApp';
+    });
+    const aviso = document.querySelector('[data-aviso]');
+    if (aviso) aviso.textContent = `Tu negocio está verificado con el código ${negocio.codigo}. Te respondo por WhatsApp.`;
+  }
+  // Muestras: se cargan cerca de la pantalla y se reproducen solo a la vista.
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const vids = document.querySelectorAll('video[data-src]');
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver((es) => es.forEach((en) => {
+      const v = en.target;
+      if (en.isIntersecting) { if (!v.src) { v.src = v.dataset.src; if (reduce) v.controls = true; } if (!reduce) v.play().catch(() => {}); }
+      else if (!v.paused) v.pause();
+    }), { rootMargin: '200px 0px' });
+    vids.forEach((v) => io.observe(v));
+  } else vids.forEach((v) => { v.src = v.dataset.src; v.controls = true; });
+</script>

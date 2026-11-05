@@ -11,9 +11,14 @@ import { site, wa } from '../lib/site';
       <p>Aquí te cuento qué datos uso, para qué y cómo pedirme que los borre. Responsable: {site.person} ({site.name}), {site.email}.</p>
 
       <h2>En esta web</h2>
-      <p>En tato.pe no hay cuentas ni contraseñas, y la web no guarda tus datos en un servidor. Los formularios (pedir tu video, el buzón de la recarga) solo arman un mensaje: tú decides si lo envías por WhatsApp, y solo entonces me llega lo que escribiste.</p>
+      <p>En tato.pe no hay cuentas ni contraseñas, y la web no guarda tus datos en un servidor, salvo el registro de negocios que explico más abajo. Los demás formularios (pedir tu video, el buzón de la recarga) solo arman un mensaje: tú decides si lo envías por WhatsApp, y solo entonces me llega lo que escribiste.</p>
       <p>El carrito se guarda en tu propio navegador, así que yo no lo veo. Lo puedes vaciar cuando quieras.</p>
       <p>Si me mandas fotos para un video personalizado, las uso solo para hacer tu video, como explico en los <a href="/terminos/">términos</a>.</p>
+
+      <h2>Registro de negocios para videos con influencers</h2>
+      <p>Si registras tu negocio en <a href="/influencers/registro/">tato.pe/influencers/registro</a>, guardo en un servidor de Cloudflare lo que escribes: el RUC, el nombre comercial, el rubro, lo que vas a promocionar, tu web o redes, tu nombre, tu DNI, tu WhatsApp y, si lo pones, tu correo. Con el RUC consulto en SUNAT, a través de un servicio de consulta, la razón social, el estado, la condición y la actividad del negocio, que también quedan guardados.</p>
+      <p>Uso estos datos solo para verificar que el negocio sea formal, cuidar a los influencers y atender tu pedido. Lo que vas a promocionar puede pasar por una revisión automática con IA (la hace Anthropic). El influencer ve el nombre del negocio y su guion cuando lo revisa. No vendo tus datos.</p>
+      <p>Para evitar abusos, guardo por un día cuántos registros se hacen desde cada conexión. Si me lo pides a {site.email}, borro tu registro.</p>
 
       <h2>La app de TikTok de Tato Studio</h2>
       <p>Tato Studio tiene una app de TikTok llamada Tatostudio. Es una herramienta interna: se conecta con el inicio de sesión de TikTok, y solo con la cuenta de Tato Studio ({site.tiktok.replace('https://www.tiktok.com/', '')}).</p>

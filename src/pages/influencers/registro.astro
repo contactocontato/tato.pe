@@ -1,0 +1,166 @@
+---
+// Registro de negocios: el Worker (worker/negocios.js) verifica el RUC con SUNAT y responde al toque.
+import Studio from '../../layouts/Studio.astro';
+import negocios from '../../data/negocios.json';
+import { site } from '../../lib/site';
+---
+<Studio title="Registra tu negocio · Influencers · Tato Studio" description="Registra tu negocio con tu RUC para pedir videos con influencers. Lo verificamos con SUNAT en segundos." actual="influencers" noindex>
+  <div class="wrap">
+    <p class="migas"><a href="/influencers/">Influencers</a> / Registro</p>
+    <div class="registro">
+      <div>
+        <h1 class="h1">Registra tu <span class="fx">negocio</span></h1>
+        <p class="lead">Lo verificamos con tu RUC en segundos. Es lo que nos permite cuidar a los influencers: solo prestan su imagen a negocios formales.</p>
+
+        <form class="form" id="registro" novalidate>
+          <div class="field">
+            <label for="ruc">RUC</label>
+            <input id="ruc" name="ruc" inputmode="numeric" autocomplete="off" maxlength="11" pattern="(10|15|16|17|20)[0-9]{9}" required placeholder="20123456789">
+            <small>El de tu negocio. Persona natural con negocio también vale.</small>
+          </div>
+          <div class="field">
+            <label for="nombreComercial">Nombre comercial</label>
+            <input id="nombreComercial" name="nombreComercial" maxlength="120" placeholder="Como te conocen tus clientes">
+          </div>
+          <div class="field field--full">
+            <label for="rubro">Rubro</label>
+            <select id="rubro" name="rubro" required>
+              <option value="">Elige uno</option>
+              {negocios.rubros.map((r) => <option value={r.id}>{r.nombre}</option>)}
+            </select>
+          </div>
+          <div class="field field--full">
+            <label for="promociona">Qué vas a promocionar</label>
+            <textarea id="promociona" name="promociona" maxlength="600" required placeholder="Por ejemplo, el menú de los domingos de mi cevichería en Huaraz"></textarea>
+          </div>
+          <div class="field field--full">
+            <label for="redes">Web o redes del negocio</label>
+            <input id="redes" name="redes" maxlength="300" placeholder="instagram.com/tunegocio">
+          </div>
+          <div class="field">
+            <label for="contactoNombre">Tu nombre</label>
+            <input id="contactoNombre" name="contactoNombre" autocomplete="name" maxlength="120" required>
+          </div>
+          <div class="field">
+            <label for="dni">Tu DNI</label>
+            <input id="dni" name="dni" inputmode="numeric" maxlength="8" pattern="[0-9]{8}" required>
+          </div>
+          <div class="field">
+            <label for="whatsapp">Tu WhatsApp</label>
+            <input id="whatsapp" name="whatsapp" type="tel" inputmode="tel" autocomplete="tel-national" maxlength="15" required placeholder="9xx xxx xxx">
+          </div>
+          <div class="field">
+            <label for="correo">Tu correo (opcional)</label>
+            <input id="correo" name="correo" type="email" autocomplete="email" maxlength="160">
+          </div>
+          <fieldset class="grupo">
+            <legend>Tus compromisos</legend>
+            <label class="check"><input type="checkbox" name="real" required><span>Lo que voy a promocionar es real y legal, y tengo los permisos que pide mi rubro.</span></label>
+            <label class="check"><input type="checkbox" name="etiquetas" required><span>Voy a publicar los videos con #Publicidad y con la etiqueta de que están hechos con IA.</span></label>
+            <label class="check"><input type="checkbox" name="uso" required><span>Voy a usar cada video solo donde y por el tiempo que acordemos, sin editarlo para decir otra cosa.</span></label>
+            <label class="check"><input type="checkbox" name="datos" required><span>Acepto que usen estos datos para verificar mi negocio y atender mi pedido, como dice la <a class="link" href="/privacidad/" target="_blank">política de privacidad</a>.</span></label>
+          </fieldset>
+          <div class="trampa" aria-hidden="true"><label for="sitio">No llenes este campo</label><input id="sitio" name="sitio" tabindex="-1" autocomplete="off"></div>
+          <input type="hidden" name="influencer" id="influencer">
+          <input type="hidden" name="paquete" id="paquete">
+          <p class="form__error" id="error" role="alert" hidden></p>
+          <button class="btn btn--fucsia" type="submit" id="enviar">Verificar mi negocio</button>
+        </form>
+
+        <div class="resultado" id="resultado" tabindex="-1" hidden aria-live="polite"></div>
+      </div>
+
+      <aside class="lado">
+        <h2>Qué revisamos</h2>
+        <ul>
+          <li>Que tu RUC esté activo y habido en SUNAT.</li>
+          <li>A qué se dedica tu negocio según SUNAT.</li>
+          <li>Que tu rubro y lo que vas a promocionar puedan salir con un influencer.</li>
+          <li>Si tu rubro los pide, tus permisos: te los pedimos por WhatsApp.</li>
+        </ul>
+        <p>No te pedimos ventas ni declaraciones de impuestos. ¿Dudas? Escríbeme al <a href={`https://wa.me/${site.whatsappNumber}`} target="_blank" rel="noopener">+51 961 662 512</a>.</p>
+      </aside>
+    </div>
+  </div>
+</Studio>
+
+<script>
+  const form = document.getElementById('registro') as HTMLFormElement;
+  const error = document.getElementById('error') as HTMLElement;
+  const enviar = document.getElementById('enviar') as HTMLButtonElement;
+  const resultado = document.getElementById('resultado') as HTMLElement;
+  const q = new URLSearchParams(location.search);
+  const para = (q.get('para') || '').replace(/[^a-z0-9-]/gi, '').slice(0, 80);
+  (document.getElementById('influencer') as HTMLInputElement).value = para;
+  (document.getElementById('paquete') as HTMLInputElement).value = (q.get('paquete') || '').slice(0, 80);
+
+  const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+  function rucValido(ruc: string) {
+    if (!/^(10|15|16|17|20)\d{9}$/.test(ruc)) return false;
+    const pesos = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
+    const resto = 11 - (pesos.reduce((s, p, i) => s + p * Number(ruc[i]), 0) % 11);
+    return (resto === 10 ? 0 : resto === 11 ? 1 : resto) === Number(ruc[10]);
+  }
+  function revisar(f: FormData): string {
+    const ruc = String(f.get('ruc') || '').replace(/\D/g, '');
+    if (!rucValido(ruc)) return 'Revisa tu RUC: tiene que tener 11 números y ser válido.';
+    if (!f.get('rubro')) return 'Elige el rubro de tu negocio.';
+    if (String(f.get('promociona') || '').trim().length < 10) return 'Cuéntanos en una línea qué vas a promocionar.';
+    if (String(f.get('contactoNombre') || '').trim().length < 3) return 'Escribe tu nombre.';
+    if (!/^\d{8}$/.test(String(f.get('dni') || '').replace(/\D/g, ''))) return 'Tu DNI tiene que tener 8 números.';
+    if (!/^9\d{8}$/.test(String(f.get('whatsapp') || '').replace(/\D/g, '').replace(/^51(?=9\d{8}$)/, ''))) return 'Tu WhatsApp tiene que ser un celular de 9 números que empiece con 9.';
+    if (!['real', 'etiquetas', 'uso', 'datos'].every((k) => f.get(k))) return 'Para registrarte tienes que marcar los cuatro compromisos.';
+    return '';
+  }
+
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const f = new FormData(form);
+    const problema = revisar(f);
+    error.hidden = !problema;
+    error.textContent = problema;
+    if (problema) return;
+    enviar.disabled = true;
+    enviar.textContent = 'Verificando con SUNAT…';
+    const body = {
+      ruc: String(f.get('ruc')).replace(/\D/g, ''),
+      nombreComercial: f.get('nombreComercial'), rubro: f.get('rubro'), promociona: f.get('promociona'), redes: f.get('redes'),
+      contactoNombre: f.get('contactoNombre'), dni: f.get('dni'), whatsapp: f.get('whatsapp'), correo: f.get('correo'),
+      influencer: f.get('influencer'), paquete: f.get('paquete'), sitio: f.get('sitio'),
+      acepta: { real: !!f.get('real'), etiquetas: !!f.get('etiquetas'), uso: !!f.get('uso'), datos: !!f.get('datos') },
+    };
+    try {
+      const res = await fetch('/api/negocios/registro', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const r = await res.json().catch(() => ({ error: 'No pudimos leer la respuesta. Inténtalo de nuevo.' }));
+      if (!res.ok || r.error) {
+        error.hidden = false;
+        error.textContent = r.error || 'Algo falló. Inténtalo de nuevo en un rato.';
+        return;
+      }
+      mostrar(r);
+    } catch (e) {
+      error.hidden = false;
+      error.textContent = 'No hay conexión con el servidor. Revisa tu internet e inténtalo de nuevo.';
+    } finally {
+      enviar.disabled = false;
+      enviar.textContent = 'Verificar mi negocio';
+    }
+  });
+
+  function mostrar(r: { semaforo: string; codigo?: string; razonSocial?: string; mensaje: string; motivos?: string[] }) {
+    const titulos: Record<string, string> = { verde: 'Tu negocio está verificado', amarillo: 'Lo revisamos y te escribimos', rojo: 'No podemos tomar tu pedido' };
+    let extra = '';
+    if (r.semaforo === 'verde' && r.codigo) {
+      try { localStorage.setItem('tato-negocio', JSON.stringify({ codigo: r.codigo, razonSocial: r.razonSocial || '' })); } catch (e) { /* sin almacenamiento: igual tiene el código en pantalla */ }
+      extra = `<p class="codigo">${esc(r.codigo)}</p><p>Guárdalo: lo mencionas al pedir por WhatsApp.</p>`
+        + (para ? `<a class="btn btn--fucsia" href="/influencers/${esc(para)}/">Seguir con tu pedido</a>` : '<a class="btn btn--fucsia" href="/influencers/">Ver los influencers</a>');
+    }
+    const motivos = (r.motivos || []).length ? `<ul>${(r.motivos || []).map((m) => `<li>${esc(m)}</li>`).join('')}</ul>` : '';
+    resultado.className = `resultado resultado--${r.semaforo}`;
+    resultado.innerHTML = `<h2>${titulos[r.semaforo] || 'Recibimos tus datos'}</h2><p>${esc(r.mensaje)}</p>${motivos}${extra}`;
+    resultado.hidden = false;
+    // Si no entra, el formulario se queda por si fue un error al escribir el RUC.
+    if (r.semaforo !== 'rojo') form.hidden = true;
+    resultado.focus();
+  }
+</script>

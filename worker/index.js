@@ -2,6 +2,10 @@
 // - La web estática (dist/) la sirve Cloudflare directo, sin pasar por aquí.
 // - Este código solo atiende /api/* y /panel/* (ver run_worker_first en wrangler.jsonc).
 //
+// Verificación de negocios para los videos con influencers: ver worker/negocios.js
+//   /api/negocios/registro     el negocio se registra con su RUC (POST)
+//   /panel/negocios/           panel privado con los registros
+//
 // Conexión con TikTok (app «Tatostudio», Login Kit + Display API):
 //   /panel/tiktok/            panel privado con las cifras de los videos (pide contraseña)
 //   /panel/tiktok/conectar    inicia el permiso en TikTok
@@ -12,6 +16,9 @@
 // Secretos (Cloudflare → Workers → tato-pe → Configuración → Variables y secretos):
 //   TIKTOK_CLIENT_KEY, TIKTOK_CLIENT_SECRET, PANEL_PASSWORD
 // Almacenamiento: KV con el binding TIKTOK_KV (tokens y estados temporales del login).
+
+import { page, html, json, esc } from './ui.js';
+import { handleRegistro, handlePanelNegocios, handleDecidir, revisarRucs } from './negocios.js';
 
 const REDIRECT_URI = 'https://tato.pe/api/tiktok/callback';
 const SCOPES = 'user.info.basic,video.list';
@@ -32,6 +39,7 @@ export default {
 
     try {
       if (path === '/api/tiktok/callback') return await handleCallback(request, env, url);
+      if (path === '/api/negocios/registro') return await handleRegistro(request, env);
 
       if (path.startsWith('/panel')) {
         const denied = checkPanelAuth(request, env);
@@ -41,30 +49,42 @@ export default {
         if (path === '/panel/tiktok/conectar') return await handleConnect(env);
         if (path === '/panel/tiktok/desconectar' && request.method === 'POST') return await handleDisconnect(env);
         if (path === '/panel/tiktok/data.json') return await handleData(env);
+        if (path === '/panel/negocios') return await handlePanelNegocios(request, env, url);
+        if (path === '/panel/negocios/decidir' && request.method === 'POST') return await handleDecidir(request, env, url);
         if (path === '/panel') return Response.redirect(`${url.origin}/panel/tiktok/`, 302);
       }
 
       return env.ASSETS.fetch(request);
     } catch (err) {
       console.error(err);
+      if (path.startsWith('/api/negocios')) return json({ error: 'Algo falló de nuestro lado. Inténtalo de nuevo en un rato o escríbenos por WhatsApp.' }, 500);
       return html(page('Error', `<p class="err">Algo falló: ${esc(err.message || String(err))}</p><p><a href="/panel/tiktok/">Volver al panel</a></p>`), 500);
     }
   },
 
-  // Renueva el token una vez al día para que la conexión no caduque.
+  // Una vez al día: renueva el token de TikTok para que la conexión no caduque
+  // y vuelve a revisar el RUC de los negocios verificados.
   async scheduled(event, env, ctx) {
     env = cleanEnv(env);
-    const tokens = await env.TIKTOK_KV.get(TOKENS_KEY, 'json');
-    if (!tokens) return;
-    if (Date.now() > tokens.refresh_expires_at) return;
-    await refreshTokens(env, tokens);
+    try {
+      const tokens = await env.TIKTOK_KV.get(TOKENS_KEY, 'json');
+      if (tokens && Date.now() <= tokens.refresh_expires_at) await refreshTokens(env, tokens);
+    } catch (err) {
+      console.error('TikTok: no se pudo renovar el token', err);
+    }
+    try {
+      const r = await revisarRucs(env);
+      if (r.revisados) console.log(`Negocios: ${r.revisados} RUC revisados, ${r.pausados} pausados`);
+    } catch (err) {
+      console.error('Negocios: falló la revisión diaria', err);
+    }
   },
 };
 
 // Quita espacios o saltos de línea que se cuelan al copiar y pegar las claves en Cloudflare.
 function cleanEnv(env) {
   const out = Object.create(env);
-  for (const k of ['TIKTOK_CLIENT_KEY', 'TIKTOK_CLIENT_SECRET', 'PANEL_PASSWORD']) {
+  for (const k of ['TIKTOK_CLIENT_KEY', 'TIKTOK_CLIENT_SECRET', 'PANEL_PASSWORD', 'RUC_API_TOKEN', 'RUC_API_URL', 'ANTHROPIC_API_KEY']) {
     if (typeof env[k] === 'string') out[k] = env[k].trim();
   }
   return out;
@@ -354,58 +374,6 @@ async function handlePanel(env, url) {
 }
 
 // ---------- Utilidades ----------
-
-function page(title, body) {
-  return `<!doctype html><html lang="es"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow">
-<title>${esc(title)} · Tato Studio</title>
-<style>
-  body{font:16px/1.5 system-ui,sans-serif;margin:0;padding:24px;color:#111;background:#fafafa}
-  main{max-width:1100px;margin:0 auto}
-  h1{font-size:28px;margin:0 0 16px}
-  a{color:inherit}
-  .btn{display:inline-block;background:#111;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:600}
-  .muted{color:#666;font-size:14px}
-  .notice{background:#eef6ee;border:1px solid #cfe5cf;padding:10px 14px;border-radius:8px}
-  .err{background:#fdeeee;border:1px solid #f3cccc;padding:10px 14px;border-radius:8px}
-  .profile{display:flex;gap:12px;align-items:center;margin:8px 0 20px}
-  .profile img{border-radius:50%}
-  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px}
-  .tiles div{background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:12px 14px}
-  .tiles span{display:block;color:#666;font-size:13px}.tiles b{font-size:24px}
-  table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e5e5e5;border-radius:10px;overflow:hidden;font-size:14px}
-  th,td{padding:8px 10px;border-bottom:1px solid #eee;text-align:right;white-space:nowrap}
-  th{background:#f3f3f3;cursor:pointer;user-select:none}
-  th:nth-child(1),td:nth-child(1),th:nth-child(2),td:nth-child(2){text-align:left}
-  td.title{white-space:normal;min-width:240px}
-  .link{background:none;border:0;color:#a00;text-decoration:underline;cursor:pointer;margin-top:16px;padding:0;font:inherit}
-  code{background:#f1f1f1;padding:1px 4px;border-radius:4px}
-  @media (max-width:700px){table{display:block;overflow-x:auto}}
-</style></head><body><main><h1>${esc(title)}</h1>${body}</main></body></html>`;
-}
-
-function html(body, status = 200) {
-  return new Response(body, {
-    status,
-    headers: {
-      'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'no-store',
-      'X-Robots-Tag': 'noindex, nofollow',
-      'Referrer-Policy': 'no-referrer',
-    },
-  });
-}
-
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data, null, 2), {
-    status,
-    headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow' },
-  });
-}
-
-function esc(s) {
-  return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
 
 function randomToken() {
   const bytes = crypto.getRandomValues(new Uint8Array(24));

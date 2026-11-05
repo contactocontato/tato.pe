@@ -1,0 +1,143 @@
+---
+// Catálogo de influencers con convenio. Las fichas están en src/content/influencers/.
+import Studio from '../../layouts/Studio.astro';
+import { influencersVisibles } from '../../lib/catalogo';
+import { rubroNombre, seguidores, soles, desde, comunidad, mesAnio, finConvenio, type RubroId } from '../../lib/influencers';
+import negocios from '../../data/negocios.json';
+
+const lista = await influencersVisibles();
+const rubros = [...new Set(lista.flatMap((i) => i.data.rubros))] as RubroId[];
+const regiones = [...new Set(lista.flatMap((i) => i.data.regiones))].sort((a, b) => a.localeCompare(b, 'es'));
+const directo = negocios.rubros.filter((r) => r.nivel === 'permitido').map((r) => r.nombre);
+const conPermiso = negocios.rubros.filter((r) => r.nivel === 'permiso').map((r) => r.nombre);
+const noEntran = negocios.palabras.map((g) => g.motivo);
+---
+<Studio title="Influencers del Perú para tu negocio · Tato Studio" description="Videos para tu negocio con la imagen de influencers peruanos que me autorizaron su imagen. Los produzco con IA, cada influencer aprueba su guion y solo trabajamos con negocios verificados." actual="influencers">
+  <section class="ihero">
+    <div class="wrap">
+      <h1 class="h1">Influencers del Perú <span class="fx">para tu negocio</span></h1>
+      <p class="lead">Videos para tu negocio con la imagen y el estilo de influencers peruanos que me autorizaron su imagen. Los produzco con IA, cada influencer aprueba su guion y solo trabajamos con negocios verificados.</p>
+      <div class="actions">
+        <a class="btn btn--fucsia" href="/influencers/registro/">Registra tu negocio</a>
+        <a class="btn btn--line" href="#como-funciona">Cómo funciona</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="catalogo" aria-labelledby="catalogo-t" style="padding-top:0">
+    <div class="wrap">
+      <h2 class="sr-only" id="catalogo-t">Catálogo</h2>
+      {lista.length > 0 ? (
+        <Fragment>
+          {rubros.length > 1 && (
+            <div class="filtros" role="group" aria-label="Filtrar por tipo de contenido">
+              <button class="chip" type="button" data-filtro="rubro" data-valor="" aria-pressed="true">Todos</button>
+              {rubros.map((r) => <button class="chip" type="button" data-filtro="rubro" data-valor={r} aria-pressed="false">{rubroNombre[r]}</button>)}
+            </div>
+          )}
+          {regiones.length > 1 && (
+            <div class="filtros" role="group" aria-label="Filtrar por región">
+              <button class="chip" type="button" data-filtro="region" data-valor="" aria-pressed="true">Todo el Perú</button>
+              {regiones.map((r) => <button class="chip" type="button" data-filtro="region" data-valor={r} aria-pressed="false">{r}</button>)}
+            </div>
+          )}
+          <p class="cuenta" aria-live="polite" data-cuenta>{lista.length === 1 ? '1 influencer' : `${lista.length} influencers`}</p>
+          <ul class="igrid">
+            {lista.map((i) => {
+              const d = i.data;
+              const precio = desde(d);
+              return (
+                <li data-rubros={d.rubros.join(' ')} data-regiones={d.regiones.join('|')} data-fin={d.convenioHasta ? finConvenio(d) : undefined}>
+                  <a class="icard" href={`/influencers/${i.id}/`}>
+                    <div class="icard__foto"><img src={d.foto} alt={d.fotoAlt} width="720" height="900" loading="lazy" decoding="async" /></div>
+                    <div class="icard__body">
+                      <h3 class="icard__nombre">{d.nombre}</h3>
+                      <p class="icard__user">@{d.usuario} · {d.regiones.join(', ')}</p>
+                      <p class="icard__estilo">{d.estilo}</p>
+                      <p class="icard__datos">
+                        <span>{seguidores(comunidad(d))} seguidores <span class="sr-only">a {mesAnio(d.cifrasAl)}</span></span>
+                        <span class="icard__precio">{precio ? `Desde ${soles(precio)}` : 'A cotizar'}</span>
+                      </p>
+                    </div>
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+          <p class="vacio" hidden data-vacio>No hay influencers con esos filtros. Prueba con otro.</p>
+        </Fragment>
+      ) : (
+        <div class="pronto">
+          <h2 class="h3">Estamos cerrando los primeros convenios</h2>
+          <p>Registra tu negocio ahora: lo verificamos con tu RUC en segundos y te avisamos por WhatsApp cuando abran los pedidos.</p>
+          <a class="btn btn--fucsia" href="/influencers/registro/">Registra tu negocio</a>
+        </div>
+      )}
+    </div>
+  </section>
+
+  <section class="sec" id="como-funciona" aria-labelledby="como-t" style="padding-top:0">
+    <div class="wrap">
+      <h2 class="h2" id="como-t">Cómo <span class="fx">funciona</span></h2>
+      <ol class="pasos">
+        <li><b>Registras tu negocio</b>Con tu RUC. Lo verificamos con SUNAT en segundos.</li>
+        <li><b>Eliges influencer y paquete</b>En su perfil ves sus videos, sus números y lo que no acepta.</li>
+        <li><b>El influencer aprueba el guion</b>Armamos el guion para tu negocio y el influencer lo revisa. Sin su visto bueno no se hace nada.</li>
+        <li><b>Lo produzco con IA</b>Con la imagen y el estilo del influencer, como lo autorizó.</li>
+        <li><b>Lo publicas</b>Con #Publicidad y la etiqueta de que está hecho con IA.</li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="sec dark" aria-labelledby="reglas-t">
+    <div class="wrap">
+      <h2 class="h2" id="reglas-t">Qué negocios <span class="fx">aceptamos</span></h2>
+      <p class="lead">Así cuidamos a los influencers: solo prestan su imagen a negocios formales y a productos que se pueden mostrar sin mentir.</p>
+      <div class="reglas">
+        <div class="regla"><h3>Entran directo, con su RUC activo y habido</h3><ul>{directo.map((r) => <li>{r}</li>)}</ul></div>
+        <div class="regla"><h3>Entran mostrando sus permisos</h3><ul>{conPermiso.map((r) => <li>{r}</li>)}</ul></div>
+        <div class="regla regla--no"><h3>No entran</h3><ul>{noEntran.map((m) => <li>{m.charAt(0).toUpperCase() + m.slice(1)}</li>)}</ul></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="unete-t">
+    <div class="wrap banda">
+      <div>
+        <h2 class="h2" id="unete-t">¿Eres <span class="fx">influencer</span>?</h2>
+        <p>Súmate al convenio: tu imagen trabaja con negocios verificados, tú apruebas cada guion y el ingreso es para ti.</p>
+      </div>
+      <a class="btn btn--ink" href="/influencers/unete/">Quiero sumarme</a>
+    </div>
+  </section>
+</Studio>
+
+<script>
+  // Si un convenio venció después de publicar la web, su tarjeta ya no se muestra.
+  const vencidas = [...document.querySelectorAll<HTMLElement>('.igrid > li[data-fin]')].filter((li) => Number(li.dataset.fin) < Date.now());
+  vencidas.forEach((li) => li.remove());
+
+  // Filtros del catálogo: por tipo de contenido y por región, a la vez.
+  const elegido = { rubro: '', region: '' };
+  const items = [...document.querySelectorAll<HTMLElement>('.igrid > li')];
+  const cuenta = document.querySelector<HTMLElement>('[data-cuenta]');
+  const vacio = document.querySelector<HTMLElement>('[data-vacio]');
+  if (vacio && items.length === 0) vacio.textContent = 'Por ahora no hay influencers disponibles.';
+  function aplicar() {
+    let n = 0;
+    for (const li of items) {
+      const ok = (!elegido.rubro || (li.dataset.rubros || '').split(' ').includes(elegido.rubro)) && (!elegido.region || (li.dataset.regiones || '').split('|').includes(elegido.region));
+      li.hidden = !ok;
+      if (ok) n++;
+    }
+    if (cuenta) cuenta.textContent = n === 1 ? '1 influencer' : `${n} influencers`;
+    if (vacio) vacio.hidden = n > 0;
+  }
+  document.querySelectorAll<HTMLButtonElement>('[data-filtro]').forEach((b) => b.addEventListener('click', () => {
+    const tipo = b.dataset.filtro as 'rubro' | 'region';
+    elegido[tipo] = b.dataset.valor || '';
+    document.querySelectorAll<HTMLButtonElement>(`[data-filtro="${tipo}"]`).forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    aplicar();
+  }));
+  if (vencidas.length) aplicar();
+</script>

@@ -5,8 +5,11 @@
 import { site } from '../lib/site';
 import { secciones, precios, desde } from '../data/inicio';
 import Tarjeta from '../components/inicio/Tarjeta.astro';
+import { influencersVisibles } from '../lib/catalogo';
 
 const title = 'Tato Studio · Cine con IA hecho en Perú';
+// El catálogo de influencers se enlaza desde la portada solo cuando tiene al menos un influencer publicado.
+const hayInfluencers = (await influencersVisibles()).length > 0;
 const description = 'Contenido, anuncios y automatizaciones con IA para negocios del Perú, homenajes para tu familia y clases de IA. Precios en soles y atención por WhatsApp.';
 const canonical = new URL('/', Astro.site ?? site.url);
 
@@ -399,6 +402,7 @@ footer { background: var(--dark); color: var(--cream); padding: var(--section) 0
     <a class="brand" href="#inicio"><img src="/inicio/logo-tato-cabecera.webp" width="180" height="180" alt="Tato Studio" fetchpriority="high"></a>
     <nav aria-label="Principal">
       <a href="#oficina">Servicios</a>
+      {hayInfluencers && <a href="/influencers/">Influencers</a>}
       <a href="#videos">Videos</a>
       <a href="#pedido">Precios</a>
       <a href="#sobre-mi">Sobre mí</a>
@@ -511,7 +515,7 @@ footer { background: var(--dark); color: var(--cream); padding: var(--section) 0
     <div class="wrap">
       <h2 class="h2" id="contenido-t">Contenido y anuncios <span class="fx">con IA</span></h2>
       <p class="lead">Pago único por adelantado. Todo en línea y entregado por WhatsApp.</p>
-      <div class="grid">{secciones.contenido.map((c) => <Tarjeta c={c} />)}</div>
+      <div class="grid">{secciones.contenido.map((c) => <Tarjeta c={c} catalogo={c.id === 'influencers-peru' && hayInfluencers} />)}</div>
       <p class="swipe">Desliza para ver más</p>
       <div class="svc__foot">
         <a class="btn btn--fucsia" data-wa="Hola Tato, quiero contenido y anuncios con IA." href="https://wa.me/51961662512" target="_blank" rel="noopener">Pregúntame por WhatsApp</a>
@@ -643,7 +647,7 @@ footer { background: var(--dark); color: var(--cream); padding: var(--section) 0
       <div><h3>Escríbeme</h3><ul><li><a data-wa="Hola Tato, vi tu web y quiero conversar." href="https://wa.me/51961662512" target="_blank" rel="noopener">WhatsApp +51 961 662 512</a></li><li>contactocon@tato.pe</li></ul></div>
       <div><h3>Sígueme</h3><ul><li><a href="https://www.tiktok.com/@contactocontato" target="_blank" rel="noopener">TikTok</a></li><li><a href="https://www.instagram.com/studiotato" target="_blank" rel="noopener">Instagram</a></li><li><a href="https://www.facebook.com/contactocontato/" target="_blank" rel="noopener">Facebook</a></li></ul></div>
       <div><h3>Servicios</h3><ul><li><a href="#oficina">Oficina con IA</a></li><li><a href="#automatico">Automatiza tu negocio</a></li><li><a href="#contenido">Contenido y anuncios</a></li><li><a href="#familia">Para tu familia</a></li></ul></div>
-      <div><h3>Más en tato.pe</h3><ul><li><a href="/blog/">Blog</a></li><li><a href="/recarga/">Recarga el servidor</a></li><li><a href="/terminos/">Términos</a></li><li><a href="/privacidad/">Privacidad</a></li></ul></div>
+      <div><h3>Más en tato.pe</h3><ul>{hayInfluencers && <li><a href="/influencers/">Influencers</a></li>}<li><a href="/blog/">Blog</a></li><li><a href="/recarga/">Recarga el servidor</a></li><li><a href="/terminos/">Términos</a></li><li><a href="/privacidad/">Privacidad</a></li></ul></div>
     </div>
     <p class="foot__legal">Hecho en Huaraz, Perú. Las fotos de los servicios y el video del inicio están hechos con IA. El link de Higgsfield es de afiliado: si compras con él, yo gano una comisión y tú no pagas más. Los videos de clientes se muestran con su permiso.</p>
   </div>

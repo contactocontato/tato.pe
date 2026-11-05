@@ -10,6 +10,7 @@
     "dev": "astro dev",
     "build": "astro build && node scripts/relativize.mjs",
     "preview": "astro preview",
+    "test": "node --test 'worker/*.test.mjs'",
     "astro": "astro",
     "export": "npm run build && rm -f tato.pe-static.zip && cd dist && zip -qr ../tato.pe-static.zip . -x \".DS_Store\" \"*/.DS_Store\" && cd .. && ls -lh tato.pe-static.zip",
     "build:cf": "astro build",
