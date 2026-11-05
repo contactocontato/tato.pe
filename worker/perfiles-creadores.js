@@ -19,26 +19,37 @@ export async function handlePerfilCreador(env, url, id) {
   const disponible = recibePedidos(await leerCuenta(env, id));
   const elegido = url.searchParams.get('paquete');
   const paquetes = p.paquetes.map((paq) => `<article class="caja">
-<h3>${esc(paq.nombre)} · ${soles(paq.precio)}</h3><p>${esc(paq.descripcion)}</p>
-<p class="nota">${esc(paq.entrega)}. ${esc(paq.uso)}.</p></article>`).join('');
-  const formulario = disponible ? `<h2>Pide un video</h2>
-<p>Necesitas el RUC y el código de un <a href="/influencers/registro/?para=${esc(id)}">negocio registrado</a>.</p>
+<h3>${esc(paq.nombre)}</h3><p class="precio">${soles(paq.precio)}</p><p>${esc(paq.descripcion)}</p>
+<p class="nota">${esc(paq.entrega)}. ${esc(paq.uso)}.</p>${disponible ? `<div class="acciones"><a class="btn linea chico" href="?paquete=${encodeURIComponent(paq.nombre)}#pedir">Elegir ${esc(paq.nombre)}</a></div>` : ''}</article>`).join('');
+  const formulario = disponible ? `<section id="pedir" class="estudio-seccion"><h2>Pide un video</h2>
+<div class="pedido-creador-cuerpo">
 <form id="pedido-creador" class="caja" method="post" action="/api/pedidos">
 <input type="hidden" name="influencer" value="${esc(id)}">
 <label for="paquete">Paquete</label><select id="paquete" name="paquete" required>
-${p.paquetes.map((paq) => `<option${elegido === paq.nombre ? ' selected' : ''}>${esc(paq.nombre)}</option>`).join('')}</select>
-<label for="ruc">RUC del negocio</label><input id="ruc" name="ruc" type="text" inputmode="numeric" maxlength="11" pattern="[0-9]{11}" required>
-<label for="codigo">Código del negocio</label><input id="codigo" name="codigo" type="text" maxlength="8" placeholder="TS-XXXXX" required>
+${p.paquetes.map((paq) => `<option value="${esc(paq.nombre)}" data-precio="${soles(paq.precio)}"${elegido === paq.nombre ? ' selected' : ''}>${esc(paq.nombre)} · ${soles(paq.precio)}</option>`).join('')}</select>
+<div class="publicacion-campos">
+<div><label for="ruc">RUC del negocio</label><input id="ruc" name="ruc" type="text" inputmode="numeric" maxlength="11" pattern="[0-9]{11}" required></div>
+<div><label for="codigo">Código del negocio</label><input id="codigo" name="codigo" type="text" maxlength="8" placeholder="TS-XXXXX" required></div>
+</div>
 <label for="promociona">¿Qué quieres promocionar?</label><input id="promociona" name="promociona" type="text" minlength="10" maxlength="300" required>
 <label for="detalle">Detalles (opcional)</label><textarea id="detalle" name="detalle" maxlength="1000"></textarea>
 <p class="aviso err" id="pedido-error" role="alert" hidden></p>
 <div class="acciones"><button class="btn fucsia" disabled>Enviar solicitud</button></div></form>
+<aside class="caja"><h3>Antes de enviar</h3><p>Precio del paquete <b id="precio-pedido"></b></p>
+<p>Usa el RUC y el código de tu negocio. El creador revisará la solicitud en su intranet.</p>
+<p class="nota">Envía tu idea para que el creador la evalúe. El pago se coordina después de la aceptación.</p>
+<a class="btn linea chico" href="/influencers/registro/?para=${esc(id)}">Registrar mi negocio</a></aside>
+</div>
 <p class="aviso" id="pedido-recibo" tabindex="-1" hidden></p>
+</section>
 <script>
 const form = document.querySelector('#pedido-creador');
 const boton = form.querySelector('button');
 const error = document.querySelector('#pedido-error');
 const recibo = document.querySelector('#pedido-recibo');
+const mostrarPrecio = () => { document.querySelector('#precio-pedido').textContent = form.elements.paquete.selectedOptions[0]?.dataset.precio || ''; };
+form.elements.paquete.addEventListener('change', mostrarPrecio);
+mostrarPrecio();
 boton.disabled = false;
 try {
   const negocio = JSON.parse(localStorage.getItem('tato-negocio') || '{}');
@@ -66,7 +77,9 @@ form.addEventListener('submit', async (e) => {
   } finally { boton.disabled = false; }
 });
 </script>` : '<p class="aviso ojo">Este creador ha pausado los pedidos nuevos.</p>';
-  return respuesta(pagina({ titulo: p.nombre, cuerpo: `${volver}<h1>${esc(p.nombre)}</h1>
-<p class="sub">${esc(p.region)} · ${esc(p.redes)}</p><p>${esc(p.contenido)}</p>
-<h2>Videos disponibles</h2>${paquetes}${formulario}` }));
+  return respuesta(pagina({ titulo: p.nombre, ancho: true, cuerpo: `${volver}<section class="perfil-hero"><p class="mono">TATO STUDIO / CREADORES DEL PERÚ</p>
+<h1>${esc(p.nombre)}</h1><p class="sub">${esc(p.region)} · ${esc(p.redes)}</p><p class="presentacion">${esc(p.contenido)}</p>
+${p.telefonoVerificado ? '<p><strong>WhatsApp verificado</strong></p>' : ''}
+<div class="acciones"><a class="btn fucsia" href="#paquetes">Ver paquetes</a></div></section>
+<section id="paquetes" class="estudio-seccion"><h2>Videos disponibles</h2><div class="perfil-paquetes">${paquetes}</div></section>${formulario}` }));
 }

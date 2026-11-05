@@ -33,6 +33,8 @@ import { handleCuenta, handleMpConectado } from './cuenta.js';
 import { handlePostulacion, handlePanelPostulaciones } from './postulaciones.js';
 import { handleAltaInfluencer } from './alta-influencer.js';
 import { handleCreadores, handlePerfilCreador } from './perfiles-creadores.js';
+import { configVerificacion, enviarCodigo } from './verificacion.js';
+import { handlePanelPublicaciones } from './publicaciones.js';
 import { handlePanelPedidos, handlePanelPedidoAccion, handlePanelInfluencers, handlePanelInfluencerAccion, handlePanelAjustes, handlePanelArchivo } from './panel-pedidos.js';
 
 const REDIRECT_URI = 'https://tato.pe/api/tiktok/callback';
@@ -57,6 +59,8 @@ export default {
       if (path === '/api/negocios/registro') return await handleRegistro(request, env);
       if (path === '/api/influencers/postulacion') return await handlePostulacion(request, env);
       if (path === '/api/influencers/alta') return await handleAltaInfluencer(request, env);
+      if (path === '/api/influencers/verificacion' && request.method === 'GET') return json(configVerificacion(env));
+      if (path === '/api/influencers/verificacion/enviar') return await enviarCodigo(request, env);
       if (path === '/api/influencers/creadores') return await handleCreadores(env, url);
       const creador = path.match(/^\/influencers\/perfil\/(creador-[0-9a-f]{32})$/);
       if (creador && request.method === 'GET') return await handlePerfilCreador(env, url, creador[1]);
@@ -78,6 +82,7 @@ export default {
         if (path === '/panel/negocios') return await handlePanelNegocios(request, env, url);
         if (path === '/panel/negocios/decidir' && request.method === 'POST') return await handleDecidir(request, env, url);
         if (path === '/panel/pedidos') return await handlePanelPedidos(request, env, url);
+        if (path === '/panel/publicaciones') return await handlePanelPublicaciones(request, env, url);
         if (path === '/panel/pedidos/accion' && request.method === 'POST') return await handlePanelPedidoAccion(request, env, url);
         if (path === '/panel/influencers') return await handlePanelInfluencers(request, env, url);
         if (path === '/panel/postulaciones') return await handlePanelPostulaciones(env, url);

@@ -10,6 +10,8 @@ import { handleAltaInfluencer } from './alta-influencer.js';
 import { handleCreadores, handlePerfilCreador } from './perfiles-creadores.js';
 import { idDeAlta } from '../src/lib/id-alta.js';
 import planes from '../src/data/planes-influencer.json' with { type: 'json' };
+import { enviarCodigo } from './verificacion.js';
+import { listarPublicaciones } from './publicaciones.js';
 
 class KVFalso {
   constructor() { this.m = new Map(); }
@@ -50,11 +52,25 @@ const CATALOGO = [
 
 // Mercado Pago falso
 const MP = { pagos: {}, preferencias: [], tokens: [] };
+const OTP_SID = 'VE' + '3'.repeat(32);
+let enviosOTP = 0;
 const jsonRes = (d, status = 200) => new Response(JSON.stringify(d), { status, headers: { 'Content-Type': 'application/json' } });
 globalThis.fetch = async (input, init = {}) => {
   const url = new URL(typeof input === 'string' ? input : input.url);
   const auth = init.headers?.Authorization || '';
-  const body = init.body ? JSON.parse(init.body) : null;
+  const body = init.body instanceof URLSearchParams ? Object.fromEntries(init.body) : init.body ? JSON.parse(init.body) : null;
+  if (url.origin === 'https://challenges.cloudflare.com') return jsonRes({
+    success: body.response === 'captcha-valido', action: 'creadores-whatsapp', hostname: 'tato.pe',
+  });
+  if (url.origin === 'https://verify.twilio.com') {
+    if (url.pathname.endsWith('/Verifications') && body.To === '+51900000000' && body.Channel === 'whatsapp') {
+      enviosOTP++;
+      return jsonRes({ sid: OTP_SID, status: 'pending' }, 201);
+    }
+    if (url.pathname.endsWith('/VerificationCheck') && body.VerificationSid === OTP_SID) {
+      return jsonRes({ status: body.Code === '123456' ? 'approved' : 'pending', to: '+51900000000' });
+    }
+  }
   if (url.origin === 'https://mp.prueba') {
     if (url.pathname === '/oauth/token') { MP.tokens.push(body); return jsonRes({ access_token: `APP_USR-influencer-${MP.tokens.length}`, refresh_token: 'TG-refresh', user_id: 777, expires_in: 15552000 }); }
     if (url.pathname === '/checkout/preferences') { MP.preferencias.push({ auth, body }); return jsonRes({ id: `pref-${MP.preferencias.length}`, init_point: `https://www.mercadopago.com.pe/checkout?pref=${MP.preferencias.length}` }); }
@@ -259,7 +275,7 @@ test('pedido completo con Mercado Pago: adelanto para Tato y saldo dividido 60/4
 
   assert.ok((await accionTato(env, p, 'entregar')).ok);
   const inicio = await (await cuenta(env, '/cuenta', { cookie })).text();
-  assert.match(inicio, /S\/ 238\.65<\/b><span>Ganado este mes/);
+  assert.match(inicio, /Recibido este mes<\/span><b>S\/ 238\.65/);
   assert.match(inicio, /Te llegó a tu Mercado Pago/);
 });
 
@@ -282,12 +298,27 @@ test('pedido a mano (sin Mercado Pago): Tato registra los pagos y le paga al inf
   assert.ok((await accionTato(env, p, 'pagado', { parte: 'saldo', monto: '420', operacion: 'TRANSF-9' })).ok);
   p = await leerPedido(env, r.numero);
   assert.deepEqual([p.pagos.saldo.parteTato, cuentasDe(p, { metodo: 'manual' }).parteInfluencer], [168, 252]);
-  assert.match(await (await cuenta(env, '/cuenta', { cookie })).text(), /S\/ 252\.00<\/b><span>Por pagarte/);
+  assert.match(await (await cuenta(env, '/cuenta', { cookie })).text(), /Por cobrar<\/span><b>S\/ 252\.00/);
+  const ruta = `/cuenta/pedido/${p.id}/publicaciones`;
+  const publicacion = { accion: 'guardar', url: 'https://www.instagram.com/reel/abc123/?igsh=tracking', cuenta: '@marca-prueba', fecha: '2026-11-05', vistas: '1234', meGusta: '42' };
+  assert.equal((await cuenta(env, ruta, { cookie, form: publicacion })).status, 400, 'un pedido por entregar aún no admite publicaciones');
   await accionTato(env, p, 'entregar');
   assert.ok((await accionTato(env, await leerPedido(env, r.numero), 'pago-influencer', { operacion: 'YAPE-777' })).ok);
   p = await leerPedido(env, r.numero);
   assert.equal(p.pagoInfluencer.monto, 252);
-  assert.match(await (await cuenta(env, '/cuenta', { cookie })).text(), /Te pagamos el .* \(operación YAPE-777\)/);
+  const otro = await cuentaLista(env, 'luis-ramos');
+  assert.equal((await cuenta(env, ruta, { cookie: otro, form: publicacion })).status, 404);
+  assert.equal((await cuenta(env, ruta, { cookie, form: { ...publicacion, url: 'https://instagram.com.ejemplo.com/reel/abc123' } })).status, 400);
+  assert.equal((await cuenta(env, ruta, { cookie, form: publicacion })).status, 303);
+  assert.equal((await cuenta(env, ruta, { cookie, form: { ...publicacion, vistas: '1345' } })).status, 303);
+  const publicaciones = await listarPublicaciones(env, 'rosa-perez', p.id);
+  assert.equal(publicaciones.length, 1, 'actualizar conserva un solo registro por URL');
+  assert.equal(publicaciones[0].url, 'https://instagram.com/reel/abc123');
+  assert.deepEqual(publicaciones[0].metricas, { vistas: 1345, meGusta: 42, comentarios: null, compartidos: null });
+  const inicio = await (await cuenta(env, '/cuenta', { cookie })).text();
+  assert.match(inicio, /Te pagamos el .* \(operación YAPE-777\)/);
+  assert.match(inicio, /@marca-prueba/);
+  assert.doesNotMatch(await (await cuenta(env, '/cuenta', { cookie: otro })).text(), /@marca-prueba/);
 });
 
 test('solicitudes: código y RUC, negocio verificado, pausa, convenio vencido y límites', async () => {
@@ -496,7 +527,7 @@ test('alta en línea: consentimiento, archivos privados, publicación y pedido c
   assert.match(pagina, /Creadora de prueba/);
   assert.doesNotMatch(pagina, /900000000|identidad\/|captura:/);
   const lista = async () => (await (await handleCreadores(env, new URL(B + '/api/influencers/creadores'))).json()).perfiles;
-  assert.deepEqual(await lista(), [{ id, nombre: datos.nombre, region: datos.region, desde: 299 }]);
+  assert.deepEqual(await lista(), [{ id, nombre: datos.nombre, region: datos.region, desde: 299, telefonoVerificado: false }]);
   const pedido = await pedir(env, { influencer: id, paquete: 'Historia' });
   assert.equal(pedido.status, 200);
   assert.deepEqual((await leerPedido(env, pedido.r.numero)).dinero, { precio: 499, produccion: 200, porcentajeTato: 40 });
@@ -504,6 +535,37 @@ test('alta en línea: consentimiento, archivos privados, publicación y pedido c
   assert.equal(env.MEDIOS.m.size, 0);
   assert.deepEqual(await lista(), []);
   assert.equal((await handlePerfilCreador(env, perfil, id)).status, 404);
+});
+
+test('alta con WhatsApp: exige Turnstile, vincula el código al teléfono y lo consume al verificar', async () => {
+  const env = Object.assign(entorno(), {
+    VERIFICACION_WHATSAPP: '1', TWILIO_VERIFY_SERVICE_SID: 'VA' + '1'.repeat(32),
+    TWILIO_VERIFY_KEY_SID: 'SK' + '2'.repeat(32), TWILIO_VERIFY_KEY_SECRET: 'test',
+    TURNSTILE_SITE_KEY: 'publica', TURNSTILE_SECRET_KEY: 'privada',
+  });
+  const token = crypto.randomUUID();
+  const id = await idDeAlta(token);
+  const datos = {
+    token, clave: await claveDelNavegador(id, 'contraseña-de-prueba'),
+    nombre: 'Creadora OTP', region: 'Ica', redes: '@demo', contenido: 'Videos de gastronomía.',
+    whatsapp: '900000000', mayor: true, autoriza: true, convenio: true, version: planes.version,
+  };
+  const req = (ruta, body) => new Request(B + ruta, { method: 'POST', headers: { Origin: B, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const alta = (d) => handleAltaInfluencer(req('/api/influencers/alta', { ...datos, ...d }), env);
+  const enviar = (captcha) => enviarCodigo(req('/api/influencers/verificacion/enviar', { captcha, token, whatsapp: datos.whatsapp }), env);
+  assert.equal((await alta()).status, 400);
+  assert.equal((await enviar('captcha-invalido')).status, 400);
+  assert.equal(enviosOTP, 0);
+  const envio = await enviar('captcha-valido');
+  assert.equal(envio.status, 200);
+  assert.equal(enviosOTP, 1);
+  const { desafio } = await envio.json();
+  assert.equal((await enviar('captcha-valido')).status, 429);
+  assert.equal((await alta({ desafio, codigo: '123456', whatsapp: '900000001' })).status, 400);
+  assert.equal((await alta({ desafio, codigo: '111111' })).status, 400);
+  assert.equal((await alta({ desafio, codigo: '123456' })).status, 201);
+  assert.equal((await env.PEDIDOS_KV.get(`influencer:${id}`, 'json')).whatsappVerificado.numero, datos.whatsapp);
+  assert.equal(await env.PEDIDOS_KV.get(`otp:${desafio}`), null);
 });
 
 test('actuación: si Tato la pide, el guion no se aprueba sin el audio, y se borra 30 días después de terminar', async () => {

@@ -148,6 +148,13 @@ La web se publica como el Worker `tato-pe` (cuenta de Cloudflare de Tato). Cada 
 
 ## Antes de publicar
 
+### Códigos de WhatsApp para creadores
+
+1. En [Twilio Verify](https://www.twilio.com/docs/verify/whatsapp), configura un servicio con códigos de seis dígitos y un remitente de WhatsApp Business habilitado para Verify.
+2. Crea un widget administrado de [Cloudflare Turnstile](https://developers.cloudflare.com/turnstile/get-started/) para `tato.pe`.
+3. En las variables de **runtime** del Worker `tato-pe`, agrega `TWILIO_VERIFY_SERVICE_SID`, `TWILIO_VERIFY_KEY_SID` y `TURNSTILE_SITE_KEY`. Guarda `TWILIO_VERIFY_KEY_SECRET` y `TURNSTILE_SECRET_KEY` como secretos.
+4. Activa `VERIFICACION_WHATSAPP=1` cuando el remitente y todas las claves estén listos. Los registros nuevos exigirán código y las cuentas existentes podrán verificar su número en **Mi perfil y seguridad**. Si el interruptor está activo con una configuración incompleta, el alta nueva queda pausada.
+
 - Confirmar precios de los videos personalizados (`plans` en `site.ts`) y la fecha y cupos del taller.
 - Reemplazar las opiniones de ejemplo en `src/components/home/Opiniones.astro`.
 - Conectar el formulario de correo de "Prompt de la semana" (`src/components/home/Prompt.astro`) a una lista real; hoy abre un `mailto:`.
