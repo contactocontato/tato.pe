@@ -68,12 +68,14 @@ const noEntran = negocios.palabras.map((g) => g.motivo);
           <p class="vacio" hidden data-vacio>No hay influencers con esos filtros. Prueba con otro.</p>
         </Fragment>
       ) : (
-        <div class="pronto">
-          <h2 class="h3">Estamos cerrando los primeros convenios</h2>
-          <p>Registra tu negocio ahora: lo verificamos con tu RUC en segundos y te avisamos por WhatsApp cuando abran los pedidos.</p>
+        <div class="pronto" id="creadores-vacio">
+          <h2 class="h3">Aquí aparecerán los creadores disponibles</h2>
+          <p>Puedes registrar tu negocio para pedir videos cuando haya perfiles disponibles.</p>
           <a class="btn btn--fucsia" href="/influencers/registro/">Registra tu negocio</a>
         </div>
       )}
+      <ul class="creadores" id="creadores" hidden></ul>
+      <button class="btn btn--line" type="button" id="mas-creadores" hidden>Ver más creadores</button>
     </div>
   </section>
 
@@ -112,6 +114,50 @@ const noEntran = negocios.palabras.map((g) => g.motivo);
     </div>
   </section>
 </Studio>
+
+<script>
+  const creadores = document.querySelector<HTMLUListElement>('#creadores')!;
+  const vacioCatalogo = document.querySelector<HTMLElement>('#creadores-vacio');
+  const mas = document.querySelector<HTMLButtonElement>('#mas-creadores')!;
+  let cursor = '';
+  async function cargarCreadores() {
+    mas.disabled = true;
+    try {
+      const respuesta = await fetch('/api/influencers/creadores?' + new URLSearchParams({ cursor }));
+      if (!respuesta.ok) return;
+      const datos = await respuesta.json();
+      for (const perfil of datos.perfiles) {
+        const li = document.createElement('li');
+        const link = document.createElement('a');
+        link.href = '/influencers/perfil/' + encodeURIComponent(perfil.id) + '/';
+        link.className = 'icard';
+        const titulo = document.createElement('h3');
+        titulo.textContent = perfil.nombre;
+        const descripcion = document.createElement('p');
+        descripcion.textContent = perfil.region + ' · Desde S/ ' + perfil.desde;
+        link.append(titulo, descripcion);
+        li.append(link);
+        creadores.append(li);
+      }
+      cursor = datos.siguiente || '';
+      mas.hidden = !cursor;
+      if (creadores.childElementCount) {
+        creadores.hidden = false;
+        if (vacioCatalogo) vacioCatalogo.hidden = true;
+      }
+    } catch { /* El catálogo estático queda disponible. */ }
+    finally { mas.disabled = false; }
+  }
+  mas.addEventListener('click', cargarCreadores);
+  void cargarCreadores();
+</script>
+
+<style>
+  .creadores { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 16px; margin: 20px 0; }
+  .creadores[hidden], #creadores-vacio[hidden] { display: none; }
+  .creadores .icard { padding: 22px; overflow-wrap: anywhere; }
+  .creadores h3 { font-size: 1.25rem; font-weight: 800; margin-bottom: 6px; }
+</style>
 
 <script>
   // Si un convenio venció después de publicar la web, su tarjeta ya no se muestra.

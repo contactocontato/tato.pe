@@ -51,6 +51,12 @@ export async function catalogo(env) {
 
 /** El influencer si está publicado y con el convenio vigente; si no, null. */
 export async function influencerPublicado(env, id) {
+  if (/^creador-[0-9a-f]{32}$/.test(id)) {
+    const c = await leerCuenta(env, id);
+    return c?.alta && c.activa !== false && identidadDe(c).estado === 'aprobada'
+      ? { id, nombre: c.nombre, ...c.alta.perfil, paquetes: c.alta.paquetes }
+      : null;
+  }
   const i = (await catalogo(env)).find((x) => x.id === id);
   return i && !(i.fin && i.fin < Date.now()) ? i : null;
 }
@@ -70,7 +76,12 @@ export const leerCuenta = (env, id) => (idValido(id) ? env.PEDIDOS_KV.get(`influ
 export async function guardarCuenta(env, c) {
   c.actualizada = ahora();
   await env.PEDIDOS_KV.put(`influencer:${c.id}`, JSON.stringify(c), {
-    metadata: { nombre: c.nombre, activa: c.activa !== false, mp: Boolean(c.mp?.accessToken) },
+    metadata: {
+      nombre: c.nombre, activa: c.activa !== false, mp: Boolean(c.mp?.accessToken),
+      publico: c.alta && recibePedidos(c)
+        ? { nombre: c.nombre, region: c.alta.perfil.region, desde: Math.min(...c.alta.paquetes.map((p) => p.precio)) }
+        : null,
+    },
   });
 }
 /** Identidad del influencer (fotos y voz, ver worker/identidad.js), con valores por defecto. */
@@ -525,7 +536,7 @@ export async function handlePedidoNuevo(request, env) {
   if (abiertos >= 5) return json({ error: 'Ya tienes 5 pedidos en curso. Cuando avance alguno, puedes pedir otro.' }, 429);
 
   const aj = await ajustes(env);
-  const produccion = Number(cuenta.produccion?.[paq.nombre] ?? aj.produccion ?? 0);
+  const produccion = Number(paq.produccion ?? cuenta.produccion?.[paq.nombre] ?? aj.produccion ?? 0);
   const s = negocio.sunat || {};
   const p = {
     id: await idLibre(env),

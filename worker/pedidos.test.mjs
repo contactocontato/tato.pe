@@ -6,6 +6,10 @@ import { cuentas, cuentasDe, accionTato, leerPedido, guardarAjustes, handlePedid
 import { handleCuenta, handleMpConectado } from './cuenta.js';
 import { handlePanelInfluencerAccion, handlePanelPedidos, handlePanelInfluencers, handlePanelArchivo } from './panel-pedidos.js';
 import { claveDelNavegador, cifrarClave, claveCorrecta, formatoClave } from './seguridad.js';
+import { handleAltaInfluencer } from './alta-influencer.js';
+import { handleCreadores, handlePerfilCreador } from './perfiles-creadores.js';
+import { idDeAlta } from '../src/lib/id-alta.js';
+import planes from '../src/data/planes-influencer.json' with { type: 'json' };
 
 class KVFalso {
   constructor() { this.m = new Map(); }
@@ -453,6 +457,53 @@ test('identidad: fotos, cuento con código, voz, autorización, revisión de Tat
   assert.match(await (await panel(env, handlePanelInfluencers, '/panel/influencers/')).text(), /borra su hoja de personaje y su voz clonada/);
   await panel(env, handlePanelInfluencerAccion, '/panel/influencers/accion', { id: 'rosa-perez', accion: 'identidad-derivados' });
   assert.equal(JSON.parse(env.PEDIDOS_KV.m.get('influencer:rosa-perez').v).identidad.derivadosPorBorrar, false);
+});
+
+test('alta en línea: consentimiento, archivos privados, publicación y pedido con precio estándar', async () => {
+  const env = entorno({ conMP: false });
+  const token = crypto.randomUUID();
+  const id = await idDeAlta(token);
+  const datos = {
+    token, clave: await claveDelNavegador(id, 'contraseña-de-prueba'),
+    nombre: 'Creadora de prueba', region: 'Ica', redes: '@demo', contenido: 'Videos de gastronomía.',
+    whatsapp: '900000000', mayor: true, autoriza: true, convenio: true, version: planes.version,
+  };
+  const alta = (cambios = {}) => handleAltaInfluencer(new Request(B + '/api/influencers/alta', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Origin: B },
+    body: JSON.stringify({ ...datos, ...cambios }),
+  }), env);
+  assert.equal((await alta({ convenio: false })).status, 400);
+  const creada = await alta();
+  assert.equal(creada.status, 201);
+  const cookie = cookieDe(creada);
+  assert.ok(cookie);
+  assert.equal((await creada.json()).id, id);
+  assert.equal((await alta()).status, 200, 'reintentar conserva la cuenta');
+  assert.equal((await alta({ clave: 'x'.repeat(43) })).status, 409, 'el mismo token no reemplaza la contraseña');
+  const perfil = new URL(`${B}/influencers/perfil/${id}/`);
+  assert.equal((await handlePerfilCreador(env, perfil, id)).status, 404);
+  assert.equal((await subir(env, '/cuenta/identidad/foto/rostro-frente', cookie, JPEG, 'image/jpeg')).status, 403);
+  assert.equal((await cuenta(env, '/cuenta/identidad/autorizar', { cookie, form: { mayor: '1', autorizo: '1', borrar: '1' } })).status, 303);
+  const fotos = await Promise.all(['cuerpo-frente', 'cuerpo-perfil', 'rostro-frente', 'rostro-perfil']
+    .map((k) => subir(env, `/cuenta/identidad/foto/${k}`, cookie, JPEG, 'image/jpeg')));
+  assert.ok(fotos.every((r) => r.status === 200));
+  await cuenta(env, '/cuenta/identidad/cuento', { cookie });
+  assert.equal((await subir(env, '/cuenta/identidad/voz?segundos=0', cookie, AUDIO, 'audio/webm')).status, 400);
+  assert.equal((await cuenta(env, '/cuenta/identidad/enviar', { cookie, form: {} })).status, 400);
+  assert.equal((await subir(env, '/cuenta/identidad/voz?segundos=60', cookie, AUDIO, 'audio/webm')).status, 200);
+  assert.equal((await cuenta(env, '/cuenta/identidad/enviar', { cookie, form: {} })).headers.get('Location'), '/cuenta/?m=alta-lista');
+  const pagina = await (await handlePerfilCreador(env, perfil, id)).text();
+  assert.match(pagina, /Creadora de prueba/);
+  assert.doesNotMatch(pagina, /900000000|identidad\/|captura:/);
+  const lista = async () => (await (await handleCreadores(env, new URL(B + '/api/influencers/creadores'))).json()).perfiles;
+  assert.deepEqual(await lista(), [{ id, nombre: datos.nombre, region: datos.region, desde: 299 }]);
+  const pedido = await pedir(env, { influencer: id, paquete: 'Historia' });
+  assert.equal(pedido.status, 200);
+  assert.deepEqual((await leerPedido(env, pedido.r.numero)).dinero, { precio: 499, produccion: 200, porcentajeTato: 40 });
+  await cuenta(env, '/cuenta/identidad/borrar', { cookie, form: { confirmo: '1' } });
+  assert.equal(env.MEDIOS.m.size, 0);
+  assert.deepEqual(await lista(), []);
+  assert.equal((await handlePerfilCreador(env, perfil, id)).status, 404);
 });
 
 test('actuación: si Tato la pide, el guion no se aprueba sin el audio, y se borra 30 días después de terminar', async () => {

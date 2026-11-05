@@ -55,6 +55,22 @@ async function actualizar(env, idCuenta, cambio) {
   return r;
 }
 
+const claveCaptura = (cuenta, item) => `captura:${cuenta.id}:${item}`;
+const CAPTURAS = [...ITEMS, 'cuento'];
+
+async function identidadConCapturas(env, cuenta) {
+  const id = identidadDe(cuenta);
+  if (!cuenta.alta || !SUBIDAS_ABIERTAS.includes(id.estado)) return id;
+  const capturas = await Promise.all(CAPTURAS.map((k) => env.PEDIDOS_KV.get(claveCaptura(cuenta, k), 'json')));
+  for (const [index, k] of CAPTURAS.entries()) {
+    const valor = capturas[index];
+    if (!valor) continue;
+    if (k === 'voz' || k === 'cuento') id[k] = valor;
+    else id.fotos[k] = valor;
+  }
+  return id;
+}
+
 // ---------- Página ----------
 
 const ICONOS = {
@@ -75,7 +91,9 @@ function paginaIdentidad(env, cuenta, id, { aviso, error }) {
     incompleta: '<p class="aviso ojo">Antes de recibir pedidos, sube tus 4 fotos y graba tu voz. Te toma unos 10 minutos.</p>',
     rehacer: `<p class="aviso ojo">Tato te pide que rehagas: ${esc(id.rehacer.map((k) => NOMBRES[k].toLowerCase()).join(', '))}.${id.nota ? ` ${esc(id.nota)}` : ''}</p>`,
     'en-revision': '<p class="aviso">Tato está revisando tus fotos y tu voz. Cuando las apruebe, empiezas a recibir solicitudes.</p>',
-    aprobada: `<p class="aviso">Tu identidad está aprobada${id.revisada ? ` desde el ${esc(fecha(id.revisada))}` : ''}. Si necesitas cambiar algo, <a href="https://wa.me/${WHATSAPP_TATO}?text=${encodeURIComponent('Hola Tato, quiero cambiar mis fotos o mi voz.')}" target="_blank" rel="noopener">escríbele a Tato</a>.</p>`,
+    aprobada: cuenta.alta
+      ? '<p class="aviso">Completaste tu registro de fotos y voz. Puedes ver tu perfil y gestionar tus pedidos desde tu cuenta.</p>'
+      : `<p class="aviso">Tu identidad está aprobada${id.revisada ? ` desde el ${esc(fecha(id.revisada))}` : ''}. Si necesitas cambiar algo, <a href="https://wa.me/${WHATSAPP_TATO}?text=${encodeURIComponent('Hola Tato, quiero cambiar mis fotos o mi voz.')}" target="_blank" rel="noopener">escríbele a Tato</a>.</p>`,
     borrada: '<p class="aviso ojo">Borraste tus fotos y tu voz. Para volver a recibir pedidos, súbelas de nuevo.</p>',
   };
 
@@ -120,12 +138,13 @@ function paginaIdentidad(env, cuenta, id, { aviso, error }) {
 </div>`
     : `<div class="caja">${id.voz ? `<p>Tu grabación (${esc(String(id.voz.segundos || '?'))} s, ${esc(fecha(id.voz.subido))}):</p><audio controls preload="none" src="/cuenta/identidad/archivo/voz?v=${v(id.voz)}"></audio>` : '<p>Sin grabación.</p>'}</div>`;
 
+  const casillas = CONSENTIMIENTO.puntos.map(([k, t]) => `<label class="check"><input type="checkbox" name="${k}" value="1" required><span>${esc(t)}</span></label>`).join('');
   const autorizacion = abierta
     ? `<form class="caja" method="post" action="/cuenta/identidad/enviar">
   <ul class="faltan" data-faltan${falta.length ? '' : ' hidden'}>${falta.map((k) => `<li data-falta="${k}">Falta: ${esc(NOMBRES[k].toLowerCase())}</li>`).join('')}</ul>
   <p class="nota" data-todo-listo${falta.length ? ' hidden' : ''}>Todo listo. Lee y marca para enviar.</p>
-  ${CONSENTIMIENTO.puntos.map(([k, t]) => `<label class="check"><input type="checkbox" name="${k}" value="1" required><span>${esc(t)}</span></label>`).join('')}
-  <div class="acciones"><button class="btn fucsia" type="submit">Enviar a Tato</button></div>
+  ${cuenta.alta ? '<p>Al terminar, tu nombre público, red, región y descripción aparecerán en el catálogo.</p>' : casillas}
+  <div class="acciones"><button class="btn fucsia" type="submit">${cuenta.alta ? 'Completar registro y publicar perfil' : 'Enviar a Tato'}</button></div>
 </form>`
     : id.consentimiento
       ? `<div class="caja"><p class="nota">Autorizaste el ${esc(fecha(id.consentimiento.fecha, true))} (versión ${esc(id.consentimiento.version)}).</p></div>`
@@ -146,16 +165,20 @@ function paginaIdentidad(env, cuenta, id, { aviso, error }) {
     error,
     cuerpo: `${['aprobada', 'en-revision'].includes(id.estado) ? '<a class="volver" href="/cuenta/">← Tu cuenta</a>' : ''}
 <h1>Tu <span class="fx">identidad</span></h1>
+${cuenta.alta && abierta ? `<p class="nota">Tu ID de acceso <code style="overflow-wrap:anywhere">${esc(cuenta.id)}</code></p>` : ''}
 <p class="sub">Con esto Tato arma tu hoja de personaje y tu voz con IA. Solo se usan en los videos que tú apruebes, y puedes borrarlas cuando quieras.</p>
+${cuenta.alta && abierta && !id.consentimiento ? `<h2>Autoriza antes de subir tus archivos</h2>
+<form class="caja" method="post" action="/cuenta/identidad/autorizar">${casillas}
+<div class="acciones"><button class="btn fucsia" type="submit">Autorizar y continuar</button></div></form>` : `
 ${estados[id.estado] || ''}
 <h2>1. Tus fotos</h2>
 ${abierta ? '<ul class="consejos"><li>Con buena luz de frente y un fondo liso.</li><li>Sin lentes de sol, gorra ni filtros; el pelo como lo llevas siempre.</li><li>Ropa ajustada de un solo color para las de cuerpo completo. Pide a alguien que te tome esas dos.</li></ul>' : ''}
 <div class="fotos">${tarjetas}</div>
 <h2 id="voz-t">2. Tu voz</h2>
 ${voz}
-<h2>3. Tu autorización</h2>
+<h2>3. ${cuenta.alta && abierta ? 'Publica tu perfil' : 'Tu autorización'}</h2>
 ${autorizacion}
-${borrar}`,
+${borrar}`}`,
   });
 }
 
@@ -164,17 +187,37 @@ ${borrar}`,
 /** /cuenta/identidad[/cuento|/foto/<k>|/voz|/archivo/<k>|/enviar|/borrar]. La sesión ya está revisada. */
 export async function handleIdentidad(request, env, url, path, cuenta, mensajes) {
   const post = request.method === 'POST';
-  const id = identidadDe(cuenta);
+  const id = await identidadConCapturas(env, cuenta);
   const abierta = SUBIDAS_ABIERTAS.includes(id.estado);
   const cerrada = { error: 'Tu identidad está en revisión o aprobada. Si necesitas cambiar algo, escríbele a Tato.' };
 
   if (path === '/cuenta/identidad' && !post) return respuesta(paginaIdentidad(env, cuenta, id, mensajes));
 
+  const consentimiento = () => ({
+    version: CONSENTIMIENTO.version,
+    fecha: ahora(),
+    ip: request.headers.get('CF-Connecting-IP') || '',
+    textos: CONSENTIMIENTO.puntos.map(([, t]) => t),
+  });
+  if (path === '/cuenta/identidad/autorizar' && post && cuenta.alta && abierta) {
+    if (id.consentimiento) return ir('/cuenta/identidad/');
+    const form = await request.formData();
+    if (CONSENTIMIENTO.puntos.some(([k]) => form.get(k) !== '1')) {
+      return respuesta(paginaIdentidad(env, cuenta, id, { error: 'Confirma las tres casillas para continuar.' }), 400);
+    }
+    await actualizar(env, cuenta.id, (i) => { i.consentimiento = consentimiento(); });
+    return ir('/cuenta/identidad/');
+  }
+  if (cuenta.alta && abierta && !id.consentimiento) {
+    return json({ error: 'Primero autoriza el uso de tus fotos y tu voz.' }, 403);
+  }
+
   if (path === '/cuenta/identidad/cuento' && !post) {
     if (!abierta) return json(cerrada, 409);
     if ((await contar(env, `cuento:${cuenta.id}:${ahora().slice(0, 10)}`, 86400)) > 20) return json({ error: 'Pediste muchos cuentos hoy. Graba con el que tienes.' }, 429);
     const cuento = await cuentoAlAzar(env);
-    await actualizar(env, cuenta.id, (i) => { i.cuento = cuento; });
+    if (cuenta.alta) await env.PEDIDOS_KV.put(claveCaptura(cuenta, 'cuento'), JSON.stringify(cuento));
+    else await actualizar(env, cuenta.id, (i) => { i.cuento = cuento; });
     return json(cuento);
   }
 
@@ -185,6 +228,10 @@ export async function handleIdentidad(request, env, url, path, cuenta, mensajes)
     if (!abierta) return json(cerrada, 409);
     const r = await guardarArchivo(env, request, 'foto', `identidad/${cuenta.id}/${k}`);
     if (r.error) return json({ error: r.error }, r.status);
+    if (cuenta.alta) {
+      await guardarCaptura(env, cuenta, k, { clave: r.clave, tamano: r.tamano, subido: ahora() }, id.fotos[k]?.clave);
+      return json({ ok: true });
+    }
     const anterior = await actualizar(env, cuenta.id, (i) => {
       const viejo = i.fotos[k]?.clave;
       i.fotos = { ...i.fotos, [k]: { clave: r.clave, tamano: r.tamano, subido: ahora() } };
@@ -200,10 +247,15 @@ export async function handleIdentidad(request, env, url, path, cuenta, mensajes)
     if (!abierta) return json(cerrada, 409);
     if (!id.cuento) return json({ error: 'Primero pide tu cuento para leer.' }, 400);
     const segundos = Math.round(Number(url.searchParams.get('segundos') || 0));
-    if (segundos && segundos < minSegundos(env)) return json({ error: `La grabación dura ${segundos} s y tiene que durar al menos ${minSegundos(env)} s. Lee el cuento completo.` }, 400);
+    if (cuenta.alta && !Number.isFinite(segundos)) return json({ error: 'No pudimos leer la duración de la grabación.' }, 400);
+    if ((segundos || cuenta.alta) && segundos < minSegundos(env)) return json({ error: `La grabación dura ${segundos} s y tiene que durar al menos ${minSegundos(env)} s. Lee el cuento completo.` }, 400);
     if (segundos > 300) return json({ error: 'La grabación dura más de 5 minutos. Graba solo el cuento.' }, 400);
     const r = await guardarArchivo(env, request, 'audio', `identidad/${cuenta.id}/voz`);
     if (r.error) return json({ error: r.error }, r.status);
+    if (cuenta.alta) {
+      await guardarCaptura(env, cuenta, 'voz', { clave: r.clave, tipo: r.tipo, tamano: r.tamano, segundos, subido: ahora(), cuento: id.cuento }, id.voz?.clave);
+      return json({ ok: true });
+    }
     const anterior = await actualizar(env, cuenta.id, (i) => {
       const viejo = i.voz?.clave;
       i.voz = { clave: r.clave, tipo: r.tipo, tamano: r.tamano, segundos: segundos || null, subido: ahora(), cuento: i.cuento };
@@ -225,18 +277,20 @@ export async function handleIdentidad(request, env, url, path, cuenta, mensajes)
     const form = await request.formData();
     if (!abierta) return ir('/cuenta/identidad/');
     const falta = faltantes(id);
-    const sinMarcar = CONSENTIMIENTO.puntos.filter(([k]) => form.get(k) !== '1');
+    const sinMarcar = cuenta.alta ? [] : CONSENTIMIENTO.puntos.filter(([k]) => form.get(k) !== '1');
     if (falta.length || sinMarcar.length) {
       const motivo = falta.length ? `Falta: ${falta.map((k) => NOMBRES[k].toLowerCase()).join(', ')}.` : 'Para enviar, marca las tres casillas de la autorización.';
       return respuesta(paginaIdentidad(env, cuenta, id, { error: motivo }), 400);
     }
+    if (cuenta.alta) {
+      await actualizar(env, cuenta.id, (i) => {
+        Object.assign(i, { fotos: id.fotos, voz: id.voz, cuento: id.cuento, estado: 'aprobada', enviada: ahora(), rehacer: [], nota: '' });
+        anotar(i, 'Completó los requisitos de registro automático.');
+      });
+      return ir('/cuenta/?m=alta-lista');
+    }
     await actualizar(env, cuenta.id, (i) => {
-      i.consentimiento = {
-        version: CONSENTIMIENTO.version,
-        fecha: ahora(),
-        ip: request.headers.get('CF-Connecting-IP') || '',
-        textos: CONSENTIMIENTO.puntos.map(([, t]) => t),
-      };
+      i.consentimiento = consentimiento();
       i.estado = 'en-revision';
       i.enviada = ahora();
       anotar(i, 'Mandó su identidad a revisión y dio su autorización.');
@@ -248,7 +302,7 @@ export async function handleIdentidad(request, env, url, path, cuenta, mensajes)
     const form = await request.formData();
     if (form.get('confirmo') !== '1') return respuesta(paginaIdentidad(env, cuenta, id, { error: 'Marca la casilla para confirmar que quieres borrarlas.' }), 400);
     const claves = await actualizar(env, cuenta.id, (i) => {
-      const c = [...Object.values(i.fotos).map((f) => f.clave), i.voz?.clave].filter(Boolean);
+      const c = [...Object.values(id.fotos).map((f) => f.clave), id.voz?.clave].filter(Boolean);
       i.fotos = {};
       i.voz = null;
       i.cuento = null;
@@ -260,11 +314,22 @@ export async function handleIdentidad(request, env, url, path, cuenta, mensajes)
       anotar(i, 'Borró sus fotos y su voz.');
       return c;
     });
+    if (cuenta.alta) await Promise.all(CAPTURAS.map((k) => env.PEDIDOS_KV.delete(claveCaptura(cuenta, k))));
     for (const c of claves) await borrarArchivo(env, c);
     return ir('/cuenta/identidad/?m=identidad-borrada');
   }
 
   return respuesta(pagina({ titulo: 'No encontrado', cuenta, cuerpo: '<h1>Esta página no existe</h1><p><a class="volver" href="/cuenta/identidad/">← Tu identidad</a></p>' }), 404);
+}
+
+async function guardarCaptura(env, cuenta, item, dato, anterior) {
+  try {
+    await env.PEDIDOS_KV.put(claveCaptura(cuenta, item), JSON.stringify(dato));
+  } catch (error) {
+    await borrarArchivo(env, dato.clave);
+    throw error;
+  }
+  await borrarArchivo(env, anterior);
 }
 
 /** Panel: aprobar la identidad, pedir que rehaga algo o confirmar que se borraron la hoja y la voz clonada. */

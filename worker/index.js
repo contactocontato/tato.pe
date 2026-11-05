@@ -31,6 +31,8 @@ import { handleRegistro, handlePanelNegocios, handleDecidir, revisarRucs } from 
 import { handlePedidoNuevo, handleEstadoInfluencer, handleWebhook, renovarConexiones, limpiarActuaciones } from './pedidos.js';
 import { handleCuenta, handleMpConectado } from './cuenta.js';
 import { handlePostulacion, handlePanelPostulaciones } from './postulaciones.js';
+import { handleAltaInfluencer } from './alta-influencer.js';
+import { handleCreadores, handlePerfilCreador } from './perfiles-creadores.js';
 import { handlePanelPedidos, handlePanelPedidoAccion, handlePanelInfluencers, handlePanelInfluencerAccion, handlePanelAjustes, handlePanelArchivo } from './panel-pedidos.js';
 
 const REDIRECT_URI = 'https://tato.pe/api/tiktok/callback';
@@ -54,6 +56,10 @@ export default {
       if (path === '/api/tiktok/callback') return await handleCallback(request, env, url);
       if (path === '/api/negocios/registro') return await handleRegistro(request, env);
       if (path === '/api/influencers/postulacion') return await handlePostulacion(request, env);
+      if (path === '/api/influencers/alta') return await handleAltaInfluencer(request, env);
+      if (path === '/api/influencers/creadores') return await handleCreadores(env, url);
+      const creador = path.match(/^\/influencers\/perfil\/(creador-[0-9a-f]{32})$/);
+      if (creador && request.method === 'GET') return await handlePerfilCreador(env, url, creador[1]);
       if (path === '/api/pedidos') return await handlePedidoNuevo(request, env);
       const estado = path.match(/^\/api\/influencers\/([a-z0-9-]{1,60})\/estado$/);
       if (estado) return await handleEstadoInfluencer(env, estado[1]);

@@ -276,7 +276,7 @@ export async function handlePanelInfluencers(request, env, url) {
           ? ['gris', ident.estado === 'rehacer' ? 'Rehaciendo identidad' : ident.estado === 'borrada' ? 'Borró su identidad' : 'Falta su identidad']
           : cuenta.aceptaPedidos === false ? ['amarillo', 'No recibe pedidos'] : ['verde', 'Activa'];
     filas.push(`<details class="reg"><summary><span class="badge b-${estado[0]}">${estado[1]}</span><b>${esc(nombre)}</b>
-      <span class="muted">ID ${esc(id)} · ${cuenta.mp?.accessToken ? `Mercado Pago: ${esc(cuenta.mp.nombre || cuenta.mp.userId)}` : 'sin Mercado Pago'} · ${cuenta.ultimoIngreso ? `entró ${esc(fecha(cuenta.ultimoIngreso))}` : 'no entra todavía'}${inf ? '' : ' · ya no está en el catálogo'}</span></summary>
+      <span class="muted">ID ${esc(id)} · ${cuenta.mp?.accessToken ? `Mercado Pago: ${esc(cuenta.mp.nombre || cuenta.mp.userId)}` : 'sin Mercado Pago'} · ${cuenta.ultimoIngreso ? `entró ${esc(fecha(cuenta.ultimoIngreso))}` : 'no entra todavía'}${cuenta.alta ? ' · registro en línea' : inf ? '' : ' · ya no está en el catálogo'}</span></summary>
       <div class="cuerpo">
         <form method="post" action="/panel/influencers/accion" class="acciones cuenta"><input type="hidden" name="id" value="${esc(id)}"><input type="hidden" name="accion" value="editar">
           ${camposCuenta(inf, cuenta, aj)}
@@ -357,7 +357,7 @@ export async function handlePanelInfluencerAccion(request, env, url) {
       if (campos.error) return fin({ err: campos.error });
       Object.assign(cuenta, {
         whatsapp: campos.whatsapp,
-        porcentajeTato: campos.porcentaje,
+        porcentajeTato: cuenta.alta ? cuenta.porcentajeTato : campos.porcentaje,
         produccion: { ...(cuenta.produccion || {}), ...campos.produccion },
         activa: f.get('activa') === '1',
         aceptaPedidos: f.get('acepta') === '1',

@@ -38,7 +38,7 @@ function paginaEntrar(error) {
   <div class="acciones"><button class="btn fucsia" type="submit">Entrar</button></div>
   <noscript><p class="nota">Activa JavaScript para entrar: tu contraseña se prepara en tu navegador y nunca viaja tal cual.</p></noscript>
 </form>
-<p class="nota">¿Todavía no tienes cuenta? <a href="/influencers/unete/#postular">Envía tu solicitud</a>.</p>
+<p class="nota">¿Todavía no tienes cuenta? <a href="/influencers/unete/">Revisa los planes y crea tu cuenta</a>.</p>
 <p class="nota">¿Olvidaste tu contraseña? <a href="https://wa.me/${WHATSAPP_TATO}?text=${encodeURIComponent('Hola Tato, olvidé la contraseña de mi cuenta de influencer.')}" target="_blank" rel="noopener">Escríbele a Tato por WhatsApp</a> y te da una nueva.</p>`,
   });
 }
@@ -175,6 +175,7 @@ async function paginaInicio(env, cuenta, { aviso, error }) {
     error,
     cuerpo: `<h1>Hola, <span class="fx">${esc(cuenta.nombre.split(' ')[0])}</span></h1>
 <p class="sub">${identidad.estado === 'en-revision' ? 'Tato está revisando tus fotos y tu voz. Cuando las apruebe, empiezas a recibir solicitudes.' : pausado ? 'Tus pedidos están en pausa: los negocios no pueden enviarte solicitudes nuevas.' : 'Estás recibiendo solicitudes de negocios verificados.'}</p>
+${cuenta.alta ? `<div class="acciones"><a class="btn linea" href="/influencers/perfil/${esc(cuenta.id)}/">Ver mi perfil público</a></div>` : ''}
 <div class="tiles">
   <div><b>${toca.length}</b><span>Te toca revisar</span></div>
   <div><b>${soles(ganadoMes)}</b><span>Ganado este mes</span></div>
@@ -188,12 +189,13 @@ ${fin.length ? `<h2>Terminados</h2>${lista(fin, '')}` : ''}
 <h2>Tus pagos</h2>
 ${filasPagos ? `<div class="caja"><table class="pagos"><thead><tr><th>Pedido</th><th class="n">Tu parte</th><th>Estado</th></tr></thead><tbody>${filasPagos}</tbody></table></div>` : '<p class="vacio">Aquí vas a ver lo que ganas con cada video.</p>'}
 <h2>Tu identidad</h2>
-<div class="caja"><p>${identidad.estado === 'aprobada' ? 'Aprobada: Tato ya tiene tus fotos y tu voz para tu hoja de personaje y tu voz con IA.' : 'En revisión: Tato está viendo tus fotos y tu voz.'}</p>
+<div class="caja"><p>${cuenta.alta ? 'Registro de fotos y voz completo.' : identidad.estado === 'aprobada' ? 'Aprobada: Tato ya tiene tus fotos y tu voz para tu hoja de personaje y tu voz con IA.' : 'En revisión: Tato está viendo tus fotos y tu voz.'}</p>
 <div class="acciones"><a class="btn linea" href="/cuenta/identidad/">Ver mis fotos y mi voz</a></div></div>
 <h2>Mercado Pago</h2>
 <div class="caja">${mp}</div>
 <h2>Tu cuenta</h2>
 <div class="caja">
+  <p>Tu ID de acceso <code style="overflow-wrap:anywhere">${esc(cuenta.id)}</code></p>
   <form method="post" action="/cuenta/pausa"><input type="hidden" name="pausa" value="${pausado ? 'no' : 'si'}">
     <p>${pausado ? 'Tus pedidos están en pausa.' : '¿Te vas de viaje o necesitas un descanso? Pausa tus pedidos y nadie podrá enviarte solicitudes nuevas. Los que ya están en curso siguen.'}</p>
     <div class="acciones"><button class="btn ${pausado ? 'fucsia' : 'linea'}" type="submit">${pausado ? 'Volver a recibir solicitudes' : 'Pausar mis pedidos'}</button><a class="btn linea" href="/cuenta/clave">Cambiar contraseña</a></div>

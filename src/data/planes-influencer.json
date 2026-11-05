@@ -1,0 +1,9 @@
+{
+  "version": "2026-11-05",
+  "porcentajeTato": 40,
+  "paquetes": [
+    { "nombre": "Chispa", "precio": 299, "produccion": 120, "descripcion": "Un video vertical de 15 segundos para presentar un producto.", "entrega": "3 días hábiles desde la aprobación del guion", "uso": "Redes orgánicas de la marca por 30 días" },
+    { "nombre": "Historia", "precio": 499, "produccion": 200, "descripcion": "Un video vertical de hasta 30 segundos con inicio, demostración y llamada a la acción.", "entrega": "5 días hábiles desde la aprobación del guion", "uso": "Redes orgánicas de la marca por 60 días" },
+    { "nombre": "Campaña", "precio": 799, "produccion": 320, "descripcion": "Dos videos verticales de hasta 30 segundos para probar dos ángulos de una campaña.", "entrega": "7 días hábiles desde la aprobación del guion", "uso": "Redes y anuncios digitales de la marca por 90 días" }
+  ]
+}

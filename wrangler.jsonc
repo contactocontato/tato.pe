@@ -10,8 +10,8 @@
     "binding": "ASSETS",
     "html_handling": "auto-trailing-slash",
     "not_found_handling": "none",
-    // Solo estas rutas pasan por worker/index.js; el resto de la web se sirve directo.
-    "run_worker_first": ["/api/*", "/panel/*", "/cuenta", "/cuenta/*"]
+    // Las cuentas y las fichas creadas en línea pasan por el Worker.
+    "run_worker_first": ["/api/*", "/panel/*", "/cuenta", "/cuenta/*", "/influencers/perfil/*"]
   },
   // Tokens de TikTok, registros de negocios y pedidos con cuentas de influencer.
   // Sin "id": wrangler crea cada namespace solo en el primer deploy.

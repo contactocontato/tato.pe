@@ -1,31 +1,53 @@
 ---
 import Studio from '../../layouts/Studio.astro';
-import { site } from '../../lib/site';
-const wa = `https://wa.me/${site.whatsappNumber}`;
+import planes from '../../data/planes-influencer.json';
+import { cuentas, soles } from '../../../worker/pedidos.js';
 ---
 <Studio title="Súmate como influencer · Tato Studio" description="Tu imagen en videos con IA para negocios verificados del Perú. Tú apruebas cada guion y cada video, y la mayor parte de lo que se cobra es para ti." actual="influencers">
   <section class="ihero">
     <div class="wrap">
       <p class="migas" style="padding-top:0;margin-bottom:24px"><a href="/influencers/">Influencers</a> / Súmate</p>
       <h1 class="h1">Tu imagen trabaja, <span class="fx">tú decides</span></h1>
-      <p class="lead">Postula desde tato.pe para trabajar con negocios peruanos. Tú decides qué pedidos aceptas y apruebas cada guion y video antes de su entrega.</p>
-      <div class="actions"><a class="btn btn--fucsia" href="#postular">Iniciar mi registro</a><a class="btn btn--line" href="/cuenta/">Ya tengo una cuenta</a></div>
+      <p class="lead">Crea tu cuenta, configura tu perfil y completa tus fotos y voz en la web. Tú decides qué pedidos aceptas y apruebas cada guion y video antes de su entrega.</p>
+      <div class="actions"><a class="btn btn--fucsia" href="#planes">Ver planes y ganancias</a><a class="btn btn--line" href="/cuenta/">Ya tengo una cuenta</a></div>
+    </div>
+  </section>
+
+  <section class="sec dark" id="planes" aria-labelledby="planes-t">
+    <div class="wrap">
+      <h2 class="h2" id="planes-t">Planes para <span class="fx">tus videos</span></h2>
+      <p class="lead">El negocio paga un adelanto para producción y el resto cuando el video está listo. Del saldo, después de descontar la comisión del medio de pago cuando aplique, recibes el <strong>{100 - planes.porcentajeTato} %</strong> y Tato Studio recibe el <strong>{planes.porcentajeTato} %</strong>.</p>
+      <div class="reglas">
+        {planes.paquetes.map((p) => {
+          const reparto = cuentas({ ...p, porcentajeTato: planes.porcentajeTato })!;
+          return <article class="regla plan">
+            <h3>{p.nombre}</h3>
+            <p class="precio-plan">{soles(p.precio)}</p>
+            <p>{p.descripcion}</p>
+            <p>{p.entrega}. {p.uso}.</p>
+            <dl><dt>Adelanto de producción</dt><dd>{soles(reparto.adelanto)}</dd><dt>Saldo del negocio</dt><dd>{soles(reparto.saldo)}</dd><dt>Tu parte estimada</dt><dd><strong>{soles(reparto.parteInfluencer)}</strong></dd></dl>
+          </article>;
+        })}
+      </div>
+      <p>La estimación usa un saldo sin comisión. Si el cobro se procesa por Mercado Pago, tu parte se calcula sobre el saldo después de su comisión. Tu cuenta muestra el estado de cada pago.</p>
+      <div class="actions"><a class="btn btn--fucsia" href="#postular">Crear mi cuenta</a></div>
     </div>
   </section>
 
   <section class="wrap registro" id="postular" aria-labelledby="postular-t">
     <div>
       <h2 class="h2" id="postular-t">Regístrate como <span class="fx">influencer</span></h2>
-      <p class="lead">Ten a mano tu WhatsApp y el enlace o usuario de tu red principal. Todos los campos son obligatorios.</p>
-      <form class="form" id="postulacion" method="post" action="/api/influencers/postulacion">
+      <p class="lead">Crea tu acceso y escribe cómo quieres aparecer en el catálogo. Todos los campos son obligatorios.</p>
+      <form class="form" id="postulacion" method="post" action="/api/influencers/alta">
+        <input type="hidden" name="version" value={planes.version}>
         <div class="field">
-          <label for="nombre">Tu nombre</label>
-          <input id="nombre" name="nombre" autocomplete="name" maxlength="100" required>
+          <label for="nombre">Tu nombre público</label>
+          <input id="nombre" name="nombre" autocomplete="nickname" maxlength="80" required>
         </div>
         <div class="field">
           <label for="whatsapp">Tu WhatsApp</label>
           <input id="whatsapp" name="whatsapp" type="tel" autocomplete="tel" inputmode="tel" maxlength="22" required placeholder="9xx xxx xxx" aria-describedby="telefono-ayuda">
-          <small id="telefono-ayuda">Número peruano de 9 dígitos. Puedes incluir +51.</small>
+          <small id="telefono-ayuda">Número peruano de 9 dígitos. Es privado y sirve para coordinar pagos o soporte.</small>
         </div>
         <div class="field">
           <label for="region">Ciudad o región</label>
@@ -39,43 +61,51 @@ const wa = `https://wa.me/${site.whatsappNumber}`;
           <label for="contenido">¿Qué contenido haces?</label>
           <textarea id="contenido" name="contenido" maxlength="500" required placeholder="Cuéntanos de tus temas y del tipo de negocios con los que te gustaría trabajar"></textarea>
         </div>
+        <div class="field">
+          <label for="nueva-clave">Crea tu contraseña</label>
+          <input id="nueva-clave" type="password" autocomplete="new-password" minlength="12" maxlength="128" required>
+          <small>Mínimo 12 caracteres.</small>
+        </div>
+        <div class="field">
+          <label for="repite-clave">Repite tu contraseña</label>
+          <input id="repite-clave" type="password" autocomplete="new-password" minlength="12" maxlength="128" required>
+        </div>
         <fieldset class="grupo">
           <legend>Antes de enviar</legend>
           <label class="check"><input type="checkbox" name="mayor" required><span>Confirmo que tengo 18 años o más.</span></label>
-          <label class="check"><input type="checkbox" name="autoriza" required><span>Acepto que Tato Studio revise mis datos y me contacte para esta solicitud, según la <a class="link" href="/privacidad/" target="_blank" rel="noopener">política de privacidad</a>.</span></label>
+          <label class="check"><input type="checkbox" name="autoriza" required><span>Acepto el tratamiento de mis datos según la <a class="link" href="/privacidad/" target="_blank" rel="noopener">política de privacidad</a>.</span></label>
+          <label class="check"><input type="checkbox" name="convenio" required><span>Acepto las <a class="link" href="/terminos/#creadores" target="_blank" rel="noopener">condiciones para creadores</a> y la publicación de mi nombre, región, red y descripción al terminar el registro.</span></label>
         </fieldset>
         <div class="trampa" aria-hidden="true"><label for="sitio">Deja vacío este campo</label><input id="sitio" name="sitio" tabindex="-1" autocomplete="off"></div>
         <p class="form__error" id="postulacion-error" role="alert" hidden></p>
-        <button class="btn btn--fucsia" type="submit" id="postulacion-enviar" disabled>Enviar mi solicitud</button>
-        <noscript><p>Activa JavaScript para enviar tu solicitud desde esta página.</p></noscript>
+        <button class="btn btn--fucsia" type="submit" id="postulacion-enviar" disabled>Crear mi cuenta</button>
+        <noscript><p>Activa JavaScript para crear tu cuenta desde esta página.</p></noscript>
       </form>
       <div class="resultado resultado--verde" id="postulacion-recibo" tabindex="-1" hidden>
-        <h2>Recibimos tu solicitud</h2>
-        <p>Guarda esta referencia <strong id="postulacion-referencia" style="overflow-wrap:anywhere"></strong></p>
-        <p>Tato revisará tu perfil y te contactará al WhatsApp que registraste. Si avanzas, firmarán el convenio y recibirás tu ID y una contraseña temporal.</p>
-        <p><a class="link" href="/cuenta/">Ir al acceso de influencers</a></p>
+        <h2>Tu cuenta está creada</h2>
+        <p>Guarda este ID para volver a entrar con tu contraseña.</p>
+        <p><strong id="postulacion-referencia" style="overflow-wrap:anywhere"></strong> <button type="button" class="link" id="copiar-id">Copiar ID</button></p>
+        <a class="btn btn--fucsia" href="/cuenta/identidad/">Continuar con fotos y voz</a>
       </div>
     </div>
     <aside class="lado" aria-labelledby="pasos-t">
       <h2 id="pasos-t">Qué pasa después</h2>
       <ol>
-        <li><strong>Envías tu solicitud.</strong> Recibes una referencia aquí mismo.</li>
-        <li><strong>Tato revisa tu perfil.</strong> Si avanzas, coordinan el convenio por WhatsApp.</li>
-        <li><strong>Activas tu cuenta.</strong> Entras con tu clave temporal y la cambias.</li>
-        <li><strong>Completas tu identidad.</strong> Ya dentro, subes cuatro fotos y grabas tu voz con tu autorización. Tato las revisa antes de habilitar pedidos.</li>
+        <li><strong>Creas tu cuenta.</strong> Elige tu contraseña y guarda tu ID de acceso.</li>
+        <li><strong>Das tu autorización.</strong> Después subes cuatro fotos y grabas tu voz.</li>
+        <li><strong>Publicas tu perfil.</strong> Al completar el registro, tu ficha queda disponible para recibir solicitudes. Puedes pausar pedidos desde tu cuenta.</li>
       </ol>
-      <p>¿Tienes una duda? <a href={wa} target="_blank" rel="noopener">Habla con Tato</a>.</p>
     </aside>
   </section>
 
   <section class="sec dark" aria-labelledby="perfil-t">
     <div class="wrap">
       <h2 class="h2" id="perfil-t">Lo que va en <span class="fx">tu perfil</span></h2>
-      <p class="lead">Así te ven los negocios en el catálogo de tato.pe. Tú apruebas tu perfil antes de que salga.</p>
+      <p class="lead">Así te ven los negocios. Tu WhatsApp, contraseña, fotos de identidad y grabación de voz quedan en privado.</p>
       <div class="reglas">
-        <div class="regla"><h3>Quién eres</h3><ul><li>Tu nombre y tu @</li><li>Una foto que tú elijas</li><li>Tu estilo, en tus palabras</li><li>Tus redes y tus seguidores, con la fecha en que se contaron</li></ul></div>
-        <div class="regla"><h3>Cómo trabajas</h3><ul><li>Con qué negocios encajas</li><li>Lo que no aceptas</li><li>Tus paquetes, precios y tiempos</li><li>Dónde y por cuánto tiempo puede usar el video el negocio</li></ul></div>
-        <div class="regla"><h3>Tus muestras</h3><ul><li>2 o 3 videos hechos con IA con tu imagen</li><li>Aprobados por ti antes de publicarse</li><li>Rotulados como hechos con IA</li></ul></div>
+        <div class="regla"><h3>Quién eres</h3><p>Tu nombre público, región, red principal y la descripción de tu contenido.</p></div>
+        <div class="regla"><h3>Cómo trabajas</h3><p>Los paquetes, precios y condiciones de uso de tus videos.</p></div>
+        <div class="regla"><h3>Tú decides</h3><p>Revisa las solicitudes desde tu cuenta y aprueba cada guion y video antes de la entrega.</p></div>
       </div>
       <div class="actions"><a class="btn btn--fucsia" href="#postular">Ir al formulario</a></div>
     </div>
@@ -83,16 +113,30 @@ const wa = `https://wa.me/${site.whatsappNumber}`;
 </Studio>
 
 <script>
+  import { idDeAlta } from '../../lib/id-alta.js';
+  import { claveDelNavegador } from '../../../worker/seguridad.js';
   const form = document.querySelector<HTMLFormElement>('#postulacion')!;
   const boton = document.querySelector<HTMLButtonElement>('#postulacion-enviar')!;
   const telefono = document.querySelector<HTMLInputElement>('#whatsapp')!;
   const error = document.querySelector<HTMLElement>('#postulacion-error')!;
   const recibo = document.querySelector<HTMLElement>('#postulacion-recibo')!;
   const referencia = document.querySelector<HTMLElement>('#postulacion-referencia')!;
-  const id = crypto.randomUUID();
+  const token = crypto.randomUUID();
+  const clave = document.querySelector<HTMLInputElement>('#nueva-clave')!;
+  const repite = document.querySelector<HTMLInputElement>('#repite-clave')!;
   boton.disabled = false;
 
+  const copiar = document.querySelector<HTMLButtonElement>('#copiar-id')!;
+  copiar.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(referencia.textContent || '');
+      copiar.textContent = 'ID copiado';
+    } catch {
+      copiar.textContent = 'Selecciona y copia el ID';
+    }
+  });
   telefono.addEventListener('input', () => telefono.setCustomValidity(''));
+  for (const campo of [clave, repite]) campo.addEventListener('input', () => repite.setCustomValidity(''));
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     error.hidden = true;
@@ -103,22 +147,29 @@ const wa = `https://wa.me/${site.whatsappNumber}`;
       telefono.reportValidity();
       return;
     }
+    if (clave.value !== repite.value) {
+      repite.setCustomValidity('Las contraseñas tienen que coincidir.');
+      repite.reportValidity();
+      return;
+    }
     boton.disabled = true;
-    boton.textContent = 'Enviando…';
+    boton.textContent = 'Creando tu cuenta…';
     try {
+      const id = await idDeAlta(token);
+      const verificador = await claveDelNavegador(id, clave.value);
       const respuesta = await fetch(form.action, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...Object.fromEntries(datos), id, whatsapp, mayor: datos.has('mayor'), autoriza: datos.has('autoriza') }),
+        body: JSON.stringify({ ...Object.fromEntries(datos), token, clave: verificador, whatsapp, mayor: datos.has('mayor'), autoriza: datos.has('autoriza'), convenio: datos.has('convenio') }),
         signal: AbortSignal.timeout(15000),
       });
       const resultado = await respuesta.json();
-      if (!respuesta.ok || !resultado.referencia) {
+      if (!respuesta.ok || !resultado.id) {
         error.textContent = resultado.error || 'No pudimos confirmar el envío. Vuelve a intentarlo.';
         error.hidden = false;
         return;
       }
-      referencia.textContent = resultado.referencia;
+      referencia.textContent = resultado.id;
       form.reset();
       form.hidden = true;
       recibo.hidden = false;
@@ -128,14 +179,18 @@ const wa = `https://wa.me/${site.whatsappNumber}`;
       error.hidden = false;
     } finally {
       boton.disabled = false;
-      boton.textContent = 'Enviar mi solicitud';
+      boton.textContent = 'Crear mi cuenta';
     }
   });
 </script>
 
 <style>
-  #postular { scroll-margin-top: 6rem; }
+  #postular, #planes { scroll-margin-top: 6rem; }
   #postulacion[hidden] { display: none; }
   .lado ol { padding-inline-start: 1.25rem; }
   .lado li { margin-bottom: .65rem; }
+  .plan { display: grid; gap: .5rem; align-content: start; }
+  .precio-plan { font-size: 1.6rem; font-weight: 800; }
+  .plan dl { display: grid; grid-template-columns: 1fr auto; gap: .3rem .8rem; margin: .65rem 0 0; }
+  .plan dd { margin: 0; }
 </style>

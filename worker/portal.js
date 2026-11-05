@@ -28,6 +28,7 @@ export const MENSAJES = {
   'mp-error': 'No se pudo conectar tu Mercado Pago. Inténtalo otra vez en unos minutos.',
   'mp-no': 'La conexión con Mercado Pago todavía no está disponible.',
   'identidad-enviada': 'Listo: le mandamos tus fotos y tu voz a Tato. Te avisa cuando las revise.',
+  'alta-lista': 'Tu registro está completo. Tu perfil ya puede recibir solicitudes de negocios verificados.',
   'identidad-borrada': 'Borramos tus fotos y tu voz. Tato también borra tu hoja de personaje y tu voz clonada.',
 };
 

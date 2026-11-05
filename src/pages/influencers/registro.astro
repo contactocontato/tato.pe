@@ -153,7 +153,7 @@ import { site } from '../../lib/site';
     if (r.semaforo === 'verde' && r.codigo) {
       try { localStorage.setItem('tato-negocio', JSON.stringify({ codigo: r.codigo, razonSocial: r.razonSocial || '', ruc })); } catch (e) { /* sin almacenamiento: igual tiene el código en pantalla */ }
       extra = `<p class="codigo">${esc(r.codigo)}</p><p>Guárdalo junto con tu RUC: con los dos pides videos desde el perfil de cada influencer.</p>`
-        + (para ? `<a class="btn btn--fucsia" href="/influencers/${esc(para)}/">Seguir con tu pedido</a>` : '<a class="btn btn--fucsia" href="/influencers/">Ver los influencers</a>');
+        + (para ? `<a class="btn btn--fucsia" href="/influencers/${/^creador-[0-9a-f]{32}$/.test(para) ? 'perfil/' : ''}${esc(para)}/">Seguir con tu pedido</a>` : '<a class="btn btn--fucsia" href="/influencers/">Ver los influencers</a>');
     }
     const motivos = (r.motivos || []).length ? `<ul>${(r.motivos || []).map((m) => `<li>${esc(m)}</li>`).join('')}</ul>` : '';
     resultado.className = `resultado resultado--${r.semaforo}`;
