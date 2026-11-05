@@ -2,9 +2,9 @@
 // Usan KV en memoria, un catálogo falso y un Mercado Pago falso: no cobran ni consultan nada real.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cuentas, cuentasDe, accionTato, leerPedido, guardarAjustes, handlePedidoNuevo, handleEstadoInfluencer, handleWebhook, renovarConexiones } from './pedidos.js';
+import { cuentas, cuentasDe, accionTato, leerPedido, guardarAjustes, handlePedidoNuevo, handleEstadoInfluencer, handleWebhook, renovarConexiones, limpiarActuaciones, recibePedidos } from './pedidos.js';
 import { handleCuenta, handleMpConectado } from './cuenta.js';
-import { handlePanelInfluencerAccion, handlePanelPedidos, handlePanelInfluencers } from './panel-pedidos.js';
+import { handlePanelInfluencerAccion, handlePanelPedidos, handlePanelInfluencers, handlePanelArchivo } from './panel-pedidos.js';
 import { claveDelNavegador, cifrarClave, claveCorrecta, formatoClave } from './seguridad.js';
 
 class KVFalso {
@@ -15,6 +15,24 @@ class KVFalso {
   async list({ prefix = '' } = {}) {
     return { keys: [...this.m].filter(([k]) => k.startsWith(prefix)).map(([name, e]) => ({ name, metadata: e.metadata })), list_complete: true };
   }
+}
+
+class R2Falso {
+  constructor() { this.m = new Map(); }
+  async put(k, body, op = {}) {
+    const buf = body instanceof ArrayBuffer ? body : await new Response(body).arrayBuffer();
+    this.m.set(k, { buf, tipo: op.httpMetadata?.contentType });
+    return { key: k, size: buf.byteLength };
+  }
+  async head(k) { const e = this.m.get(k); return e ? { size: e.buf.byteLength, httpMetadata: { contentType: e.tipo } } : null; }
+  async get(k, op = {}) {
+    const e = this.m.get(k);
+    if (!e) return null;
+    const ini = op.range?.offset || 0;
+    const buf = op.range ? e.buf.slice(ini, ini + op.range.length) : e.buf;
+    return { body: new Response(buf).body, size: buf.byteLength, httpMetadata: { contentType: e.tipo } };
+  }
+  async delete(k) { this.m.delete(k); }
 }
 
 const B = 'https://tato.pe';
@@ -39,6 +57,10 @@ globalThis.fetch = async (input, init = {}) => {
     if (url.pathname.startsWith('/v1/payments/')) { const p = MP.pagos[url.pathname.split('/').pop()]; return p && p.token === auth ? jsonRes(p) : jsonRes({ message: 'not found' }, 404); }
     if (url.pathname === '/users/me') return jsonRes({ first_name: 'Rosa', last_name: 'Pérez', nickname: 'ROSAP' });
   }
+  if (url.origin === 'https://api.anthropic.com') {
+    const cuento = `El cóndor curioso\n${'Había una vez un cóndor que quería contar las nubes del valle. '.repeat(13).trim()}`;
+    return jsonRes({ content: [{ type: 'text', text: cuento }] });
+  }
   return new Response('no encontrado', { status: 404 });
 };
 
@@ -47,6 +69,7 @@ function entorno({ conMP = true } = {}) {
     PEDIDOS_KV: new KVFalso(),
     NEGOCIOS_KV: new KVFalso(),
     ASSETS: { fetch: async () => jsonRes({ influencers: CATALOGO }) },
+    MEDIOS: new R2Falso(),
   };
   if (conMP) Object.assign(env, { MP_CLIENT_ID: '123', MP_CLIENT_SECRET: 'secreto', MP_ACCESS_TOKEN: 'APP_USR-tato', MP_API: 'https://mp.prueba', MP_AUTH: 'https://auth.mp.prueba' });
   env.NEGOCIOS_KV.put(`codigo:${CODIGO}`, RUC);
@@ -88,8 +111,15 @@ async function webhook(env, pedido, parte, pagoId, headers = {}) {
   return handleWebhook(new Request(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify({ type: 'payment', data: { id: pagoId } }) }), env, url);
 }
 
-/** Crea la cuenta desde el panel, entra con la clave temporal y pone una nueva. Devuelve la cookie. */
-async function cuentaLista(env, id = 'rosa-perez', clave = 'una-clave-larga') {
+/** Marca la identidad como aprobada sin pasar por las subidas (las pruebas de identidad hacen el camino completo). */
+async function identidadAprobada(env, id) {
+  const c = JSON.parse(env.PEDIDOS_KV.m.get(`influencer:${id}`).v);
+  c.identidad = { estado: 'aprobada', fotos: {}, voz: null, rehacer: [], historial: [] };
+  await env.PEDIDOS_KV.put(`influencer:${id}`, JSON.stringify(c), { metadata: { nombre: c.nombre, activa: true, mp: Boolean(c.mp?.accessToken) } });
+}
+
+/** Crea la cuenta desde el panel, entra con la clave temporal, pone una nueva y (por defecto) aprueba su identidad. Devuelve la cookie. */
+async function cuentaLista(env, id = 'rosa-perez', clave = 'una-clave-larga', { conIdentidad = true } = {}) {
   const temporal = await claveDelNavegador(id, 'Temporal2345');
   const res = await panel(env, handlePanelInfluencerAccion, '/panel/influencers/accion', { id, accion: 'crear', whatsapp: '912345678', porcentaje: '40', paq_0: 'Un video', prod_0: '80', paq_1: 'Especial', prod_1: '100', clave: temporal });
   assert.equal(res.status, 303, 'crear cuenta');
@@ -98,8 +128,18 @@ async function cuentaLista(env, id = 'rosa-perez', clave = 'una-clave-larga') {
   assert.match(cookie, /^tato_cuenta=/);
   const cambio = await cuenta(env, '/cuenta/clave', { cookie, form: { actual: temporal, nueva: await claveDelNavegador(id, clave) } });
   assert.match(cambio.headers.get('Location'), /m=clave-ok/);
+  if (conIdentidad) await identidadAprobada(env, id);
   return cookie;
 }
+
+async function subir(env, ruta, cookie, bytes, tipo) {
+  const url = new URL(B + ruta);
+  const req = new Request(url, { method: 'POST', headers: { Cookie: cookie, Origin: B, 'Content-Type': tipo, 'Content-Length': String(bytes.length) }, body: bytes });
+  const res = await handleCuenta(req, env, url, url.pathname.replace(/\/+$/, ''));
+  return { status: res.status, r: await res.json() };
+}
+const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4, 5, 6]);
+const AUDIO = new Uint8Array(2048).fill(7);
 
 test('reparto: producción aparte, comisión de Mercado Pago y 60/40', () => {
   const conMP = cuentas({ precio: 500, produccion: 80, porcentajeTato: 40 }, { conMP: true, tasaMP: 5.2982 });
@@ -343,6 +383,106 @@ test('panel: la política de referrer deja que el navegador mande Origin en los 
   const res = await panel(env, handlePanelPedidos, '/panel/pedidos/');
   assert.notEqual(res.headers.get('Referrer-Policy'), 'no-referrer');
   assert.equal((await cuenta(env, '/cuenta')).headers.get('Referrer-Policy'), 'same-origin');
+});
+
+test('identidad: fotos, cuento con código, voz, autorización, revisión de Tato y recién ahí recibe pedidos', async () => {
+  const env = entorno();
+  const cookie = await cuentaLista(env, 'rosa-perez', 'una-clave-larga', { conIdentidad: false });
+  assert.match((await cuenta(env, '/cuenta', { cookie })).headers.get('Location'), /\/cuenta\/identidad\//, 'sin identidad, la cuenta lleva a completarla');
+  assert.equal((await pedir(env)).status, 409, 'todavía no recibe pedidos');
+
+  assert.equal((await subir(env, '/cuenta/identidad/foto/rostro-frente', cookie, new Uint8Array([1, 2, 3, 4]), 'image/jpeg')).status, 415, 'solo JPEG de verdad');
+  assert.equal((await subir(env, '/cuenta/identidad/foto/otra-cosa', cookie, JPEG, 'image/jpeg')).status, 404);
+  for (const k of ['cuerpo-frente', 'cuerpo-perfil', 'rostro-frente', 'rostro-perfil']) assert.equal((await subir(env, `/cuenta/identidad/foto/${k}`, cookie, JPEG, 'image/jpeg')).status, 200);
+  assert.equal(env.MEDIOS.m.size, 4);
+  assert.equal((await subir(env, '/cuenta/identidad/foto/rostro-frente', cookie, JPEG, 'image/jpeg')).status, 200);
+  assert.equal(env.MEDIOS.m.size, 4, 'al cambiar una foto se borra la anterior');
+
+  assert.equal((await subir(env, '/cuenta/identidad/voz?segundos=60', cookie, AUDIO, 'audio/webm')).status, 400, 'primero pide su cuento');
+  const cuento = await (await cuenta(env, '/cuenta/identidad/cuento', { cookie })).json();
+  assert.equal(cuento.porIA, false, 'sin clave de IA, usa los cuentos propios');
+  assert.match(cuento.codigoEnLetras, /^\p{L}+, \p{L}+, \p{L}+$/u);
+  env.ANTHROPIC_API_KEY = 'prueba';
+  const conIA = await (await cuenta(env, '/cuenta/identidad/cuento', { cookie })).json();
+  assert.equal(conIA.porIA, true);
+  assert.equal(conIA.titulo, 'El cóndor curioso');
+  assert.equal((await subir(env, '/cuenta/identidad/voz?segundos=12', cookie, AUDIO, 'audio/webm')).status, 400, 'menos de 45 s');
+  assert.equal((await subir(env, '/cuenta/identidad/voz?segundos=63', cookie, AUDIO, 'text/html')).status, 415);
+  assert.equal((await subir(env, '/cuenta/identidad/voz?segundos=63', cookie, AUDIO, 'audio/webm')).status, 200);
+
+  const sinMarcar = await cuenta(env, '/cuenta/identidad/enviar', { cookie, form: { mayor: '1' } });
+  assert.equal(sinMarcar.status, 400);
+  const enviada = await cuenta(env, '/cuenta/identidad/enviar', { cookie, form: { mayor: '1', autorizo: '1', borrar: '1' } });
+  assert.match(enviada.headers.get('Location'), /m=identidad-enviada/);
+  let c = JSON.parse(env.PEDIDOS_KV.m.get('influencer:rosa-perez').v);
+  assert.equal(c.identidad.estado, 'en-revision');
+  assert.equal(c.identidad.voz.cuento.codigo, conIA.codigo, 'la voz queda con el cuento y el código que leyó');
+  assert.equal(c.identidad.consentimiento.textos.length, 3);
+  assert.equal((await subir(env, '/cuenta/identidad/foto/rostro-frente', cookie, JPEG, 'image/jpeg')).status, 409, 'en revisión no se cambia nada');
+  assert.ok(!recibePedidos(c));
+
+  // Tato escucha la voz y pide que la grabe de nuevo
+  const archivo = new URL(`${B}/panel/archivo?clave=${encodeURIComponent(c.identidad.voz.clave)}`);
+  const voz = await handlePanelArchivo(new Request(archivo, { headers: { Range: 'bytes=0-99' } }), env, archivo);
+  assert.equal(voz.status, 206);
+  assert.equal((await voz.arrayBuffer()).byteLength, 100);
+  const mala = new URL(`${B}/panel/archivo?clave=${encodeURIComponent('../otra/cosa')}`);
+  assert.equal((await handlePanelArchivo(new Request(mala), env, mala)).status, 404);
+  await panel(env, handlePanelInfluencerAccion, '/panel/influencers/accion', { id: 'rosa-perez', accion: 'identidad-rehacer', rehacer_voz: '1', nota: 'Se escucha un ventilador' });
+  const pagina = await (await cuenta(env, '/cuenta/identidad', { cookie })).text();
+  assert.match(pagina, /Tato te pide que rehagas: tu voz\. Se escucha un ventilador/);
+  assert.equal((await cuenta(env, '/cuenta/identidad/enviar', { cookie, form: { mayor: '1', autorizo: '1', borrar: '1' } })).status, 400, 'falta rehacer la voz');
+  await new Promise((r) => setTimeout(r, 5));
+  assert.equal((await subir(env, '/cuenta/identidad/voz?segundos=58', cookie, AUDIO, 'audio/mp4')).status, 200);
+  await cuenta(env, '/cuenta/identidad/enviar', { cookie, form: { mayor: '1', autorizo: '1', borrar: '1' } });
+  await panel(env, handlePanelInfluencerAccion, '/panel/influencers/accion', { id: 'rosa-perez', accion: 'identidad-aprobar' });
+  c = JSON.parse(env.PEDIDOS_KV.m.get('influencer:rosa-perez').v);
+  assert.equal(c.identidad.estado, 'aprobada');
+  assert.equal((await pedir(env)).status, 200, 'con la identidad aprobada ya recibe pedidos');
+  const foto = await cuenta(env, '/cuenta/identidad/archivo/rostro-frente', { cookie });
+  assert.equal(foto.headers.get('Content-Type'), 'image/jpeg');
+  assert.equal(foto.headers.get('Cache-Control'), 'private, no-store');
+
+  // Borra todo: se van los archivos, deja de recibir pedidos y Tato ve que tiene que borrar lo que creó
+  await cuenta(env, '/cuenta/identidad/borrar', { cookie, form: { confirmo: '1' } });
+  c = JSON.parse(env.PEDIDOS_KV.m.get('influencer:rosa-perez').v);
+  assert.equal(env.MEDIOS.m.size, 0);
+  assert.equal(c.identidad.estado, 'borrada');
+  assert.equal(c.identidad.consentimiento, null);
+  assert.ok(!recibePedidos(c));
+  assert.match(await (await panel(env, handlePanelInfluencers, '/panel/influencers/')).text(), /borra su hoja de personaje y su voz clonada/);
+  await panel(env, handlePanelInfluencerAccion, '/panel/influencers/accion', { id: 'rosa-perez', accion: 'identidad-derivados' });
+  assert.equal(JSON.parse(env.PEDIDOS_KV.m.get('influencer:rosa-perez').v).identidad.derivadosPorBorrar, false);
+});
+
+test('actuación: si Tato la pide, el guion no se aprueba sin el audio, y se borra 30 días después de terminar', async () => {
+  const env = entorno({ conMP: false });
+  const cookie = await cuentaLista(env);
+  const cookieLuis = await cuentaLista(env, 'luis-ramos', 'otra-clave-larga');
+  const { r } = await pedir(env);
+  await cuenta(env, `/cuenta/pedido/${r.numero}`, { cookie, form: { accion: 'aceptar' } });
+  await accionTato(env, await leerPedido(env, r.numero), 'pagado', { parte: 'adelanto', monto: '80', operacion: 'YAPE-1' });
+  assert.equal((await subir(env, `/cuenta/pedido/${r.numero}/actuacion/audio`, cookie, AUDIO, 'audio/webm')).status, 200, 'puede ayudar aunque no se lo pidan');
+  await new Promise((res) => setTimeout(res, 5));
+  await accionTato(env, await leerPedido(env, r.numero), 'guion', { texto: 'Un guion de prueba con más de veinte letras.', actuar_audio: '1' });
+  const pagina = await (await cuenta(env, `/cuenta/pedido/${r.numero}`, { cookie })).text();
+  assert.match(pagina, /Tato te pide que actúes el guion/);
+  assert.equal((await cuenta(env, `/cuenta/pedido/${r.numero}`, { cookie, form: { accion: 'aprobar-guion' } })).status, 400, 'el audio de antes era de otro guion');
+  assert.equal((await subir(env, `/cuenta/pedido/${r.numero}/actuacion/audio`, cookieLuis, AUDIO, 'audio/webm')).status, 404, 'otro influencer no puede subir');
+  assert.equal((await subir(env, `/cuenta/pedido/${r.numero}/actuacion/video`, cookie, AUDIO, 'audio/webm')).status, 415);
+  assert.equal((await subir(env, `/cuenta/pedido/${r.numero}/actuacion/audio`, cookie, AUDIO, 'audio/webm')).status, 200);
+  assert.equal(env.MEDIOS.m.size, 1, 'el audio anterior se borró');
+  assert.match((await cuenta(env, `/cuenta/pedido/${r.numero}`, { cookie, form: { accion: 'aprobar-guion' } })).headers.get('Location'), /m=guion-ok/);
+  assert.equal((await cuenta(env, `/cuenta/pedido/${r.numero}/actuacion/audio`, { cookie: cookieLuis })).status, 404);
+  assert.match(await (await panel(env, handlePanelPedidos, '/panel/pedidos/?ver=todos')).text(), /<dt>Actuación<\/dt>/);
+
+  await accionTato(env, await leerPedido(env, r.numero), 'cancelar', { motivo: 'prueba' });
+  assert.deepEqual(await limpiarActuaciones(env), { limpiados: 0 }, 'todavía no pasan 30 días');
+  const k = `pedido:${r.numero}`;
+  const e = env.PEDIDOS_KV.m.get(k);
+  e.metadata = { ...e.metadata, actualizado: '2026-01-01T00:00:00.000Z' };
+  assert.deepEqual(await limpiarActuaciones(env), { limpiados: 1 });
+  assert.equal(env.MEDIOS.m.size, 0);
 });
 
 test('cron: renueva las conexiones de Mercado Pago que vencen pronto', async () => {

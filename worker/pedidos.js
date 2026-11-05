@@ -25,6 +25,7 @@ import { json } from './ui.js';
 import { mpListo, crearLink, leerPago, comisiones, firmaValida, renovar } from './mercadopago.js';
 import { mismoOrigen, contar } from './seguridad.js';
 import { palabrasSospechosas } from './negocios.js';
+import { guardarArchivo, borrarArchivo } from './medios.js';
 
 export const sitio = (env) => (env.SITIO || 'https://tato.pe').replace(/\/+$/, '');
 const ahora = () => new Date().toISOString();
@@ -72,7 +73,15 @@ export async function guardarCuenta(env, c) {
     metadata: { nombre: c.nombre, activa: c.activa !== false, mp: Boolean(c.mp?.accessToken) },
   });
 }
-export const recibePedidos = (c) => Boolean(c && c.activa !== false && c.aceptaPedidos !== false);
+/** Identidad del influencer (fotos y voz, ver worker/identidad.js), con valores por defecto. */
+export function identidadDe(c) {
+  const i = c?.identidad || {};
+  return { estado: 'incompleta', voz: null, cuento: null, consentimiento: null, historial: [], ...i, fotos: { ...(i.fotos || {}) }, rehacer: [...(i.rehacer || [])] };
+}
+/** Estados en los que el influencer puede subir o cambiar sus fotos y su voz. */
+export const SUBIDAS_ABIERTAS = ['incompleta', 'rehacer', 'borrada'];
+/** Recibe solicitudes si su cuenta está activa, no pausó sus pedidos y Tato aprobó su identidad. */
+export const recibePedidos = (c) => Boolean(c && c.activa !== false && c.aceptaPedidos !== false && identidadDe(c).estado === 'aprobada');
 export const porcentajeDe = (cuenta, aj) => Number(cuenta?.porcentajeTato ?? aj.porcentajeTato);
 /** Cómo se cobra el saldo con este influencer: Mercado Pago si la app está lista y él conectó su cuenta. */
 export const metodoSaldo = (env, cuenta) => (mpListo(env) && cuenta?.mp?.accessToken ? 'mercadopago' : 'manual');
@@ -277,6 +286,10 @@ export async function accionInfluencer(env, p, accion, datos = {}) {
     case 'cambios-video': {
       const [que, cual] = accion.split('-').reverse(); // ['guion'|'video', 'aprobar'|'cambios']
       if (p.estado !== que || p[que]?.estado !== 'pendiente') return { error: `No hay un ${que} esperando tu revisión.` };
+      if (que === 'guion' && cual === 'aprobar') {
+        const falta = actuacionesQueFaltan(p);
+        if (falta.length) return { error: `Antes de aprobar, sube tu ${falta.join(' y tu ')} actuando el guion.` };
+      }
       if (cual === 'cambios') {
         if (comentario.length < 3) return { error: 'Cuéntale a Tato qué cambiarías.' };
         p[que] = { ...p[que], estado: 'cambios', comentario };
@@ -361,7 +374,9 @@ export async function accionTato(env, p, accion, datos = {}) {
       }
       const version = (p[accion]?.version || 0) + 1;
       p[accion] = { [accion === 'guion' ? 'texto' : 'link']: contenido, enviado: ahora(), estado: 'pendiente', version, comentarioAnterior: p[accion]?.comentario || '' };
-      anotar(p, 'Tato Studio', `Envió el ${accion} (versión ${version}).`);
+      if (accion === 'guion') p.guion.pideActuacion = { audio: datos.actuar_audio === '1', video: datos.actuar_video === '1' };
+      const pide = accion === 'guion' ? ['audio', 'video'].filter((t) => p.guion.pideActuacion[t]) : [];
+      anotar(p, 'Tato Studio', `Envió el ${accion} (versión ${version})${pide.length ? `, y pidió que lo actúe en ${pide.join(' y ')}` : ''}.`);
       mensaje = `${accion === 'guion' ? 'Guion' : 'Video'} enviado a ${p.influencer.nombre}.`;
       break;
     }
@@ -396,6 +411,46 @@ export async function accionTato(env, p, accion, datos = {}) {
   }
   await guardarPedido(env, p);
   return { ok: true, mensaje };
+}
+
+/** Las actuaciones que Tato pidió para el guion actual y que el influencer todavía no subió. */
+export function actuacionesQueFaltan(p) {
+  const pide = p.guion?.pideActuacion || {};
+  return ['audio', 'video'].filter((t) => pide[t] && !(p.actuaciones?.[t]?.subido > (p.guion?.enviado || '')));
+}
+
+/** El influencer sube un audio o un video actuando el guion (mientras el pedido está en guion o en video). */
+export async function subirActuacion(env, request, p, tipo, segundos) {
+  if (!['guion', 'video'].includes(p.estado)) return { error: 'Este pedido ya no está en la etapa del guion.', status: 409 };
+  const r = await guardarArchivo(env, request, tipo, `pedidos/${p.id}/actuacion-${tipo}`);
+  if (r.error) return r;
+  const fresco = await leerPedido(env, p.id);
+  const anterior = fresco.actuaciones?.[tipo]?.clave;
+  fresco.actuaciones = { ...(fresco.actuaciones || {}), [tipo]: { clave: r.clave, tipo: r.tipo, tamano: r.tamano, segundos: segundos || null, subido: ahora() } };
+  anotar(fresco, fresco.influencer.nombre, `Subió su ${tipo} actuando el guion.`);
+  await guardarPedido(env, fresco);
+  await borrarArchivo(env, anterior);
+  return { ok: true };
+}
+
+/** Cron diario: borra las actuaciones de los pedidos que terminaron hace más de 30 días. */
+export async function limpiarActuaciones(env) {
+  if (!env.MEDIOS || !env.PEDIDOS_KV) return { limpiados: 0 };
+  const limite = new Date(Date.now() - 30 * 86400000).toISOString();
+  let limpiados = 0;
+  for (const k of await metasPedidos(env)) {
+    if (ACTIVOS.includes(k.metadata?.estado) || String(k.metadata?.actualizado || '') > limite) continue;
+    const p = await env.PEDIDOS_KV.get(k.name, 'json');
+    const claves = Object.values(p?.actuaciones || {}).map((a) => a.clave).filter(Boolean);
+    if (!claves.length) continue;
+    for (const c of claves) await borrarArchivo(env, c);
+    p.actuaciones = {};
+    p.actuacionesBorradas = ahora();
+    anotar(p, 'Tato Studio', 'Se borraron las actuaciones (el pedido terminó hace más de 30 días).');
+    await guardarPedido(env, p);
+    limpiados++;
+  }
+  return { limpiados };
 }
 
 /** Registra un pago de Mercado Pago ya leído de su API. Devuelve true si quedó registrado (o ya lo estaba). */

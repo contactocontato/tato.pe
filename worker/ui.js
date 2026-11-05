@@ -48,6 +48,9 @@ export function page(title, body, nav = true) {
   table.plata{width:auto;min-width:min(420px,100%);margin-top:8px}
   table.plata td{white-space:normal}
   h2{font-size:20px;margin:28px 0 8px}
+  .identidad{border-top:1px solid #eee;padding-top:10px;margin-top:6px}.identidad h3{font-size:16px;margin:0 0 8px}
+  .miniaturas{display:flex;gap:10px;flex-wrap:wrap;margin:8px 0}
+  .miniatura{margin:0;width:130px;font-size:12px}.miniatura img{width:130px;height:173px;object-fit:cover;border-radius:8px;background:#eee;display:block}
 </style></head><body><main>${nav ? `<nav class="nav">${NAV.map(([href, nombre]) => `<a href="${href}"${nombre === title ? ' aria-current="page"' : ''}>${nombre}</a>`).join('')}</nav>` : ''}<h1>${esc(title)}</h1>${body}</main></body></html>`;
 }
 

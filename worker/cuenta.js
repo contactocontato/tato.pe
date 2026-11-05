@@ -10,140 +10,15 @@ import {
 } from './seguridad.js';
 import {
   leerCuenta, guardarCuenta, leerPedido, listarPedidos, accionInfluencer, cuentasDe, metodoSaldo, ajustes,
-  ESTADOS, PASOS, ACTIVOS, turno, soles, idValido,
+  ESTADOS, PASOS, ACTIVOS, turno, soles, idValido, identidadDe, SUBIDAS_ABIERTAS, actuacionesQueFaltan, subirActuacion,
 } from './pedidos.js';
+import { handleIdentidad } from './identidad.js';
+import { servirArchivo } from './medios.js';
+import { json } from './ui.js';
 import { mpListo, urlConexion, canjearCodigo } from './mercadopago.js';
+import { WHATSAPP_TATO, MENSAJES, fecha, fechaDia, multilinea, pagina, respuesta, ir } from './portal.js';
 
-const WHATSAPP_TATO = '51961662512'; // el mismo de src/lib/site.ts
 const RUBROS = Object.fromEntries(reglas.rubros.map((r) => [r.id, r.nombre]));
-
-const MENSAJES = {
-  clave: 'El ID o la contraseña no coinciden.',
-  espera: 'Probaste muchas veces. Espera 15 minutos o pídele a Tato una contraseña nueva.',
-  pausada: 'Tu cuenta está pausada. Escríbele a Tato.',
-  sesion: 'Tu sesión se cerró. Vuelve a entrar.',
-  origen: 'No pudimos confirmar que el envío venga de tato.pe. Recarga la página.',
-  'clave-ok': 'Listo: tu contraseña nueva quedó guardada.',
-  'clave-mal': 'La contraseña actual no es correcta.',
-  aceptado: 'Aceptaste el pedido.',
-  rechazado: 'Listo: no aceptaste el pedido.',
-  'guion-ok': 'Aprobaste el guion. Tato empieza a producir.',
-  'guion-cambios': 'Le mandamos tus cambios a Tato.',
-  'video-ok': 'Aprobaste el video.',
-  'video-cambios': 'Le mandamos tus cambios a Tato.',
-  'pausa-on': 'Pausaste tus pedidos: los negocios no pueden enviarte solicitudes nuevas.',
-  'pausa-off': 'Listo: vuelves a recibir solicitudes.',
-  'mp-ok': 'Conectaste tu Mercado Pago.',
-  'mp-quitado': 'Quitaste la conexión con tu Mercado Pago.',
-  'mp-error': 'No se pudo conectar tu Mercado Pago. Inténtalo otra vez en unos minutos.',
-  'mp-no': 'La conexión con Mercado Pago todavía no está disponible.',
-};
-
-// ---------- HTML ----------
-
-const fecha = (s, conHora = false) =>
-  s ? new Date(s).toLocaleString('es-PE', { timeZone: 'America/Lima', day: 'numeric', month: 'short', year: 'numeric', ...(conHora ? { hour: 'numeric', minute: '2-digit' } : {}) }) : '';
-const fechaDia = (s) => (s ? new Date(`${s}T12:00:00-05:00`).toLocaleDateString('es-PE', { timeZone: 'America/Lima', day: 'numeric', month: 'long', year: 'numeric' }) : '');
-const multilinea = (s) => esc(s).replace(/\n/g, '<br>');
-
-function pagina({ titulo, cuerpo, cuenta = null, aviso = '', error = '' }) {
-  return `<!doctype html><html lang="es"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow">
-<title>${esc(titulo)} · Tato Studio</title>
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<style>
-:root{--paper:#E9E4DD;--card:#F4F1EC;--line:#D3CCC1;--ink:#141414;--soft:#5B5B57;--fucsia:#E2037E;--fucsia-press:#C4036D;--fucsia-tinta:#B50265;--ok:#17602F;--ok-bg:#E3F1E6;--wait:#7A5600;--wait-bg:#FBF0CF;--sans:"Archivo","Helvetica Neue",Arial,sans-serif;--mono:"DM Mono",ui-monospace,Menlo,monospace}
-*{box-sizing:border-box}
-body{margin:0;background:var(--paper);color:var(--ink);font:400 17px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
-a{color:inherit}
-:focus-visible{outline:2px solid var(--fucsia);outline-offset:3px}
-.top{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px clamp(16px,4vw,32px);background:rgba(233,228,221,.94);border-bottom:1px solid var(--line)}
-.top a.logo img{height:38px;width:auto;display:block}
-.top .quien{display:flex;align-items:center;gap:12px;font:500 13px/1.2 var(--mono);color:var(--soft)}
-.top button{background:none;border:0;padding:6px 0;font:500 13px/1.2 var(--mono);color:var(--ink);text-decoration:underline;cursor:pointer}
-main{max-width:760px;margin:0 auto;padding:24px clamp(16px,4vw,32px) 72px}
-main.angosto{max-width:480px}
-h1{font-weight:900;font-stretch:112%;font-size:clamp(2.1rem,1.5rem+3vw,3.1rem);line-height:.95;letter-spacing:-.025em;margin:12px 0 8px;text-wrap:balance}
-h2{font-weight:800;font-stretch:110%;font-size:1.3rem;letter-spacing:-.01em;margin:36px 0 12px}
-h3{font-size:1.05rem;margin:0 0 8px}
-.fx{color:var(--fucsia)}
-.sub{color:var(--soft);margin:0;max-width:56ch}
-.mono{font-family:var(--mono)}
-.aviso{padding:12px 14px;border-radius:12px;margin:16px 0;background:var(--ok-bg);color:var(--ok);font-weight:600}
-.aviso.err{background:#F3E1EA;color:#7A0A45}
-.aviso.ojo{background:var(--wait-bg);color:var(--wait)}
-.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:20px 0 0}
-.tiles div{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
-.tiles b{display:block;font:500 clamp(1.15rem,1rem+1vw,1.5rem)/1.15 var(--mono)}
-.tiles span{font-size:13px;color:var(--soft)}
-.lista{list-style:none;padding:0;margin:0;display:grid;gap:10px}
-.ped{display:grid;gap:5px;text-decoration:none;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
-.ped:hover{border-color:var(--ink)}
-.ped.toca{border-left:6px solid var(--fucsia)}
-.ped b{font-size:1.05rem}
-.ped .meta{font:400 13px/1.4 var(--mono);color:var(--soft)}
-.chip{justify-self:start;font:500 12px/1 var(--mono);padding:5px 9px;border-radius:999px;background:#DED8CF;color:var(--ink)}
-.chip.toca{background:var(--fucsia);color:#fff}
-.chip.ok{background:var(--ok-bg);color:var(--ok)}
-.vacio{color:var(--soft);background:var(--card);border:1px dashed var(--line);border-radius:14px;padding:16px}
-.btn{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 22px;border-radius:999px;border:0;font:700 16px/1 var(--sans);cursor:pointer;text-decoration:none;background:var(--ink);color:#fff}
-.btn.fucsia{background:var(--fucsia)}.btn.fucsia:hover{background:var(--fucsia-press)}
-.btn.linea{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--ink)}
-.btn[disabled]{opacity:.6;cursor:wait}
-form{margin:0}
-label{display:block;font-weight:600;margin:14px 0 6px}
-input[type=text],input[type=password],textarea{width:100%;padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;background:#fff;font:inherit}
-textarea{min-height:96px;resize:vertical}
-input:focus,textarea:focus{outline:2px solid var(--fucsia);outline-offset:1px;border-color:transparent}
-.acciones{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;align-items:center}
-.caja{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 18px;margin-top:14px}
-.caja.toca{border:2px solid var(--fucsia);background:#fff}
-.caja > :first-child{margin-top:0}
-.guion{white-space:pre-wrap;background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;font-size:16px;margin:10px 0 0}
-.pasos{list-style:none;padding:0;margin:22px 0 0;display:grid;grid-template-columns:repeat(6,1fr);gap:4px}
-.pasos li{font:500 11px/1.2 var(--mono);color:var(--soft);padding-top:8px;border-top:4px solid var(--line)}
-.pasos li.hecho{border-color:var(--ink);color:var(--ink)}
-.pasos li.ahora{border-color:var(--fucsia);color:var(--fucsia-tinta);font-weight:700}
-dl.datos{display:grid;grid-template-columns:minmax(110px,36%) 1fr;gap:6px 14px;margin:0}
-dl.datos dt{color:var(--soft)}dl.datos dd{margin:0;overflow-wrap:anywhere}
-table.plata{width:100%;border-collapse:collapse;font-size:15px}
-table.plata td{padding:8px 0;border-bottom:1px solid var(--line);vertical-align:top}
-table.plata td:last-child{text-align:right;font-family:var(--mono);white-space:nowrap;padding-left:12px}
-table.plata tr.tuyo td{font-weight:700;font-size:17px;border-bottom:0}
-table.pagos{width:100%;border-collapse:collapse;font-size:14px}
-table.pagos th,table.pagos td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}
-table.pagos td.n{text-align:right;font-family:var(--mono);white-space:nowrap}
-.nota{font-size:14px;color:var(--soft);margin-top:8px}
-details summary{cursor:pointer;font-weight:600}
-details ol{padding-left:18px;font-size:14px;color:var(--soft)}
-.volver{display:inline-block;margin-top:4px;font:500 14px/1.2 var(--mono);color:var(--soft)}
-@media (max-width:520px){.tiles{grid-template-columns:1fr 1fr}.tiles div:last-child{grid-column:span 2}.pasos li{font-size:10px}dl.datos{grid-template-columns:1fr}dl.datos dt{margin-top:6px}}
-</style></head><body>
-<header class="top"><a class="logo" href="/cuenta/" aria-label="Tu cuenta en Tato Studio"><img src="/inicio/logo-tato-cabecera.webp" alt="Tato Studio" width="120" height="38"></a>
-${cuenta ? `<div class="quien"><span>${esc(cuenta.nombre)}</span><form method="post" action="/cuenta/salir"><button type="submit">Salir</button></form></div>` : ''}</header>
-<main${cuenta ? '' : ' class="angosto"'}>
-${aviso ? `<p class="aviso" role="status">${esc(aviso)}</p>` : ''}${error ? `<p class="aviso err" role="alert">${esc(error)}</p>` : ''}
-${cuerpo}
-</main>
-${SCRIPT_CLAVE}
-</body></html>`;
-}
-
-const respuesta = (htmlTexto, status = 200, extra = {}) =>
-  new Response(htmlTexto, {
-    status,
-    headers: {
-      'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'no-store',
-      'X-Robots-Tag': 'noindex, nofollow',
-      'Referrer-Policy': 'same-origin',
-      'X-Frame-Options': 'DENY',
-      ...extra,
-    },
-  });
-const ir = (url, cookie) => new Response(null, { status: 303, headers: { Location: url, 'Cache-Control': 'no-store', ...(cookie ? { 'Set-Cookie': cookie } : {}) } });
 
 // ---------- Páginas ----------
 
@@ -209,6 +84,40 @@ function situacion(p) {
   }
 }
 
+const MB = 1024 * 1024;
+
+/** Audio y video del influencer actuando el guion. `requerido`: los pidió Tato y van antes de aprobar. */
+function bloqueActuacion(p, requerido) {
+  const base = `/cuenta/pedido/${esc(p.id)}/actuacion`;
+  const pide = p.guion?.pideActuacion || {};
+  const tipos = requerido ? ['audio', 'video'].filter((t) => pide[t]) : ['audio', 'video'];
+  const actual = (t) => {
+    const a = p.actuaciones?.[t];
+    if (!a) return '';
+    return t === 'audio'
+      ? `<p class="nota">Tu audio (${esc(fecha(a.subido, true))}):</p><audio controls preload="none" src="${base}/audio?v=${encodeURIComponent(a.subido)}"></audio>`
+      : `<p class="nota">Tu video (${esc(fecha(a.subido, true))}): <a href="${base}/video?v=${encodeURIComponent(a.subido)}" target="_blank" rel="noopener">míralo</a></p>`;
+  };
+  const partes = {
+    audio: `<div class="actuacion"><h4>Audio</h4>
+  <p class="nota">Lee el guion en voz alta como lo dirías tú: con tus pausas, tu ritmo y tus palabras.</p>
+  <div class="grabadora" data-grabadora data-url="${base}/audio" data-min="3" data-max="180" data-recargar>
+    <p class="tiempo" data-tiempo>0:00</p><div class="nivel" aria-hidden="true"><i></i></div>
+    <div class="acciones"><button type="button" class="btn linea chico" data-grabar>${p.actuaciones?.audio ? 'Grabar de nuevo' : 'Grabar audio'}</button><button type="button" class="btn chico" data-detener hidden>Terminar</button><button type="button" class="btn fucsia chico" data-enviar hidden>Enviar audio</button></div>
+    <audio controls data-escuchar hidden></audio><p class="estado-subida" data-estado role="status"></p>
+    <div data-alterno hidden><label class="btn linea chico">Subir un audio<input class="sr-only" type="file" accept="audio/*" data-subir="audio" data-url="${base}/audio" data-max="${25 * MB}" data-recargar></label></div>
+  </div>${actual('audio')}</div>`,
+    video: `<div class="actuacion" data-caja><h4>Video</h4>
+  <p class="nota">Grábate actuando el guion con el celular, de frente y con buena luz. Hasta 95 MB: si pesa más, grábalo en 720p.</p>
+  <label class="btn linea chico">${p.actuaciones?.video ? 'Cambiar video' : 'Grabar o elegir video'}<input class="sr-only" type="file" accept="video/*" data-subir="video" data-url="${base}/video" data-max="${95 * MB}" data-muy-grande="El video pesa más de 95 MB. Grábalo en 720p o más corto." data-recargar></label>
+  <div class="progreso"><i></i></div><p class="estado-subida" data-estado role="status"></p>${actual('video')}</div>`,
+  };
+  if (requerido) {
+    return `<div class="caja toca"><h3>Tato te pide que actúes el guion</h3><p>Graba ${tipos.map((t) => (t === 'audio' ? 'un audio' : 'un video')).join(' y ')} actuándolo como lo harías tú. Así el video con IA suena y se mueve como tú.</p>${tipos.map((t) => partes[t]).join('')}</div>`;
+  }
+  return `<details class="caja"><summary>¿Quieres ayudar con tu voz o tus gestos? (opcional)</summary><p class="nota">Si subes un audio o un video actuando el guion, el video con IA se parece más a ti.</p>${partes.audio}${partes.video}</details>`;
+}
+
 const nombreNegocio = (p) => p.negocio.nombreComercial || p.negocio.razonSocial || `RUC ${p.negocio.ruc}`;
 
 function tarjeta(p, c) {
@@ -241,6 +150,7 @@ async function paginaInicio(env, cuenta, { aviso, error }) {
   const porCobrar = cobrados.filter(({ p }) => p.pagos.saldo.metodo === 'manual' && !p.pagoInfluencer).reduce((s, { c }) => s + c.parteInfluencer, 0);
   const lista = (items, vacio) => (items.length ? `<ul class="lista">${items.map(({ p, c }) => tarjeta(p, c)).join('')}</ul>` : `<p class="vacio">${vacio}</p>`);
   const pausado = cuenta.aceptaPedidos === false;
+  const identidad = identidadDe(cuenta);
 
   let mp;
   if (!mpListo(env)) {
@@ -263,7 +173,7 @@ async function paginaInicio(env, cuenta, { aviso, error }) {
     aviso,
     error,
     cuerpo: `<h1>Hola, <span class="fx">${esc(cuenta.nombre.split(' ')[0])}</span></h1>
-<p class="sub">${pausado ? 'Tus pedidos están en pausa: los negocios no pueden enviarte solicitudes nuevas.' : 'Estás recibiendo solicitudes de negocios verificados.'}</p>
+<p class="sub">${identidad.estado === 'en-revision' ? 'Tato está revisando tus fotos y tu voz. Cuando las apruebe, empiezas a recibir solicitudes.' : pausado ? 'Tus pedidos están en pausa: los negocios no pueden enviarte solicitudes nuevas.' : 'Estás recibiendo solicitudes de negocios verificados.'}</p>
 <div class="tiles">
   <div><b>${toca.length}</b><span>Te toca revisar</span></div>
   <div><b>${soles(ganadoMes)}</b><span>Ganado este mes</span></div>
@@ -276,6 +186,9 @@ ${lista(curso, 'No tienes pedidos en curso.')}
 ${fin.length ? `<h2>Terminados</h2>${lista(fin, '')}` : ''}
 <h2>Tus pagos</h2>
 ${filasPagos ? `<div class="caja"><table class="pagos"><thead><tr><th>Pedido</th><th class="n">Tu parte</th><th>Estado</th></tr></thead><tbody>${filasPagos}</tbody></table></div>` : '<p class="vacio">Aquí vas a ver lo que ganas con cada video.</p>'}
+<h2>Tu identidad</h2>
+<div class="caja"><p>${identidad.estado === 'aprobada' ? 'Aprobada: Tato ya tiene tus fotos y tu voz para tu hoja de personaje y tu voz con IA.' : 'En revisión: Tato está viendo tus fotos y tu voz.'}</p>
+<div class="acciones"><a class="btn linea" href="/cuenta/identidad/">Ver mis fotos y mi voz</a></div></div>
 <h2>Mercado Pago</h2>
 <div class="caja">${mp}</div>
 <h2>Tu cuenta</h2>
@@ -327,19 +240,25 @@ function paginaPedido(env, cuenta, p, aj, { aviso, error }) {
       ? `<div class="guion">${esc(item.texto)}</div>`
       : `<p><a class="btn linea" href="${esc(item.link)}" target="_blank" rel="noopener noreferrer">Ver el video</a></p><p class="nota">Se abre en otra pestaña. Es una vista previa solo para ti: no la compartas.</p>`;
     if (p.estado === que && item.estado === 'pendiente') {
+      const pedidas = que === 'guion' && Object.values(p.guion.pideActuacion || {}).some(Boolean);
+      const falta = que === 'guion' ? actuacionesQueFaltan(p) : [];
       bloque += `<h3 style="margin-top:16px">${titulo}</h3>${contenido}
 ${item.comentarioAnterior ? `<p class="nota">Lo que pediste antes: ${esc(item.comentarioAnterior)}</p>` : ''}
-<form method="post" action="${accion}" class="acciones"><input type="hidden" name="accion" value="aprobar-${que}"><button class="btn fucsia" type="submit">Apruebo el ${que}</button></form>
-<details style="margin-top:14px"><summary>Pedir cambios</summary>
+${pedidas ? bloqueActuacion(p, true) : ''}
+<form method="post" action="${accion}" class="acciones"><input type="hidden" name="accion" value="aprobar-${que}"><button class="btn fucsia" type="submit"${falta.length ? ' disabled' : ''}>Apruebo el ${que}</button></form>
+${falta.length ? `<p class="nota">Para aprobar, primero sube tu ${esc(falta.join(' y tu '))}.</p>` : ''}
+<details style="margin-top:14px"><summary>${que === 'guion' ? 'Proponer cambios' : 'Pedir cambios'}</summary>
 <form method="post" action="${accion}"><input type="hidden" name="accion" value="cambios-${que}">
-<label for="cambios-${que}">¿Qué cambiarías?</label><textarea id="cambios-${que}" name="comentario" required minlength="3" maxlength="1000"></textarea>
-<div class="acciones"><button class="btn linea" type="submit">Mandar cambios a Tato</button></div></form></details>`;
+<label for="cambios-${que}">${que === 'guion' ? '¿Qué cambiarías o agregarías? Tato lo ajusta y te lo vuelve a mandar.' : '¿Qué cambiarías?'}</label><textarea id="cambios-${que}" name="comentario" required minlength="3" maxlength="1000"></textarea>
+<div class="acciones"><button class="btn linea" type="submit">Mandar a Tato</button></div></form></details>`;
     } else {
       bloque += `<details style="margin-top:12px"><summary>${titulo}${item.estado === 'aprobado' ? ' · aprobado' : item.estado === 'cambios' ? ' · pediste cambios' : ''}</summary>${contenido}${item.comentario && item.estado === 'cambios' ? `<p class="nota">Lo que pediste: ${esc(item.comentario)}</p>` : ''}</details>`;
     }
   }
   if (p.motivo && ['rechazado', 'cancelado'].includes(p.estado)) bloque += `<p class="nota">Motivo: ${esc(p.motivo)}</p>`;
   bloque += '</div>';
+  const pendienteConActuacion = p.estado === 'guion' && p.guion?.estado === 'pendiente' && Object.values(p.guion.pideActuacion || {}).some(Boolean);
+  if (['guion', 'video'].includes(p.estado) && p.guion?.enviado && !pendienteConActuacion) bloque += bloqueActuacion(p, false);
 
   const alertas = p.alertas?.length
     ? `<p class="aviso ojo">Ojo: lo que quiere promocionar menciona ${esc(p.alertas.join(', '))}. Revísalo antes de aceptar.</p>`
@@ -427,6 +346,19 @@ export async function handleCuenta(request, env, url, path) {
     return ir('/cuenta/?m=clave-ok');
   }
   if (cuenta.cambiarClave) return post ? ir('/cuenta/clave') : respuesta(paginaClave(cuenta, { obligatoria: true, error }));
+
+  // Antes de recibir pedidos, el influencer sube sus fotos y graba su voz (worker/identidad.js).
+  if (path === '/cuenta/identidad' || path.startsWith('/cuenta/identidad/')) return handleIdentidad(request, env, url, path, cuenta, { aviso, error });
+  if (path === '/cuenta' && !post && SUBIDAS_ABIERTAS.includes(identidadDe(cuenta).estado)) return ir('/cuenta/identidad/');
+
+  const act = path.match(/^\/cuenta\/pedido\/(P-[A-Z2-9]{6})\/actuacion\/(audio|video)$/);
+  if (act) {
+    const p = await leerPedido(env, act[1]);
+    if (!p || p.influencer.id !== cuenta.id) return post ? json({ error: 'No encontramos ese pedido.' }, 404) : new Response('No encontrado', { status: 404 });
+    if (!post) return servirArchivo(env, request, p.actuaciones?.[act[2]]?.clave);
+    const r = await subirActuacion(env, request, p, act[2], Math.round(Number(url.searchParams.get('segundos') || 0)));
+    return r.error ? json({ error: r.error }, r.status || 400) : json({ ok: true });
+  }
 
   if (path === '/cuenta' && !post) return respuesta(await paginaInicio(env, cuenta, { aviso, error }));
 

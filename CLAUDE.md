@@ -72,4 +72,5 @@ Catálogo en `/influencers/`. Cada influencer con convenio tiene una ficha en `s
 - Pasos y reparto de cada pedido: `worker/pedidos.js` (adelanto = producción, para Tato; saldo menos la comisión de Mercado Pago, dividido según el porcentaje). Mercado Pago: `worker/mercadopago.js`.
 - El porcentaje de Tato, los costos de producción y la comisión de Mercado Pago se configuran en el panel (`/panel/ajustes/` y `/panel/influencers/`). No los pongas en el repo: es público.
 - `src/pages/influencers/datos.json.ts` publica los paquetes y precios que el Worker usa para armar cada pedido.
+- Fotos y voz del influencer (`worker/identidad.js`) y actuaciones del guion: son datos biométricos. Viven solo en el bucket privado R2 (`MEDIOS`): nunca los subas al repo, no los copies a `public/` ni hagas público el bucket. Si cambias el texto de la autorización (`CONSENTIMIENTO`), cambia también su `version`.
 - Si cambias pedidos, cuentas o pagos, corre `npm test`. Si cambian los datos que se guardan, actualiza `src/pages/privacidad.astro`.

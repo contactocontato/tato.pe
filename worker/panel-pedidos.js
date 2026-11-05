@@ -8,9 +8,11 @@ import { page, html, esc } from './ui.js';
 import { SCRIPT_CLAVE, formatoClave, cifrarClave, cerrarSesionesDe } from './seguridad.js';
 import {
   leerPedido, listarPedidos, metasPedidos, accionTato, cuentasDe, cuentas, metodoSaldo, ajustes, guardarAjustes,
-  catalogo, leerCuenta, guardarCuenta, idValido, ESTADOS, ACTIVOS, turno, soles, r2,
+  catalogo, leerCuenta, guardarCuenta, idValido, ESTADOS, ACTIVOS, turno, soles, r2, identidadDe,
 } from './pedidos.js';
 import { mpListo, REDIRECCION } from './mercadopago.js';
+import { servirArchivo } from './medios.js';
+import { FOTOS, ITEMS, NOMBRES, decidirIdentidad } from './identidad.js';
 
 const fecha = (s) => (s ? new Date(s).toLocaleString('es-PE', { timeZone: 'America/Lima', dateStyle: 'medium', timeStyle: 'short' }) : '');
 const wa = (numero, textoMsj) => `https://wa.me/51${String(numero || '').replace(/\D/g, '').slice(-9)}?text=${encodeURIComponent(textoMsj)}`;
@@ -80,8 +82,11 @@ function bloquePedido(env, p, aj, cuentaInf, abierto) {
         acciones.push(`<p class="notice">Esperando que ${esc(p.influencer.nombre)} apruebe el ${que} (versión ${item.version}).</p>`);
         influencerWa(`Hola ${p.influencer.nombre.split(' ')[0]}, te mandé el ${que} del pedido ${p.id} (${nombreNegocio(p)}). Revísalo en tato.pe/cuenta`);
       }
+      const pide = item?.pideActuacion || {};
       const campo = que === 'guion'
-        ? `<textarea name="texto" required minlength="20" maxlength="6000" placeholder="Guion completo">${esc(item?.texto || '')}</textarea>`
+        ? `<textarea name="texto" required minlength="20" maxlength="6000" placeholder="Guion completo">${esc(item?.texto || '')}</textarea>
+          <label class="muted"><input type="checkbox" name="actuar_audio" value="1"${pide.audio ? ' checked' : ''}> Pedir que lo actúe en audio</label>
+          <label class="muted"><input type="checkbox" name="actuar_video" value="1"${pide.video ? ' checked' : ''}> Pedir que lo actúe en video</label>`
         : `<input name="link" type="url" required placeholder="Link privado del video (Drive, WeTransfer…)" value="${esc(item?.link || '')}">`;
       acciones.push(form(p, que, campo, item?.estado === 'pendiente' ? `Corregir y volver a mandar el ${que}` : `Mandar ${que} a ${p.influencer.nombre}`));
       break;
@@ -130,6 +135,7 @@ function bloquePedido(env, p, aj, cuentaInf, abierto) {
       <dt>Negocio</dt><dd>${esc(n.razonSocial)} · RUC ${esc(n.ruc)} · código ${esc(n.codigo)}</dd>
       <dt>Contacto</dt><dd>${esc(n.contacto?.nombre)} · ${esc(n.contacto?.whatsapp)}</dd>
       ${p.guion?.texto ? `<dt>Guion v${p.guion.version}</dt><dd>${esc(p.guion.estado)}</dd>` : ''}
+      ${Object.keys(p.actuaciones || {}).length ? `<dt>Actuación</dt><dd>${['audio', 'video'].filter((t) => p.actuaciones[t]).map((t) => `<a href="/panel/archivo?clave=${encodeURIComponent(p.actuaciones[t].clave)}" target="_blank" rel="noopener">${t}</a> (${esc(fecha(p.actuaciones[t].subido))}) · <a href="/panel/archivo?clave=${encodeURIComponent(p.actuaciones[t].clave)}&descargar=1">descargar</a>`).join('<br>')}</dd>` : ''}
       ${p.video?.link ? `<dt>Video v${p.video.version}</dt><dd><a href="${esc(p.video.link)}" target="_blank" rel="noopener">${esc(p.video.estado)}</a></dd>` : ''}
       ${pagos.length ? `<dt>Pagos</dt><dd>${pagos.join('<br>')}</dd>` : ''}
       ${p.motivo ? `<dt>Motivo</dt><dd>${esc(p.motivo)}</dd>` : ''}
@@ -195,6 +201,45 @@ function camposClave(id, nombre, whatsapp) {
   <p class="err" data-aviso-clave hidden></p>`;
 }
 
+/** Fotos, voz, cuento leído y autorización del influencer, con los botones para aprobar o pedir que rehaga. */
+function bloqueIdentidad(cuenta, i) {
+  const id = cuenta.id;
+  const archivo = (clave, descarga) => `/panel/archivo?clave=${encodeURIComponent(clave)}${descarga ? `&descargar=1` : ''}`;
+  const fotos = FOTOS.map(([k, nombre]) => {
+    const f = i.fotos[k];
+    return `<figure class="miniatura">${f ? `<a href="${archivo(f.clave)}" target="_blank" rel="noopener"><img src="${archivo(f.clave)}" alt="${esc(nombre)}" loading="lazy"></a>` : '<span class="muted">sin foto</span>'}<figcaption>${esc(nombre)}${f ? ` · <a href="${archivo(f.clave, true)}">descargar</a>` : ''}</figcaption></figure>`;
+  }).join('');
+  const v = i.voz;
+  const voz = v
+    ? `<p><b>Voz</b> (${esc(String(v.segundos || '?'))} s, ${esc(fecha(v.subido))}) · <a href="${archivo(v.clave, true)}">descargar</a></p>
+       <audio controls preload="none" src="${archivo(v.clave)}" style="width:100%;max-width:520px"></audio>
+       ${v.cuento ? `<details><summary class="muted">Lo que leyó: «${esc(v.cuento.titulo)}» · código ${esc(v.cuento.codigo)}${v.cuento.porIA ? ' · escrito con IA' : ''}</summary><p class="muted">${esc(v.cuento.texto)}</p></details>` : ''}`
+    : '<p class="muted">Sin grabación de voz.</p>';
+  const consentimiento = i.consentimiento ? `<p class="muted">Autorizó el ${esc(fecha(i.consentimiento.fecha))} (versión ${esc(i.consentimiento.version)}${i.consentimiento.ip ? `, IP ${esc(i.consentimiento.ip)}` : ''}).</p>` : '';
+  const acciones = ['en-revision', 'aprobada'].includes(i.estado)
+    ? `<form method="post" action="/panel/influencers/accion" class="acciones cuenta"><input type="hidden" name="id" value="${esc(id)}">
+        ${ITEMS.map((k) => `<label class="muted"><input type="checkbox" name="rehacer_${k}" value="1"> ${esc(NOMBRES[k])}</label>`).join('')}
+        <input name="nota" maxlength="300" placeholder="Nota para el influencer (qué mejorar)">
+        ${i.estado === 'en-revision' ? '<button class="ok" name="accion" value="identidad-aprobar">Aprobar identidad</button>' : ''}
+        <button class="no" name="accion" value="identidad-rehacer">Pedir que rehaga lo marcado</button></form>`
+    : '';
+  const derivados = i.derivadosPorBorrar
+    ? `<p class="err">Borró sus fotos y su voz${i.borrada ? ` el ${esc(fecha(i.borrada))}` : ''}: borra su hoja de personaje y su voz clonada en tus herramientas, y resuelve sus pedidos en curso.</p>
+       <form method="post" action="/panel/influencers/accion" class="acciones"><input type="hidden" name="id" value="${esc(id)}"><button class="pausa" name="accion" value="identidad-derivados">Ya las borré</button></form>`
+    : '';
+  const estados = { incompleta: 'todavía no la completa', 'en-revision': 'te toca revisarla', aprobada: 'aprobada', rehacer: `rehaciendo: ${i.rehacer.map((k) => NOMBRES[k].toLowerCase()).join(', ')}`, borrada: 'la borró' };
+  return `<div class="identidad"><h3>Identidad: ${esc(estados[i.estado] || i.estado)}</h3>${derivados}<div class="miniaturas">${fotos}</div>${voz}${consentimiento}${acciones}
+    ${(i.historial || []).length ? `<details><summary class="muted">Historial de su identidad</summary><ol class="muted">${i.historial.map((h) => `<li>${esc(fecha(h.fecha))}: ${esc(h.que)}</li>`).join('')}</ol></details>` : ''}</div>`;
+}
+
+/** /panel/archivo?clave=…: fotos, voz y actuaciones guardadas en R2 (solo con la contraseña del panel). */
+export async function handlePanelArchivo(request, env, url) {
+  const clave = url.searchParams.get('clave') || '';
+  if (!/^(identidad|pedidos)\/[A-Za-z0-9-]+\/[A-Za-z0-9.-]+$/.test(clave)) return new Response('No encontrado', { status: 404 });
+  const descarga = url.searchParams.get('descargar') === '1' ? clave.replace(/\//g, '-') : '';
+  return servirArchivo(env, request, clave, { descarga });
+}
+
 export async function handlePanelInfluencers(request, env, url) {
   const [cat, aj] = await Promise.all([catalogo(env), ajustes(env)]);
   const cuentasKV = [];
@@ -222,7 +267,14 @@ export async function handlePanelInfluencers(request, env, url) {
           ${camposCuenta(inf, null, aj)}${camposClave(id, nombre, '')}<button class="ok">Crear cuenta</button></form></div></details>`);
       continue;
     }
-    const estado = cuenta.activa === false ? ['pausado', 'Pausada'] : cuenta.aceptaPedidos === false ? ['amarillo', 'No recibe pedidos'] : ['verde', 'Activa'];
+    const ident = identidadDe(cuenta);
+    const estado = cuenta.activa === false
+      ? ['pausado', 'Pausada']
+      : ident.estado === 'en-revision'
+        ? ['amarillo', 'Revisa su identidad']
+        : ident.estado !== 'aprobada'
+          ? ['gris', ident.estado === 'rehacer' ? 'Rehaciendo identidad' : ident.estado === 'borrada' ? 'Borró su identidad' : 'Falta su identidad']
+          : cuenta.aceptaPedidos === false ? ['amarillo', 'No recibe pedidos'] : ['verde', 'Activa'];
     filas.push(`<details class="reg"><summary><span class="badge b-${estado[0]}">${estado[1]}</span><b>${esc(nombre)}</b>
       <span class="muted">ID ${esc(id)} · ${cuenta.mp?.accessToken ? `Mercado Pago: ${esc(cuenta.mp.nombre || cuenta.mp.userId)}` : 'sin Mercado Pago'} · ${cuenta.ultimoIngreso ? `entró ${esc(fecha(cuenta.ultimoIngreso))}` : 'no entra todavía'}${inf ? '' : ' · ya no está en el catálogo'}</span></summary>
       <div class="cuerpo">
@@ -233,6 +285,7 @@ export async function handlePanelInfluencers(request, env, url) {
           <button class="ok">Guardar</button></form>
         <form method="post" action="/panel/influencers/accion" class="acciones cuenta" data-clave data-id="${esc(id)}"><input type="hidden" name="id" value="${esc(id)}"><input type="hidden" name="accion" value="clave">
           ${camposClave(id, nombre, cuenta.whatsapp)}<button class="pausa">Poner contraseña temporal</button></form>
+        ${bloqueIdentidad(cuenta, ident)}
         ${cuenta.mp?.accessToken ? `<p class="muted">Mercado Pago: ${esc(cuenta.mp.nombre)} ${cuenta.mp.nickname ? `(${esc(cuenta.mp.nickname)})` : ''} · usuario ${esc(cuenta.mp.userId)} · conectada ${esc(fecha(cuenta.mp.conectada))} · vence ${esc(fecha(cuenta.mp.vence))}</p>` : ''}
         ${(cuenta.mpHistorial || []).length ? `<p class="muted">${cuenta.mpHistorial.map((h) => `${esc(fecha(h.fecha))}: ${esc(h.que)}`).join('<br>')}</p>` : ''}
       </div></details>`);
@@ -313,6 +366,16 @@ export async function handlePanelInfluencerAccion(request, env, url) {
       await guardarCuenta(env, cuenta);
       if (!cuenta.activa) await cerrarSesionesDe(env, id);
       return fin({ msg: `Cuenta de ${cuenta.nombre} guardada. Los pedidos nuevos usan estos valores; los que ya existen mantienen los suyos.` });
+    }
+    case 'identidad-aprobar':
+    case 'identidad-rehacer':
+    case 'identidad-derivados': {
+      if (!cuenta) return fin({ err: 'Esa cuenta no existe.' });
+      const r = await decidirIdentidad(env, id, accion.replace('identidad-', ''), {
+        rehacer: ITEMS.filter((k) => f.get(`rehacer_${k}`) === '1'),
+        nota: String(f.get('nota') || '').trim().slice(0, 300),
+      });
+      return fin(r.error ? { err: r.error } : { msg: `${cuenta.nombre}: ${r.mensaje}` });
     }
     case 'clave': {
       if (!cuenta) return fin({ err: 'Esa cuenta no existe.' });

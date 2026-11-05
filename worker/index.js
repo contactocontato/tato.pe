@@ -12,6 +12,7 @@
 //   /api/mp/conectado                vuelta de Mercado Pago al conectar la cuenta de un influencer
 //   /api/mp/webhook                  avisos de pago de Mercado Pago (POST)
 //   /cuenta/                         cuenta del influencer (entra con su ID y contraseña)
+//   /cuenta/identidad/               sus fotos y su voz (worker/identidad.js), guardadas privadas en R2 (binding MEDIOS)
 //   /panel/pedidos/, /panel/influencers/, /panel/ajustes/   panel privado de Tato
 //
 // Conexión con TikTok (app «Tatostudio», Login Kit + Display API):
@@ -27,9 +28,9 @@
 
 import { page, html, json, esc } from './ui.js';
 import { handleRegistro, handlePanelNegocios, handleDecidir, revisarRucs } from './negocios.js';
-import { handlePedidoNuevo, handleEstadoInfluencer, handleWebhook, renovarConexiones } from './pedidos.js';
+import { handlePedidoNuevo, handleEstadoInfluencer, handleWebhook, renovarConexiones, limpiarActuaciones } from './pedidos.js';
 import { handleCuenta, handleMpConectado } from './cuenta.js';
-import { handlePanelPedidos, handlePanelPedidoAccion, handlePanelInfluencers, handlePanelInfluencerAccion, handlePanelAjustes } from './panel-pedidos.js';
+import { handlePanelPedidos, handlePanelPedidoAccion, handlePanelInfluencers, handlePanelInfluencerAccion, handlePanelAjustes, handlePanelArchivo } from './panel-pedidos.js';
 
 const REDIRECT_URI = 'https://tato.pe/api/tiktok/callback';
 const SCOPES = 'user.info.basic,video.list';
@@ -73,6 +74,7 @@ export default {
         if (path === '/panel/influencers') return await handlePanelInfluencers(request, env, url);
         if (path === '/panel/influencers/accion' && request.method === 'POST') return await handlePanelInfluencerAccion(request, env, url);
         if (path === '/panel/ajustes') return await handlePanelAjustes(request, env, url);
+        if (path === '/panel/archivo') return await handlePanelArchivo(request, env, url);
         if (path === '/panel') return Response.redirect(`${url.origin}/panel/pedidos/`, 302);
       }
 
@@ -107,6 +109,12 @@ export default {
       if (r.renovadas) console.log(`Mercado Pago: ${r.renovadas} conexiones renovadas`);
     } catch (err) {
       console.error('Mercado Pago: falló la renovación de conexiones', err);
+    }
+    try {
+      const r = await limpiarActuaciones(env);
+      if (r.limpiados) console.log(`Actuaciones: se borraron las de ${r.limpiados} pedidos terminados`);
+    } catch (err) {
+      console.error('Actuaciones: falló la limpieza', err);
     }
   },
 };
