@@ -1,31 +1,71 @@
 ---
-// Para influencers que quieren sumarse al convenio. Por ahora el contacto es por WhatsApp.
 import Studio from '../../layouts/Studio.astro';
 import { site } from '../../lib/site';
-const wa = `https://wa.me/${site.whatsappNumber}?text=${encodeURIComponent('Hola Tato, soy influencer y quiero saber más del convenio.')}`;
+const wa = `https://wa.me/${site.whatsappNumber}`;
 ---
 <Studio title="Súmate como influencer · Tato Studio" description="Tu imagen en videos con IA para negocios verificados del Perú. Tú apruebas cada guion y cada video, y la mayor parte de lo que se cobra es para ti." actual="influencers">
   <section class="ihero">
     <div class="wrap">
       <p class="migas" style="padding-top:0;margin-bottom:24px"><a href="/influencers/">Influencers</a> / Súmate</p>
       <h1 class="h1">Tu imagen trabaja, <span class="fx">tú decides</span></h1>
-      <p class="lead">Soy tu mánager: con IA produzco videos para negocios pequeños del Perú con tu imagen y tu estilo, sin que tengas que grabar. De cada video, descontada la producción, la mayor parte es para ti y te llega cuando se entrega.</p>
-      <div class="actions"><a class="btn btn--fucsia" href={wa} target="_blank" rel="noopener">Quiero sumarme</a></div>
+      <p class="lead">Postula desde tato.pe para trabajar con negocios peruanos. Tú decides qué pedidos aceptas y apruebas cada guion y video antes de su entrega.</p>
+      <div class="actions"><a class="btn btn--fucsia" href="#postular">Iniciar mi registro</a><a class="btn btn--line" href="/cuenta/">Ya tengo una cuenta</a></div>
     </div>
   </section>
 
-  <section class="sec" aria-labelledby="cuidado-t" style="padding-top:0">
-    <div class="wrap">
-      <h2 class="h2" id="cuidado-t">Cómo te <span class="fx">cuidamos</span></h2>
-      <ol class="pasos">
-        <li><b>Firmas un convenio</b>Dice para qué se usa tu imagen, por cuánto tiempo y cómo salirte.</li>
-        <li><b>Solo negocios verificados</b>Cada negocio pasa por su RUC en SUNAT y por la lista de rubros que no entran.</li>
-        <li><b>Tú decides cada pedido</b>En tu cuenta ves quién te pide y qué quiere promocionar, y aceptas o no. Tu lista de «no acepto» sale en tu perfil.</li>
-        <li><b>Apruebas guion y video</b>Sin tu visto bueno no se produce ni se entrega nada.</li>
-        <li><b>Todo va etiquetado</b>Con #Publicidad y con la etiqueta de que está hecho con IA.</li>
-      </ol>
-      <p class="lead">Para crear tu personaje con IA, en tu cuenta subes 4 fotos y grabas tu voz leyendo un cuento corto. Solo se usan en los videos que tú apruebes, y las puedes borrar cuando quieras.</p>
+  <section class="wrap registro" id="postular" aria-labelledby="postular-t">
+    <div>
+      <h2 class="h2" id="postular-t">Regístrate como <span class="fx">influencer</span></h2>
+      <p class="lead">Ten a mano tu WhatsApp y el enlace o usuario de tu red principal. Todos los campos son obligatorios.</p>
+      <form class="form" id="postulacion" method="post" action="/api/influencers/postulacion">
+        <div class="field">
+          <label for="nombre">Tu nombre</label>
+          <input id="nombre" name="nombre" autocomplete="name" maxlength="100" required>
+        </div>
+        <div class="field">
+          <label for="whatsapp">Tu WhatsApp</label>
+          <input id="whatsapp" name="whatsapp" type="tel" autocomplete="tel" inputmode="tel" maxlength="22" required placeholder="9xx xxx xxx" aria-describedby="telefono-ayuda">
+          <small id="telefono-ayuda">Número peruano de 9 dígitos. Puedes incluir +51.</small>
+        </div>
+        <div class="field">
+          <label for="region">Ciudad o región</label>
+          <input id="region" name="region" autocomplete="address-level2" maxlength="80" required placeholder="Por ejemplo, Huaraz">
+        </div>
+        <div class="field">
+          <label for="redes">Tu red principal</label>
+          <input id="redes" name="redes" maxlength="200" required placeholder="Por ejemplo, TikTok @tuusuario" autocapitalize="none">
+        </div>
+        <div class="field field--full">
+          <label for="contenido">¿Qué contenido haces?</label>
+          <textarea id="contenido" name="contenido" maxlength="500" required placeholder="Cuéntanos de tus temas y del tipo de negocios con los que te gustaría trabajar"></textarea>
+        </div>
+        <fieldset class="grupo">
+          <legend>Antes de enviar</legend>
+          <label class="check"><input type="checkbox" name="mayor" required><span>Confirmo que tengo 18 años o más.</span></label>
+          <label class="check"><input type="checkbox" name="autoriza" required><span>Acepto que Tato Studio revise mis datos y me contacte para esta solicitud, según la <a class="link" href="/privacidad/" target="_blank" rel="noopener">política de privacidad</a>.</span></label>
+        </fieldset>
+        <div class="trampa" aria-hidden="true"><label for="sitio">Deja vacío este campo</label><input id="sitio" name="sitio" tabindex="-1" autocomplete="off"></div>
+        <p class="form__error" id="postulacion-error" role="alert" hidden></p>
+        <button class="btn btn--fucsia" type="submit" id="postulacion-enviar" disabled>Enviar mi solicitud</button>
+        <noscript><p>Activa JavaScript para enviar tu solicitud desde esta página.</p></noscript>
+      </form>
+      <div class="resultado resultado--verde" id="postulacion-recibo" tabindex="-1" hidden>
+        <h2>Recibimos tu solicitud</h2>
+        <p>Guarda esta referencia <strong id="postulacion-referencia" style="overflow-wrap:anywhere"></strong></p>
+        <p>Tato revisará tu perfil y te contactará al WhatsApp que registraste. Si avanzas, firmarán el convenio y recibirás tu ID y una contraseña temporal.</p>
+        <p><a class="link" href="/cuenta/">Ir al acceso de influencers</a></p>
+      </div>
     </div>
+    <aside class="lado" aria-labelledby="pasos-t">
+      <h2 id="pasos-t">Qué pasa después</h2>
+      <ol>
+        <li><strong>Envías tu solicitud.</strong> Recibes una referencia aquí mismo.</li>
+        <li><strong>Tato revisa tu perfil.</strong> Si avanzas, coordinan el convenio por WhatsApp.</li>
+        <li><strong>Activas tu cuenta.</strong> Entras con tu clave temporal y la cambias.</li>
+        <li><strong>Completas tu identidad.</strong> Ya dentro, subes cuatro fotos y grabas tu voz con tu autorización. Tato las revisa antes de habilitar pedidos.</li>
+      </ol>
+      <p>¿Tienes una duda? <a href={wa} target="_blank" rel="noopener">Habla con Tato</a>.</p>
+    </aside>
   </section>
 
   <section class="sec dark" aria-labelledby="perfil-t">
@@ -37,7 +77,65 @@ const wa = `https://wa.me/${site.whatsappNumber}?text=${encodeURIComponent('Hola
         <div class="regla"><h3>Cómo trabajas</h3><ul><li>Con qué negocios encajas</li><li>Lo que no aceptas</li><li>Tus paquetes, precios y tiempos</li><li>Dónde y por cuánto tiempo puede usar el video el negocio</li></ul></div>
         <div class="regla"><h3>Tus muestras</h3><ul><li>2 o 3 videos hechos con IA con tu imagen</li><li>Aprobados por ti antes de publicarse</li><li>Rotulados como hechos con IA</li></ul></div>
       </div>
-      <div class="actions"><a class="btn btn--fucsia" href={wa} target="_blank" rel="noopener">Escríbeme por WhatsApp</a></div>
+      <div class="actions"><a class="btn btn--fucsia" href="#postular">Ir al formulario</a></div>
     </div>
   </section>
 </Studio>
+
+<script>
+  const form = document.querySelector<HTMLFormElement>('#postulacion')!;
+  const boton = document.querySelector<HTMLButtonElement>('#postulacion-enviar')!;
+  const telefono = document.querySelector<HTMLInputElement>('#whatsapp')!;
+  const error = document.querySelector<HTMLElement>('#postulacion-error')!;
+  const recibo = document.querySelector<HTMLElement>('#postulacion-recibo')!;
+  const referencia = document.querySelector<HTMLElement>('#postulacion-referencia')!;
+  const id = crypto.randomUUID();
+  boton.disabled = false;
+
+  telefono.addEventListener('input', () => telefono.setCustomValidity(''));
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    error.hidden = true;
+    const datos = new FormData(form);
+    const whatsapp = telefono.value.replace(/\D/g, '').replace(/^51(?=9\d{8}$)/, '');
+    if (!/^9\d{8}$/.test(whatsapp)) {
+      telefono.setCustomValidity('Escribe un número peruano de 9 dígitos que empiece con 9.');
+      telefono.reportValidity();
+      return;
+    }
+    boton.disabled = true;
+    boton.textContent = 'Enviando…';
+    try {
+      const respuesta = await fetch(form.action, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...Object.fromEntries(datos), id, whatsapp, mayor: datos.has('mayor'), autoriza: datos.has('autoriza') }),
+        signal: AbortSignal.timeout(15000),
+      });
+      const resultado = await respuesta.json();
+      if (!respuesta.ok || !resultado.referencia) {
+        error.textContent = resultado.error || 'No pudimos confirmar el envío. Vuelve a intentarlo.';
+        error.hidden = false;
+        return;
+      }
+      referencia.textContent = resultado.referencia;
+      form.reset();
+      form.hidden = true;
+      recibo.hidden = false;
+      recibo.focus();
+    } catch {
+      error.textContent = 'No pudimos confirmar el envío. Revisa tu conexión y vuelve a intentarlo. Tus datos siguen en el formulario.';
+      error.hidden = false;
+    } finally {
+      boton.disabled = false;
+      boton.textContent = 'Enviar mi solicitud';
+    }
+  });
+</script>
+
+<style>
+  #postular { scroll-margin-top: 6rem; }
+  #postulacion[hidden] { display: none; }
+  .lado ol { padding-inline-start: 1.25rem; }
+  .lado li { margin-bottom: .65rem; }
+</style>

@@ -1,6 +1,6 @@
 // Páginas y respuestas del Worker: el HTML sencillo de los paneles privados y las respuestas JSON.
 
-const NAV = [['/panel/pedidos/', 'Pedidos'], ['/panel/influencers/', 'Influencers'], ['/panel/negocios/', 'Negocios'], ['/panel/ajustes/', 'Ajustes'], ['/panel/tiktok/', 'TikTok']];
+const NAV = [['/panel/pedidos/', 'Pedidos'], ['/panel/influencers/', 'Influencers'], ['/panel/postulaciones/', 'Postulaciones'], ['/panel/negocios/', 'Negocios'], ['/panel/ajustes/', 'Ajustes'], ['/panel/tiktok/', 'TikTok']];
 
 export function page(title, body, nav = true) {
   return `<!doctype html><html lang="es"><head><meta charset="utf-8">
@@ -28,7 +28,7 @@ export function page(title, body, nav = true) {
   .link{background:none;border:0;color:#a00;text-decoration:underline;cursor:pointer;margin-top:16px;padding:0;font:inherit}
   code{background:#f1f1f1;padding:1px 4px;border-radius:4px}
   @media (max-width:700px){table{display:block;overflow-x:auto}.reg dl{grid-template-columns:1fr}}
-  .nav{display:flex;gap:16px;margin:0 0 20px;font-size:14px}.nav a{color:#666}.nav a[aria-current]{color:#111;font-weight:700}
+  .nav{display:flex;flex-wrap:wrap;gap:8px 16px;margin:0 0 20px;font-size:14px}.nav a{color:#666}.nav a[aria-current]{color:#111;font-weight:700}
   .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px}.tabs a{padding:6px 12px;border:1px solid #ddd;border-radius:999px;text-decoration:none;font-size:14px;background:#fff}.tabs a[aria-current]{background:#111;color:#fff;border-color:#111}
   .reg{background:#fff;border:1px solid #e5e5e5;border-radius:10px;margin-bottom:10px}
   .reg summary{display:flex;gap:12px;align-items:center;padding:12px 14px;cursor:pointer;flex-wrap:wrap}

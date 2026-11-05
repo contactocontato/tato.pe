@@ -38,6 +38,7 @@ function paginaEntrar(error) {
   <div class="acciones"><button class="btn fucsia" type="submit">Entrar</button></div>
   <noscript><p class="nota">Activa JavaScript para entrar: tu contraseña se prepara en tu navegador y nunca viaja tal cual.</p></noscript>
 </form>
+<p class="nota">¿Todavía no tienes cuenta? <a href="/influencers/unete/#postular">Envía tu solicitud</a>.</p>
 <p class="nota">¿Olvidaste tu contraseña? <a href="https://wa.me/${WHATSAPP_TATO}?text=${encodeURIComponent('Hola Tato, olvidé la contraseña de mi cuenta de influencer.')}" target="_blank" rel="noopener">Escríbele a Tato por WhatsApp</a> y te da una nueva.</p>`,
   });
 }

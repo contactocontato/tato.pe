@@ -6,7 +6,7 @@ import { grafico } from './graficos';
 
 interface Props {
   c: Servicio;
-  /** Muestra el link al catálogo de influencers (solo en la tarjeta de influencers, cuando hay alguno publicado). */
+  /** Muestra el acceso al catálogo y al registro desde la tarjeta de influencers. */
   catalogo?: boolean;
 }
 const { c, catalogo = false } = Astro.props;
@@ -24,6 +24,7 @@ const waHref = `https://wa.me/${site.whatsappNumber}`;
     <h3 class="card__title">{c.title}</h3>
     <p class="card__desc">{c.desc}</p>
     {c.meta && <p class="card__meta">{c.meta}</p>}
+    {catalogo && <p><a class="link" href="/influencers/">Ver el catálogo</a> · <a class="link" href="/influencers/unete/">Soy influencer</a></p>}
     <details class="card__more">
       <summary><span>Ver qué incluye</span><i aria-hidden="true"></i></summary>
       <div class="card__detail">
@@ -34,7 +35,6 @@ const waHref = `https://wa.me/${site.whatsappNumber}`;
         {c.costo && <p class="label">Costo aparte al mes</p>}
         {c.costo && <p>{c.costo}</p>}
         {c.nota && <p class="card__note">{c.nota}{c.affiliate && <Fragment> <a class="link" href={site.higgsfield} target="_blank" rel="sponsored noopener">Entrar con mi link</a></Fragment>}</p>}
-        {catalogo && <p><a class="link" href="/influencers/">Ver los influencers y sus precios</a></p>}
         {c.extraLink && <p><a class="link" data-wa={c.extraLink[1]} href={waHref} target="_blank" rel="noopener">{c.extraLink[0]}</a></p>}
         <a class="btn btn--fucsia btn--sm" data-wa={c.wa} href={waHref} target="_blank" rel="noopener">Pedir por WhatsApp</a>
       </div>

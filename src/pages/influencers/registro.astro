@@ -4,15 +4,15 @@ import Studio from '../../layouts/Studio.astro';
 import negocios from '../../data/negocios.json';
 import { site } from '../../lib/site';
 ---
-<Studio title="Registra tu negocio · Influencers · Tato Studio" description="Registra tu negocio con tu RUC para pedir videos con influencers. Lo verificamos con SUNAT en segundos." actual="influencers" noindex>
+<Studio title="Registra tu negocio · Influencers · Tato Studio" description="Registra tu negocio con tu RUC para pedir videos con influencers." actual="influencers" noindex>
   <div class="wrap">
     <p class="migas"><a href="/influencers/">Influencers</a> / Registro</p>
     <div class="registro">
       <div>
         <h1 class="h1">Registra tu <span class="fx">negocio</span></h1>
-        <p class="lead">Lo verificamos con tu RUC en segundos. Es lo que nos permite cuidar a los influencers: solo prestan su imagen a negocios formales.</p>
+        <p class="lead">Completa los datos de tu negocio y de la persona de contacto. Si necesitamos revisar tu RUC o tus permisos, te escribiremos al WhatsApp que registres.</p>
 
-        <form class="form" id="registro" novalidate>
+        <form class="form" id="registro" method="post" action="/api/negocios/registro" novalidate>
           <div class="field">
             <label for="ruc">RUC</label>
             <input id="ruc" name="ruc" inputmode="numeric" autocomplete="off" maxlength="11" pattern="(10|15|16|17|20)[0-9]{9}" required placeholder="20123456789">
@@ -64,7 +64,7 @@ import { site } from '../../lib/site';
           <input type="hidden" name="influencer" id="influencer">
           <input type="hidden" name="paquete" id="paquete">
           <p class="form__error" id="error" role="alert" hidden></p>
-          <button class="btn btn--fucsia" type="submit" id="enviar">Verificar mi negocio</button>
+          <button class="btn btn--fucsia" type="submit" id="enviar">Enviar registro</button>
         </form>
 
         <div class="resultado" id="resultado" tabindex="-1" hidden aria-live="polite"></div>
@@ -121,7 +121,7 @@ import { site } from '../../lib/site';
     error.textContent = problema;
     if (problema) return;
     enviar.disabled = true;
-    enviar.textContent = 'Verificando con SUNAT…';
+    enviar.textContent = 'Enviando tu registro…';
     const body = {
       ruc: String(f.get('ruc')).replace(/\D/g, ''),
       nombreComercial: f.get('nombreComercial'), rubro: f.get('rubro'), promociona: f.get('promociona'), redes: f.get('redes'),
@@ -143,7 +143,7 @@ import { site } from '../../lib/site';
       error.textContent = 'No hay conexión con el servidor. Revisa tu internet e inténtalo de nuevo.';
     } finally {
       enviar.disabled = false;
-      enviar.textContent = 'Verificar mi negocio';
+      enviar.textContent = 'Enviar registro';
     }
   });
 

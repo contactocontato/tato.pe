@@ -30,6 +30,7 @@ import { page, html, json, esc } from './ui.js';
 import { handleRegistro, handlePanelNegocios, handleDecidir, revisarRucs } from './negocios.js';
 import { handlePedidoNuevo, handleEstadoInfluencer, handleWebhook, renovarConexiones, limpiarActuaciones } from './pedidos.js';
 import { handleCuenta, handleMpConectado } from './cuenta.js';
+import { handlePostulacion, handlePanelPostulaciones } from './postulaciones.js';
 import { handlePanelPedidos, handlePanelPedidoAccion, handlePanelInfluencers, handlePanelInfluencerAccion, handlePanelAjustes, handlePanelArchivo } from './panel-pedidos.js';
 
 const REDIRECT_URI = 'https://tato.pe/api/tiktok/callback';
@@ -52,6 +53,7 @@ export default {
     try {
       if (path === '/api/tiktok/callback') return await handleCallback(request, env, url);
       if (path === '/api/negocios/registro') return await handleRegistro(request, env);
+      if (path === '/api/influencers/postulacion') return await handlePostulacion(request, env);
       if (path === '/api/pedidos') return await handlePedidoNuevo(request, env);
       const estado = path.match(/^\/api\/influencers\/([a-z0-9-]{1,60})\/estado$/);
       if (estado) return await handleEstadoInfluencer(env, estado[1]);
@@ -72,6 +74,7 @@ export default {
         if (path === '/panel/pedidos') return await handlePanelPedidos(request, env, url);
         if (path === '/panel/pedidos/accion' && request.method === 'POST') return await handlePanelPedidoAccion(request, env, url);
         if (path === '/panel/influencers') return await handlePanelInfluencers(request, env, url);
+        if (path === '/panel/postulaciones') return await handlePanelPostulaciones(env, url);
         if (path === '/panel/influencers/accion' && request.method === 'POST') return await handlePanelInfluencerAccion(request, env, url);
         if (path === '/panel/ajustes') return await handlePanelAjustes(request, env, url);
         if (path === '/panel/archivo') return await handlePanelArchivo(request, env, url);
