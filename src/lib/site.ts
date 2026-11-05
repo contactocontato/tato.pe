@@ -20,12 +20,12 @@ export function wa(text: string, number = site.whatsappNumber) {
 }
 
 export const nav = [
+  { label: 'Servicios', href: '/#oficina' },
   { label: 'Videos', href: '/#videos' },
-  { label: 'Aprende', href: '/#aprende' },
-  { label: 'Tu video', href: '/#tu-video' },
-  { label: 'Marcas', href: '/#marcas' },
+  { label: 'Precios', href: '/#pedido' },
   { label: 'Sobre mí', href: '/#sobre-mi' },
   { label: 'Blog', href: '/blog' },
+  { label: 'Recarga', href: '/recarga/' },
 ];
 
 /** Custom video plans. SAMPLE prices: confirm with the client before launch. */

@@ -1,29 +1,948 @@
 ---
-import Base from '../layouts/Base.astro';
-import Hero from '../components/home/Hero.astro';
-import Videos from '../components/home/Videos.astro';
-import Prompt from '../components/home/Prompt.astro';
-import Aprende from '../components/home/Aprende.astro';
-import Hazlo from '../components/home/Hazlo.astro';
-import TuVideo from '../components/home/TuVideo.astro';
-import Marcas from '../components/home/Marcas.astro';
-import SobreMi from '../components/home/SobreMi.astro';
-import Opiniones from '../components/home/Opiniones.astro';
-import Preguntas from '../components/home/Preguntas.astro';
-import Footer from '../components/Footer.astro';
+// Portada de tato.pe. El contenido de las tarjetas y los precios está en src/data/inicio.ts;
+// las fotos, la secuencia del video del inicio y las poses de Tato, en public/inicio/.
+// El CSS y el JS van en línea (is:inline) tal como se probaron: no usan Tailwind ni global.css.
+import { site } from '../lib/site';
+import { secciones, precios, desde } from '../data/inicio';
+import Tarjeta from '../components/inicio/Tarjeta.astro';
+
+const title = 'Tato Studio · Cine con IA hecho en Perú';
+const description = 'Contenido, anuncios y automatizaciones con IA para negocios del Perú, homenajes para tu familia y clases de IA. Precios en soles y atención por WhatsApp.';
+const canonical = new URL('/', Astro.site ?? site.url);
+
+// Video del inicio: 60 cuadros por tamaño (d: computadora 720 × 1280, p: celular 540 × 960). fx y fy: dónde está el logo del polo.
+const HERO = {"n": 60, "fx": 0.593, "fy": 0.336};
+// Poses de Tato al costado: una o dos fotos por pose (la segunda es el cuadro alterno de los pasitos).
+// Las que terminan en _f son espejos con el logo del polo al derecho. Archivos en public/inicio/tato/.
+const FIG = { w: 362, h: 760, poses: {"camina": ["w_000", "w_012"], "camina-f": ["w_000_f", "w_012_f"], "senala": ["p_senala"], "celular": ["p_celular"], "celular-f": ["p_celular_f"], "saluda": ["p_saluda"], "saluda-f": ["p_saluda_f"]} };
 ---
-<Base title="Tato Studio · Cine con IA hecho en Perú" description="Te enseño a crear los videos con IA que ves en mi TikTok, o te hago el tuyo. Talleres, pack de prompts y videos personalizados. Desde Huaraz, Ica y Lima.">
-  <main>
-    <Hero />
-    <Videos />
-    <Prompt />
-    <Aprende />
-    <Hazlo />
-    <TuVideo />
-    <Marcas />
-    <SobreMi />
-    <Opiniones />
-    <Preguntas />
-  </main>
-  <Footer />
-</Base>
+<!doctype html>
+<html lang="es-PE">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{title}</title>
+<meta name="description" content={description}>
+<link rel="canonical" href={canonical}>
+<meta name="theme-color" content="#E9E4DD">
+<meta property="og:title" content={title}>
+<meta property="og:description" content={description}>
+<meta property="og:image" content={new URL('/poster/transformacion.jpg', canonical)}>
+<meta property="og:type" content="website">
+<meta property="og:locale" content="es_PE">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="sitemap" href="/sitemap-index.xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<meta name="generator" content={Astro.generator}>
+<style is:inline>
+:root {
+  /* Fondo hueso cálido, tinta casi negra y un solo rojo sobrio. Archivo ancha y pesada para títulos y DM Mono para precios y fichas. */
+  --paper: #E9E4DD;
+  --paper-2: #F0ECE6;
+  --card: #F4F1EC;
+  --card-line: #D5CDC1;
+  --line: #D3CCC1;
+  --ink: #141414;
+  --ink-2: #2B2A27;
+  --ink-soft: #5B5B57;
+  --red: #D0262D;
+  --red-press: #B21F26;
+  --red-on-dark: #F0555B;
+  --cream: #F3EEE6;
+  --cream-soft: #BDB5A9;
+  --dark: #141414;
+  --dark-card: #1E1D1B;
+  --dark-line: #37342F;
+  --sans: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --mono: "DM Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --margin: clamp(16px, 4vw, 48px);
+  --gap: clamp(12px, 1.6vw, 20px);
+  --section: clamp(72px, 9vw, 128px);
+  --bar: 60px;
+  --fig-h: min(62vh, 620px);
+  --fig-w: calc(var(--fig-h) * 362 / 760);
+  --step-shot: clamp(2.6rem, 1rem + 6.2vw, 7rem);
+  --ease: cubic-bezier(.22, 1, .36, 1);
+  /* textura de letra: grano dentro de la letra y una luz que baja en cada línea */
+  --tx-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='t'><feTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3' seed='4' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .24 0'/></filter><rect width='100%' height='100%' filter='url(%23t)'/></svg>");
+  --tx-grain-red: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='t'><feTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3' seed='9' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .3 0'/></filter><rect width='100%' height='100%' filter='url(%23t)'/></svg>");
+  --tx-grain-light: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='t'><feTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3' seed='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .2 0'/></filter><rect width='100%' height='100%' filter='url(%23t)'/></svg>");
+  --tx-cream: linear-gradient(180deg, #FFFFFF 0%, #EEEAE3 52%, #C4BEB3 100%);
+  --tx-red: linear-gradient(180deg, #FF555B 0%, #E1262D 50%, #A1151B 100%);
+  --tx-ink: linear-gradient(180deg, #47443F 0%, #1F1E1C 55%, #121211 100%);
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 400 18px/1.5 var(--sans); -webkit-font-smoothing: antialiased; }
+@media (max-width: 600px) { body { font-size: 17px; } }
+img, video, svg, canvas { display: block; max-width: 100%; }
+a { color: inherit; }
+button, input, select, textarea { font: inherit; color: inherit; }
+h1, h2, h3 { margin: 0; font-family: var(--sans); text-wrap: balance; }
+p { margin: 0; text-wrap: pretty; }
+ul { margin: 0; }
+:focus-visible { outline: 2px solid var(--red); outline-offset: 3px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.wrap { max-width: 1180px; margin-inline: auto; padding-inline: var(--margin); }
+.h2 { font-weight: 800; font-stretch: 112%; font-size: clamp(2.3rem, 1.1rem + 4.4vw, 4.6rem); line-height: .95; letter-spacing: -.025em; }
+.r { color: var(--red); }
+.dark .r { color: var(--red-on-dark); }
+.lead { font-size: clamp(1.05rem, .95rem + .4vw, 1.25rem); line-height: 1.45; color: var(--ink-soft); max-width: 58ch; margin-top: 16px; }
+.mono { font-family: var(--mono); }
+.tag { font: 500 12px/1.2 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); }
+.link { color: inherit; text-decoration: underline; text-underline-offset: .2em; text-decoration-thickness: 1px; font-weight: 600; }
+
+/* botones píldora */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 50px; padding: 0 26px; border-radius: 999px; border: 0; font: 700 16px/1 var(--sans); text-decoration: none; cursor: pointer; white-space: nowrap; transition: transform 140ms var(--ease), background-color 180ms ease, color 180ms ease; }
+.btn:active { transform: scale(.97); }
+.btn--red { background: var(--red); color: #fff; }
+.btn--line { background: transparent; color: inherit; box-shadow: inset 0 0 0 1.5px currentColor; }
+.btn--sm { min-height: 42px; padding: 0 18px; font-size: 15px; }
+@media (hover: hover) and (pointer: fine) { .btn--red:hover { background: var(--red-press); } .btn--line:hover { background: rgba(127,127,127,.12); } }
+
+/* grano de película encima de todo */
+.grain { position: fixed; inset: 0; z-index: 80; pointer-events: none; opacity: .07; mix-blend-mode: multiply; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
+
+/* cabecera */
+.top { position: fixed; inset: 0 0 auto 0; z-index: 50; height: var(--bar); background: var(--paper); border-bottom: 1px solid var(--line); }
+.top .wrap { max-width: none; height: 100%; display: flex; align-items: center; gap: 22px; }
+.brand { font: 800 21px/1 var(--sans); font-stretch: 118%; letter-spacing: -.02em; text-decoration: none; }
+.top nav { margin-left: auto; display: flex; gap: 22px; font-size: 15px; font-weight: 500; }
+.top nav a { text-decoration: none; color: var(--ink-2); }
+.top nav a:hover { color: var(--red); }
+.top .btn { min-height: 40px; padding: 0 18px; font-size: 15px; }
+@media (max-width: 1100px) { .top nav { display: none; } .top .btn { margin-left: auto; } }
+
+/* la toma: cuadros que siguen al scroll */
+.shot { position: relative; height: 330svh; background: var(--dark); color: #fff; }
+.shot__stage { position: sticky; top: 0; height: 100svh; overflow: hidden; background: #151413; }
+.shot__poster { position: absolute; inset: 0; }
+.shot__poster img { width: 100%; height: 100%; object-fit: cover; }
+.shot__cv { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; transition: opacity .25s ease; }
+.shot__cv.ready { opacity: 1; }
+.shot__veil { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(20,20,20,0) 36%, rgba(20,20,20,.84) 100%); }
+.shot__sheen { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(520px circle at var(--mx, 70%) var(--my, 40%), rgba(255,240,220,.12), transparent 60%); mix-blend-mode: screen; }
+.shot__ink { position: absolute; left: 50%; top: 50%; width: min(60vmin, 520px); aspect-ratio: 1; transform: translate(-50%, -50%); pointer-events: none; opacity: 0; }
+.shot__ink path { fill: none; stroke: var(--red); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 1; }
+.shot__dark { position: absolute; inset: 0; background: var(--dark); opacity: 0; pointer-events: none; }
+.shot__copy { position: absolute; left: var(--margin); right: var(--margin); bottom: calc(env(safe-area-inset-bottom, 0px) + 96px); }
+.shot__lines { position: relative; height: calc(var(--step-shot) * 2 + 6.5rem); filter: drop-shadow(0 2px 3px rgba(0,0,0,.55)) drop-shadow(0 0 20px rgba(0,0,0,.42)); }
+.shot__line { position: absolute; inset: auto 0 0 0; opacity: 0; transform: translateY(14px); transition: opacity .45s var(--ease), transform .6s var(--ease); pointer-events: none; }
+.shot__line.is-on { opacity: 1; transform: none; pointer-events: auto; }
+.shot__line .big { display: block; font: 900 var(--step-shot)/.92 var(--sans); font-stretch: 112%; letter-spacing: -.03em; max-width: 11ch; text-wrap: balance; }
+.shot__line .big .r { color: var(--red-on-dark); }
+.shot__line .sub { display: block; margin-top: 14px; font: 400 clamp(1.05rem, .95rem + .45vw, 1.3rem)/1.4 var(--sans); max-width: 36ch; color: rgba(255,255,255,.88); text-wrap: pretty; }
+.shot__actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 22px; }
+.shot__facts { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 14px; font: 400 13px/1.3 var(--mono); color: rgba(255,255,255,.74); }
+.shot__bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255,255,255,.12); }
+.shot__bar i { position: absolute; inset: 0; background: var(--red); transform-origin: 0 50%; transform: scaleX(0); }
+@media (min-width: 900px) {
+  .shot__poster img { position: absolute; top: 0; height: 100%; width: auto; aspect-ratio: 9 / 16; left: calc(66% - 28.125svh); }
+  .shot__veil { background: linear-gradient(90deg, rgba(20,20,20,.86) 0%, rgba(20,20,20,.5) 40%, rgba(20,20,20,0) 64%); }
+  .shot__copy { left: calc(var(--margin) * 1.6); right: auto; width: min(48vw, 680px); bottom: auto; top: 50%; transform: translateY(-46%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shot { height: auto; }
+  .shot__stage { position: relative; height: 100svh; }
+  .shot__cv, .shot__ink, .shot__bar, .shot__sheen { display: none; }
+}
+
+/* chips fijos por categoría */
+.chips { position: sticky; top: var(--bar); z-index: 20; background: var(--paper); border-bottom: 1px solid var(--line); }
+.chips .wrap { display: flex; gap: 8px; overflow-x: auto; padding-block: 10px; scrollbar-width: none; }
+.chips .wrap::-webkit-scrollbar { display: none; }
+.chip { flex: none; display: inline-flex; align-items: center; min-height: 38px; padding: 0 15px; border-radius: 999px; border: 1px solid var(--line); background: var(--paper-2); font-size: 14px; font-weight: 500; text-decoration: none; }
+.chip.is-on { background: var(--ink); border-color: var(--ink); color: var(--cream); }
+
+/* secciones */
+.svc { padding-block: var(--section); scroll-margin-top: calc(var(--bar) + 58px); }
+.dark { background: var(--dark); color: var(--cream); border-top: 4px solid var(--red); }
+.dark .lead { color: var(--cream-soft); }
+.dark .tag { color: var(--cream-soft); }
+.svc__foot { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 22px; margin-top: 28px; }
+.svc__foot p { color: var(--ink-soft); font-size: 15px; max-width: 62ch; }
+.dark .svc__foot p { color: var(--cream-soft); }
+.swipe { display: none; margin-top: 10px; font: 400 12px/1 var(--mono); color: var(--ink-soft); }
+
+/* oficina con IA */
+.office__chips { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
+.pill { display: inline-flex; align-items: center; min-height: 40px; padding: 0 16px; border-radius: 999px; border: 1px solid #4A4642; color: var(--cream); font-size: 15px; text-decoration: none; }
+.pill:hover { border-color: var(--cream); }
+.office__opts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 28px; }
+.opt { border-radius: 16px; padding: 24px 24px 26px; display: flex; flex-direction: column; gap: 10px; }
+.opt--dark { background: var(--dark-card); border: 1px solid var(--dark-line); }
+.opt--light { background: var(--paper-2); color: var(--ink); }
+.opt h3 { font: 700 clamp(1.5rem, 1.2rem + 1vw, 2rem)/1.05 var(--sans); font-stretch: 108%; letter-spacing: -.015em; }
+.opt__price { font: 500 14px/1.3 var(--mono); color: var(--red-on-dark); }
+.opt--light .opt__price { color: var(--red); }
+.opt--light .tag { color: var(--ink-soft); }
+.opt ul { padding-left: 1.1rem; display: grid; gap: 6px; }
+.opt .btn { align-self: flex-start; margin-top: 10px; }
+.pay { margin-top: 16px; border: 1px solid var(--dark-line); border-radius: 16px; padding: 20px 22px; }
+.pay h3 { font: 700 18px/1.2 var(--sans); margin-bottom: 8px; }
+.pay ul { padding-left: 1.1rem; display: grid; gap: 4px; color: var(--cream-soft); font-size: 16px; }
+.pay b { color: var(--cream); }
+@media (max-width: 820px) { .office__opts { grid-template-columns: 1fr; } }
+
+/* tarjetas */
+.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--gap); margin-top: 36px; align-items: start; }
+#familia .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 920px; }
+.card { background: var(--card); border: 1px solid var(--card-line); border-radius: 16px; overflow: hidden; display: flex; flex-direction: column; scroll-margin-top: calc(var(--bar) + 70px); }
+.card__media { position: relative; aspect-ratio: 4 / 3; overflow: hidden; background: #DCD5CB; }
+.card__media img, .card__media video, .card__media svg { width: 100%; height: 100%; object-fit: cover; }
+.card__body { padding: 18px 18px 20px; display: flex; flex-direction: column; gap: 8px; }
+.card__price { font: 500 13px/1.35 var(--mono); color: var(--red); }
+.card__title { font: 700 22px/1.12 var(--sans); font-stretch: 106%; letter-spacing: -.01em; }
+.card__desc { color: var(--ink-2); font-size: 16px; line-height: 1.45; }
+.card__meta { font: 400 12px/1.3 var(--mono); color: var(--ink-soft); }
+.card__more { border-top: 1px solid var(--card-line); margin-top: 8px; padding-top: 14px; }
+.card__more summary { list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 46px; padding: 0 18px; border-radius: 999px; border: 1.5px solid var(--ink); background: #F8F6F2; font: 500 13px/1 var(--mono); cursor: pointer; }
+.card__more summary::-webkit-details-marker { display: none; }
+.card__more summary i::before { content: "+"; font: 700 18px/1 var(--sans); color: var(--red); }
+.card__more[open] summary i::before { content: "×"; }
+.card__detail { padding-top: 14px; display: grid; gap: 8px; font-size: 15px; line-height: 1.45; }
+.card__detail .label { font: 500 11px/1.2 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); margin-top: 6px; }
+.card__detail ul { padding-left: 1.1rem; display: grid; gap: 4px; }
+.card__note { font-weight: 600; }
+.card__detail .btn { justify-self: start; margin-top: 8px; }
+.dark .card { background: var(--dark-card); border-color: var(--dark-line); color: var(--cream); }
+.dark .card__price { color: var(--red-on-dark); }
+.dark .card__desc { color: #D8D1C6; }
+.dark .card__meta, .dark .card__detail .label { color: var(--cream-soft); }
+.dark .card__more { border-color: var(--dark-line); }
+.dark .card__more summary { border-color: var(--cream); background: transparent; }
+@media (max-width: 1000px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 700px) {
+  .grid, #familia .grid { grid-auto-flow: column; grid-template-columns: none; grid-auto-columns: 86%; overflow-x: auto; scroll-snap-type: x mandatory; margin-inline: calc(var(--margin) * -1); padding-inline: var(--margin); scroll-padding-inline: var(--margin); padding-bottom: 6px; scrollbar-width: none; }
+  .grid::-webkit-scrollbar { display: none; }
+  .grid > * { scroll-snap-align: start; }
+  .swipe { display: block; }
+}
+
+/* gráficos propios */
+.term { position: absolute; inset: 0; background: #161514; color: #D9D4CB; padding: 16px; font: 500 11.5px/1.55 var(--mono); display: flex; flex-direction: column; gap: 1px; }
+.term .p { color: #F3EEE6; }
+.term .ok { color: var(--red-on-dark); }
+.term .gap { height: 8px; }
+.nara { position: absolute; inset: 0; background: #DCD5CB; display: grid; place-items: center; padding: 16px; }
+.nara__win { width: 86%; background: var(--card); border-radius: 12px; overflow: hidden; box-shadow: 0 14px 30px rgba(20,20,20,.14); }
+.nara__title { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--ink); color: var(--cream); font: 700 14px/1 var(--sans); }
+.nara__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red-on-dark); }
+.nara__wave { display: flex; align-items: center; justify-content: center; gap: 5px; height: 56px; }
+.nara__wave i { width: 5px; height: 30%; border-radius: 3px; background: var(--red); animation: wave 1.1s ease-in-out infinite; animation-delay: calc(var(--d) * -.11s); }
+@keyframes wave { 0%, 100% { height: 18%; } 50% { height: 76%; } }
+.nara__chat { display: grid; gap: 5px; padding: 0 10px 12px; font-size: 12.5px; line-height: 1.3; }
+.nara__chat p { padding: 6px 9px; border-radius: 10px; max-width: 84%; }
+.nara__chat .me { background: #E6DFD5; justify-self: end; }
+.nara__chat .her { background: #F8F1E6; border: 1px solid var(--card-line); }
+.logoanim { position: absolute; inset: 0; background: #F3EEE6; display: grid; place-items: center; }
+.logoanim img { width: 50%; height: auto; }
+.logoanim__sweep { position: absolute; left: 22%; right: 22%; bottom: 14%; height: 3px; background: var(--red); transform-origin: 0 50%; transform: scaleX(0); }
+.logoanim.play img { animation: logoIn 3.2s var(--ease) infinite; }
+.logoanim.play .logoanim__sweep { animation: sweep 3.2s var(--ease) infinite; }
+@keyframes logoIn { 0% { clip-path: inset(100% 0 0 0); transform: scale(.9); } 35% { clip-path: inset(0 0 0 0); transform: scale(1); } 85% { clip-path: inset(0 0 0 0); transform: scale(1); opacity: 1; } 100% { opacity: 0; transform: scale(1.03); } }
+@keyframes sweep { 0%, 30% { transform: scaleX(0); } 50%, 85% { transform: scaleX(1); } 100% { transform: scaleX(1); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .nara__wave i { animation: none; height: 45%; } .logoanim.play img, .logoanim.play .logoanim__sweep { animation: none; } .logoanim__sweep { transform: none; } }
+
+/* reels y prueba social */
+.strip { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(180px, 1fr); gap: var(--gap); overflow-x: auto; margin-top: 32px; padding-bottom: 6px; scroll-snap-type: x mandatory; scrollbar-width: none; }
+.strip figure { margin: 0; scroll-snap-align: start; }
+.reel { position: relative; aspect-ratio: 9 / 16; border-radius: 14px; overflow: hidden; background: var(--ink); }
+.reel video { width: 100%; height: 100%; object-fit: cover; }
+.strip figcaption { margin-top: 8px; font-size: 15px; line-height: 1.35; }
+.strip figcaption b { display: block; font-weight: 700; }
+.strip figcaption span { font: 400 12px/1.3 var(--mono); color: var(--ink-soft); }
+.row-head { display: flex; align-items: end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+
+/* pedido */
+.order__grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); gap: clamp(20px, 4vw, 48px); margin-top: 32px; align-items: start; }
+form { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.field { display: grid; gap: 6px; }
+.field--full { grid-column: 1 / -1; }
+label { font: 500 12px/1.2 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-soft); }
+input, select, textarea { width: 100%; min-height: 50px; padding: 12px 14px; background: var(--card); border: 1px solid var(--card-line); border-radius: 12px; font-size: max(16px, 1rem); }
+textarea { min-height: 96px; resize: vertical; }
+.check { grid-column: 1 / -1; display: flex; gap: 10px; align-items: flex-start; font: 400 15px/1.4 var(--sans); text-transform: none; letter-spacing: 0; color: var(--ink-2); }
+.check input { width: 20px; min-height: 20px; height: 20px; margin-top: 2px; accent-color: var(--red); flex: none; }
+.preview { background: var(--dark); color: var(--cream); border-radius: 16px; padding: 22px; position: sticky; top: calc(var(--bar) + 76px); border-top: 4px solid var(--red); }
+.preview pre { white-space: pre-wrap; font: 400 16px/1.5 var(--sans); margin: 12px 0 18px; color: #fff; min-height: 7.5rem; }
+.preview .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.preview small { display: block; margin-top: 14px; color: var(--cream-soft); font: 400 12px/1.4 var(--mono); }
+.prices { margin-top: 36px; border-top: 1px solid var(--line); }
+.prices > summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 18px 0; font: 700 20px/1.2 var(--sans); }
+.prices > summary::-webkit-details-marker { display: none; }
+.prices > summary::after { content: "+"; color: var(--red); font-size: 26px; }
+.prices[open] > summary::after { content: "×"; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+td, th { text-align: left; padding: 12px 8px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: 16px; }
+tr.grp th { padding-top: 22px; font: 500 12px/1.2 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); border-bottom: 1.5px solid var(--ink); }
+td.money { font: 500 14px/1.4 var(--mono); white-space: nowrap; text-align: right; }
+.pick { background: none; border: 0; padding: 0; font-weight: 600; text-align: left; cursor: pointer; }
+tr[data-id] { cursor: pointer; transition: background-color .18s ease; }
+tr[data-id]:hover { background: var(--paper-2); }
+tr[data-id].is-picked { background: #F6E3DF; }
+.steps { list-style: none; counter-reset: s; padding: 0; margin: 40px 0 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--gap); }
+.steps li { counter-increment: s; padding-top: 12px; border-top: 1.5px solid var(--ink); font-size: 15px; }
+.steps li::before { content: counter(s); display: block; font: 500 13px/1 var(--mono); color: var(--red); margin-bottom: 8px; }
+@media (max-width: 860px) { .order__grid { grid-template-columns: 1fr; } .preview { position: static; } .steps { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 520px) { form { grid-template-columns: 1fr; } }
+
+/* sobre mí */
+.about__grid { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: clamp(24px, 6vw, 80px); align-items: center; }
+.about .reel { max-width: 340px; }
+.about p { max-width: 50ch; margin-top: 16px; font-size: clamp(1.05rem, .95rem + .4vw, 1.25rem); color: #DCD5CA; }
+.about figcaption { margin-top: 10px; font: 400 12px/1.4 var(--mono); color: var(--cream-soft); }
+@media (max-width: 760px) { .about__grid { grid-template-columns: 1fr; } .about .reel { max-width: min(100%, calc(56svh * 9 / 16)); } }
+
+/* preguntas */
+.faq__list { margin-top: 28px; display: grid; grid-template-columns: 1fr 1fr; gap: 0 var(--gap); }
+.faq details { border-top: 1px solid var(--line); padding: 16px 0; }
+.faq summary { cursor: pointer; font-weight: 700; list-style: none; display: flex; justify-content: space-between; gap: 14px; }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after { content: "+"; color: var(--red); font-weight: 700; }
+.faq details[open] summary::after { content: "×"; }
+.faq details p { margin-top: 8px; color: var(--ink-soft); max-width: 54ch; font-size: 16px; }
+@media (max-width: 760px) { .faq__list { grid-template-columns: 1fr; } }
+
+/* pie */
+footer { background: var(--dark); color: var(--cream); padding: var(--section) 0 calc(96px + env(safe-area-inset-bottom, 0px)); border-top: 4px solid var(--red); }
+.foot__mark { font: 800 clamp(3.4rem, 1rem + 12vw, 12rem)/.82 var(--sans); font-stretch: 120%; letter-spacing: -.04em; }
+.foot__mark span { color: var(--red-on-dark); }
+.foot__grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--gap); margin-top: 48px; font-size: 15px; }
+.foot__grid h3 { font: 500 12px/1.2 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--cream-soft); margin-bottom: 10px; }
+.foot__grid ul { list-style: none; padding: 0; display: grid; gap: 6px; }
+.foot__grid a { text-decoration: none; }
+.foot__grid a:hover { text-decoration: underline; }
+.foot__legal { margin-top: 40px; color: var(--cream-soft); font-size: 13px; max-width: 74ch; }
+@media (max-width: 760px) { .foot__grid { grid-template-columns: 1fr 1fr; } }
+
+/* textura de letra en títulos: cada línea tiene su luz arriba y su sombra abajo, con grano */
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .shot__line .big, .h2, .foot__mark, .shot__line .big .r, .h2 .r, .foot__mark span { -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; background-repeat: repeat; }
+  .shot__line .big { background-image: var(--tx-grain), var(--tx-cream); background-size: 220px 220px, 100% .92em; background-blend-mode: multiply, normal; }
+  .h2 { background-image: var(--tx-grain-light), var(--tx-ink); background-size: 220px 220px, 100% .95em; background-blend-mode: screen, normal; }
+  .dark .h2 { background-image: var(--tx-grain), var(--tx-cream); background-blend-mode: multiply, normal; }
+  .foot__mark { background-image: var(--tx-grain), var(--tx-cream); background-size: 220px 220px, 100% .82em; background-blend-mode: multiply, normal; }
+  .shot__line .big .r, .h2 .r, .foot__mark span { background-image: var(--tx-grain-red), var(--tx-red); background-size: 220px 220px, 100% 100%; background-blend-mode: multiply, normal; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+}
+@media (forced-colors: active) { .shot__line .big, .h2, .foot__mark, .shot__line .big .r, .h2 .r, .foot__mark span { -webkit-text-fill-color: currentColor; background-image: none; } }
+
+/* sombras: las tarjetas y los videos se apoyan sobre el papel */
+.card { box-shadow: 0 1px 1px rgba(20,20,20,.05), 0 22px 34px -22px rgba(20,20,20,.42); }
+.dark .card { box-shadow: 0 26px 40px -24px rgba(0,0,0,.9); }
+.reel { box-shadow: 0 26px 40px -22px rgba(20,20,20,.55); }
+.strip { padding-bottom: 36px; margin-bottom: -30px; }
+@media (max-width: 700px) { .grid, #familia .grid { padding-bottom: 32px; margin-bottom: -26px; } }
+
+/* barra inferior en celular y botón de chat con tu cara */
+.mbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; display: none; align-items: center; gap: 10px; padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px)); background: var(--paper); border-top: 1px solid var(--line); }
+.face { width: 48px; height: 48px; border-radius: 50%; flex: none; background: var(--ink) center / cover no-repeat; box-shadow: 0 0 0 2px var(--red); }
+.mbar .btn { flex: 1; min-height: 48px; }
+.chatme { position: fixed; right: 20px; bottom: 20px; z-index: 45; display: inline-flex; align-items: center; gap: 10px; padding: 6px 18px 6px 6px; border-radius: 999px; background: var(--ink); color: var(--cream); text-decoration: none; font-weight: 700; font-size: 15px; box-shadow: 0 10px 26px rgba(20,20,20,.22); }
+.chatme .face { width: 40px; height: 40px; }
+@media (max-width: 900px) { .mbar { display: flex; } .chatme { display: none; } }
+
+/* Tato al costado: una foto por sección. Al cambiar de sección salta y cae con otra pose,
+   da pasitos cuadro por cuadro con el scroll, muestra su globo con el precio y se aparta del mouse. */
+.fig { display: none; position: fixed; bottom: 0; z-index: 30; width: var(--fig-w); height: var(--fig-h); pointer-events: none; }
+.fig__dodge { position: absolute; inset: 0; transform: translateX(var(--dx, 0px)); transition: transform .38s var(--ease); }
+.fig__lean { position: absolute; inset: 0; transform: rotate(var(--dr, 0deg)); transform-origin: 50% 100%; transition: transform .38s var(--ease); }
+.fig__swap { position: absolute; inset: 0; opacity: 0; transform-origin: 50% 100%; }
+.fig__bob { position: absolute; inset: 0; transform-origin: 50% 100%; }
+.fig.moving .fig__bob { animation: trote .42s ease-in-out infinite alternate; }
+@keyframes trote { from { transform: translateY(0) rotate(0deg); } to { transform: translateY(-9px) rotate(1.3deg); } }
+.fig__img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; object-position: 50% 100%; transform-origin: 50% 100%; filter: drop-shadow(0 24px 26px rgba(0,0,0,.3)) drop-shadow(0 4px 6px rgba(0,0,0,.18)); }
+.fig__img.b, .fig.alt .fig__img.a { visibility: hidden; }
+.fig.alt .fig__img.b { visibility: visible; }
+.fig.tilt .fig__img.b { transform: rotate(-1.8deg) translateY(-.8%); }
+.fig__say { position: absolute; left: calc(44% - var(--sx, 0px)); bottom: calc(100% + 12px); width: max-content; max-width: 210px; transform: translateX(-50%) scale(.5); transform-origin: 66% 130%; opacity: 0; background: #fff; color: var(--ink); border: 1.5px solid var(--ink); border-radius: 14px; padding: 9px 13px; font: 400 13px/1.35 var(--mono); box-shadow: 0 14px 26px -14px rgba(20,20,20,.5); transition: opacity .15s ease, transform .15s ease, left .38s var(--ease); }
+.fig__say b, .mfig__say b { font-weight: 500; color: var(--red); white-space: nowrap; }
+.fig__say::after { content: ""; position: absolute; left: min(calc(66% + var(--sx, 0px)), calc(100% - 24px)); bottom: -7px; transition: left .38s var(--ease); width: 12px; height: 12px; background: #fff; border-right: 1.5px solid var(--ink); border-bottom: 1.5px solid var(--ink); transform: rotate(45deg); }
+.fig__say.show { opacity: 1; transform: translateX(-50%) scale(1); transition: opacity .18s ease, transform .5s cubic-bezier(.34, 1.56, .64, 1), left .38s var(--ease); }
+@media (min-width: 1280px) {
+  body.has-fig .fig { display: block; right: max(10px, calc((100vw - 1100px - var(--fig-w)) / 2 - 12px)); }
+  body.has-fig main .wrap, body.has-fig footer .wrap { max-width: min(1100px, calc(100vw - var(--fig-w) - 40px)); margin-left: max(0px, calc((100vw - 1100px - var(--fig-w)) / 2)); margin-right: auto; }
+  body.has-fig .chatme { right: auto; left: 20px; }
+}
+
+/* en celular y tablet: Tato aparece dentro de cada sección con su globo; si lo tocas, se mueve */
+.mfig { display: flex; align-items: center; justify-content: flex-end; gap: 12px; height: clamp(170px, 30vh, 250px); margin: 22px 0 -4px; }
+.mfig__img { height: 100%; width: auto; cursor: pointer; transform-origin: 50% 100%; filter: drop-shadow(0 16px 16px rgba(0,0,0,.26)); opacity: 0; transform: translateX(28px) translateY(6%); transition: opacity .5s ease, transform .75s var(--ease); -webkit-tap-highlight-color: transparent; }
+.mfig__say { position: relative; max-width: 190px; background: #fff; color: var(--ink); border: 1.5px solid var(--ink); border-radius: 14px; padding: 9px 12px; font: 400 13px/1.35 var(--mono); box-shadow: 0 14px 24px -14px rgba(20,20,20,.5); opacity: 0; transform: scale(.6); transform-origin: 100% 70%; transition: opacity .2s ease .35s, transform .5s cubic-bezier(.34, 1.56, .64, 1) .35s; }
+.mfig__say::after { content: ""; position: absolute; right: -7px; top: 52%; width: 12px; height: 12px; background: #fff; border-top: 1.5px solid var(--ink); border-right: 1.5px solid var(--ink); transform: translateY(-50%) rotate(45deg); }
+.mfig.in .mfig__img, .mfig.in .mfig__say { opacity: 1; transform: none; }
+.mfig.wig .mfig__img { animation: wig .62s ease; }
+@keyframes wig { 0%, 100% { transform: rotate(0deg); } 18% { transform: rotate(-6deg) translateY(-6px); } 42% { transform: rotate(5deg); } 66% { transform: rotate(-3deg); } 84% { transform: rotate(1.5deg); } }
+@media (min-width: 1280px) { .mfig { display: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .fig__dodge, .fig__lean, .fig__say, .fig__say.show { transition: none; }
+  .fig.moving .fig__bob, .mfig.wig .mfig__img { animation: none; }
+  .mfig__img, .mfig__say { opacity: 1; transform: none; transition: none; }
+}
+
+</style>
+</head>
+<body>
+<div class="grain" aria-hidden="true"></div>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#inicio" aria-label="Tato Studio, inicio">Tato Studio</a>
+    <nav aria-label="Principal">
+      <a href="#oficina">Servicios</a>
+      <a href="#videos">Videos</a>
+      <a href="#pedido">Precios</a>
+      <a href="#sobre-mi">Sobre mí</a>
+      <a href="/blog/">Blog</a>
+      <a href="/recarga/">Recarga</a>
+    </nav>
+    <a class="btn btn--red" data-wa="Hola Tato, vi tu web y quiero conversar." href="https://wa.me/51961662512" target="_blank" rel="noopener">Escríbeme</a>
+  </div>
+</header>
+
+<section class="shot" id="inicio" aria-label="Inicio" data-cta="hero">
+  <div class="shot__stage">
+    <picture class="shot__poster">
+      <source media="(max-width: 699px)" srcset="/inicio/seq/p/f_000.webp" width="540" height="960">
+      <img src="/inicio/seq/d/f_000.webp" width="720" height="1280" alt="Tato, con polo negro y su logo bordado, camina hacia la cámara en su estudio" fetchpriority="high" decoding="async">
+    </picture>
+    <canvas class="shot__cv" aria-hidden="true"></canvas>
+    <svg class="shot__ink" viewBox="0 0 200 200" aria-hidden="true"><path pathLength="1" d="M152 58c-30-30-92-26-112 10-18 33 2 82 46 92 44 9 84-14 86-52 2-31-26-56-60-58-25-1-46 9-58 24"/><path pathLength="1" d="M168 172c-12-14-22-22-36-28m36 28-4-17m4 17-17-1"/></svg>
+    <div class="shot__veil"></div>
+    <div class="shot__sheen" aria-hidden="true"></div>
+    <div class="shot__copy">
+      <div class="shot__lines">
+        <h1 class="shot__line is-on"><span class="big">Cine <span class="r">con IA</span> hecho en Perú.</span><span class="sub">Soy Tato. Hago contenido, anuncios y automatizaciones con IA para negocios de todo el Perú, desde Huaraz.</span></h1>
+        <p class="shot__line" aria-hidden="true"><span class="big">Empecé <span class="r">conmigo.</span></span><span class="sub">Mi primer video viral fui yo mismo, en el gym, convertido en héroe.</span></p>
+        <p class="shot__line" aria-hidden="true"><span class="big">Ahora va <span class="r">tu negocio.</span></span><span class="sub">Te lo dejo funcionando en tus propias cuentas, con precios en soles y atención por WhatsApp.</span></p>
+      </div>
+      <div class="shot__actions">
+        <a class="btn btn--red" href="#oficina">Ver servicios</a>
+        <a class="btn btn--line" data-wa="Hola Tato, vi tu web y quiero conversar." href="https://wa.me/51961662512" target="_blank" rel="noopener">Escríbeme por WhatsApp</a>
+      </div>
+      <div class="shot__facts"><span>25 mil seguidores en TikTok</span><span>Huaraz, Ica y Lima</span></div>
+    </div>
+    <div class="shot__dark"></div>
+    <div class="shot__bar" aria-hidden="true"><i></i></div>
+  </div>
+</section>
+
+<main>
+  <nav class="chips" aria-label="Categorías">
+    <div class="wrap">
+      <a class="chip" href="#oficina" data-spy="oficina">Oficina con IA</a>
+      <a class="chip" href="#automatico" data-spy="automatico">Automatiza tu negocio</a>
+      <a class="chip" href="#contenido" data-spy="contenido">Contenido y anuncios</a>
+      <a class="chip" href="#mensual" data-spy="mensual">Cada mes</a>
+      <a class="chip" href="#familia" data-spy="familia">Para tu familia</a>
+      <a class="chip" href="#aprende" data-spy="aprende">Aprende</a>
+      <a class="chip" href="#pedido" data-spy="pedido">Pedido</a>
+    </div>
+  </nav>
+
+  <section class="svc dark" id="oficina" aria-labelledby="oficina-t" data-fig="senala" data-say={`Oficina con IA desde *${desde('oficina')}*`} data-mfig data-cta="Hola Tato, quiero mi oficina trabajando sola con IA.">
+    <div class="wrap">
+      <p class="tag">Servicio estrella</p>
+      <h2 class="h2" id="oficina-t" style="margin-top:14px">Tu oficina trabajando sola, <span class="r">con IA</span></h2>
+      <p class="lead">Lo que te quita horas cada semana, resuelto con IA y en tus propias cuentas. Tú eliges: aprendes a hacerlo o lo hago por ti.</p>
+      <div class="office__chips">
+        <a class="pill" href="#correo">Correo ordenado</a>
+        <a class="pill" href="#whatsapp">Asistente de WhatsApp</a>
+        <a class="pill" href="#agenda">Agenda con cobro</a>
+        <a class="pill" href="#resenas">Reseñas de Google</a>
+        <a class="pill" href="#correos">Correos automáticos</a>
+        <a class="pill" href="#notas">Notas de reuniones</a>
+        <a class="pill" href="#nara">Asistentes a tu medida</a>
+      </div>
+      <div class="office__opts">
+        <div class="opt opt--dark">
+          <p class="tag">Opción 1</p>
+          <h3>Aprende a hacerlo</h3>
+          <p class="opt__price">Sesión de 2 horas, desde S/ 680</p>
+          <p>Una sesión en línea donde lo armamos juntos en tus cuentas, paso a paso. Te quedas con la guía y con lo que construimos.</p>
+          <ul><li>Eliges 1 o 2 cosas de la lista.</li><li>Compartes pantalla: nunca te pido contraseñas.</li><li>7 días para dudas.</li></ul>
+          <a class="btn btn--line" data-wa="Hola Tato, quiero aprender a armar mi oficina con IA." href="https://wa.me/51961662512" target="_blank" rel="noopener">Quiero aprender</a>
+        </div>
+        <div class="opt opt--light">
+          <p class="tag">Opción 2, la recomendada</p>
+          <h3>Lo hago por ti</h3>
+          <p class="opt__price">Paquete desde S/ 3,440</p>
+          <p>Te dejo funcionando el correo, la agenda con cobro y el asistente de WhatsApp. Lo demás lo sumas cuando quieras.</p>
+          <ul><li>50% para reservar tu fecha y 50% al entregar.</li><li>Todo queda a tu nombre.</li><li>Entrega en sesiones en línea.</li><li>Mantenimiento opcional: S/ 170 al mes.</li></ul>
+          <a class="btn btn--red" data-wa="Hola Tato, quiero que me dejes la oficina trabajando sola con IA." href="https://wa.me/51961662512" target="_blank" rel="noopener">Quiero que lo hagas por mí</a>
+        </div>
+      </div>
+      <div class="pay">
+        <h3>Cómo se paga</h3>
+        <ul>
+          <li><b>Instalaciones desde S/ 1,020:</b> 50% por adelantado para reservar la fecha y el resto al entregar.</li>
+          <li><b>Sesiones y servicios de menos de S/ 1,020:</b> pago completo al reservar.</li>
+          <li><b>Mensualidades:</b> se pagan por adelantado cada mes y cancelas cuando quieras.</li>
+          <li><b>Medios de pago:</b> Yape, Plin o tarjeta.</li>
+        </ul>
+      </div>
+      <div class="svc__foot"><p>¿Solo necesitas una pieza? Cada servicio tiene su precio aquí abajo. Los asistentes a tu medida se cotizan según tu negocio.</p></div>
+    </div>
+  </section>
+
+  <section class="svc" id="automatico" aria-labelledby="automatico-t" data-fig="camina" data-say={`Automatiza desde *${desde('automatico')}*`} data-mfig data-cta="Hola Tato, quiero automatizar mi negocio con IA.">
+    <div class="wrap">
+      <h2 class="h2" id="automatico-t">Tu negocio en automático, <span class="r">con IA</span></h2>
+      <p class="lead">Lo instalo contigo por videollamada, en tus propias cuentas. Todo queda a tu nombre.</p>
+      <div class="grid">{secciones.automatico.map((c) => <Tarjeta c={c} />)}</div>
+      <p class="swipe">Desliza para ver más</p>
+      <div class="svc__foot">
+        <a class="btn btn--red" data-wa="Hola Tato, quiero automatizar mi negocio con IA." href="https://wa.me/51961662512" target="_blank" rel="noopener">Pregúntame por WhatsApp</a>
+        <p>Precios en soles, referenciales. El alcance final depende de cómo está hoy tu negocio.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="svc" id="contenido" aria-labelledby="contenido-t" data-fig="celular" data-say={`Contenido con IA desde *${desde('contenido')}*`} data-mfig data-cta="Hola Tato, quiero contenido y anuncios con IA.">
+    <div class="wrap">
+      <h2 class="h2" id="contenido-t">Contenido y anuncios <span class="r">con IA</span></h2>
+      <p class="lead">Pago único por adelantado. Todo en línea y entregado por WhatsApp.</p>
+      <div class="grid">{secciones.contenido.map((c) => <Tarjeta c={c} />)}</div>
+      <p class="swipe">Desliza para ver más</p>
+      <div class="svc__foot">
+        <a class="btn btn--red" data-wa="Hola Tato, quiero contenido y anuncios con IA." href="https://wa.me/51961662512" target="_blank" rel="noopener">Pregúntame por WhatsApp</a>
+        <p>Precios en soles, referenciales. Los videos con personajes conocidos van solo con su permiso.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="svc" id="mensual" aria-labelledby="mensual-t" data-fig="senala" data-say={`Cada mes desde *${desde('mensual')}*`} data-mfig data-cta="Hola Tato, quiero que te encargues cada mes.">
+    <div class="wrap">
+      <h2 class="h2" id="mensual-t">Lo hago por ti <span class="r">cada mes</span></h2>
+      <p class="lead">Lo dejo funcionando y lo cuido todos los meses. Cancelas cuando quieras.</p>
+      <div class="grid">{secciones.mensual.map((c) => <Tarjeta c={c} />)}</div>
+      <p class="swipe">Desliza para ver más</p>
+      <div class="svc__foot">
+        <a class="btn btn--red" data-wa="Hola Tato, quiero que te encargues cada mes." href="https://wa.me/51961662512" target="_blank" rel="noopener">Pregúntame por WhatsApp</a>
+        <p>Precios en soles, referenciales. Las herramientas que cobran aparte te las digo antes de empezar.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="svc dark" id="familia" aria-labelledby="familia-t" data-fig="" data-cta="Hola Tato, quiero un homenaje o un video personalizado.">
+    <div class="wrap">
+      <h2 class="h2" id="familia-t">Para tu <span class="r">familia</span></h2>
+      <p class="lead">Homenajes y videos con IA, siempre con el permiso de quienes salen en ellos.</p>
+      <div class="grid">{secciones.familia.map((c) => <Tarjeta c={c} />)}</div>
+      <p class="swipe">Desliza para ver más</p>
+    </div>
+  </section>
+
+  <section class="svc" id="aprende" aria-labelledby="aprende-t" data-fig="camina-f" data-say={`Aprende IA desde *${desde('aprende')}*`} data-mfig data-cta="Hola Tato, quiero aprender IA contigo.">
+    <div class="wrap">
+      <h2 class="h2" id="aprende-t">Aprende IA <span class="r">conmigo</span></h2>
+      <p class="lead">Te enseño a hacerlo con mis prompts, o armamos juntos tu primera automatización.</p>
+      <div class="grid">{secciones.aprende.map((c) => <Tarjeta c={c} />)}</div>
+      <p class="swipe">Desliza para ver más</p>
+    </div>
+  </section>
+
+  <section class="svc" id="videos" aria-labelledby="videos-t" data-fig="senala" data-say="Todo esto lo hice con IA." data-cta="">
+    <div class="wrap">
+      <div class="row-head">
+        <h2 class="h2" id="videos-t">Lo que ves en <span class="r">mi TikTok</span></h2>
+        <a class="link" href="https://www.tiktok.com/@contactocontato" target="_blank" rel="noopener">Ver más en @contactocontato</a>
+      </div>
+      <div class="strip">
+        <figure><div class="reel"><video muted loop playsinline preload="none" poster="/inicio/clips/heroe.jpg" data-src="/inicio/clips/heroe.mp4" aria-label="Tato se transforma en un héroe con armadura blanca"></video></div><figcaption><b>Mi transformación</b><span>Hecha con Seedance 2.0</span></figcaption></figure>
+        <figure><div class="reel"><video muted loop playsinline preload="none" poster="/inicio/clips/cuy.jpg" data-src="/inicio/clips/cuy.mp4" aria-label="El cuy de Valdelomar, con chullo y poncho, sentado a la mesa del restaurante"></video></div><figcaption><b>El cuy de Valdelomar</b><span>Personaje para un restaurante de Ica</span></figcaption></figure>
+        <figure><div class="reel"><video muted loop playsinline preload="none" poster="/inicio/clips/huacachina.jpg" data-src="/inicio/clips/huacachina.mp4" aria-label="Un perrito y el cuy de Valdelomar en un bote a pedales en la laguna de Huacachina"></video></div><figcaption><b>En Huacachina</b><span>Para Valdelomar, Ica</span></figcaption></figure>
+        <figure><div class="reel"><video muted loop playsinline preload="none" poster="/inicio/clips/foodie.jpg" data-src="/inicio/clips/foodie.mp4" aria-label="Tato prueba una hamburguesa con papas en Valdelomar"></video></div><figcaption><b>Probando la carta</b><span>En Valdelomar, Ica</span></figcaption></figure>
+        <figure><div class="reel"><video muted loop playsinline preload="none" poster="/inicio/clips/gym.jpg" data-src="/inicio/clips/gym.mp4" aria-label="Tato agarra la mancuerna dorada de 150 kilos para levantarla, en un video hecho con IA"></video></div><figcaption><b>Nadie la mueve</b><span>La pesa de 150 kilos del FIT 32, con IA</span></figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="svc" id="pedido" aria-labelledby="pedido-t" data-fig="celular" data-say="Te respondo yo por WhatsApp." data-mfig data-cta="pedido">
+    <div class="wrap">
+      <h2 class="h2" id="pedido-t">Arma tu <span class="r">pedido</span></h2>
+      <p class="lead">Elige lo que quieres y te respondo yo por WhatsApp. Te confirmo el precio antes de que pagues.</p>
+      <div class="order__grid">
+        <form id="order-form" novalidate>
+          <div class="field field--full"><label for="f-prod">Qué quieres</label><select id="f-prod" name="prod"></select></div>
+          <div class="field"><label for="f-name">Tu nombre</label><input id="f-name" name="name" autocomplete="given-name" placeholder="Por ejemplo, Rosa"></div>
+          <div class="field"><label for="f-city">Ciudad</label><select id="f-city" name="city"><option value="">Elige una</option><option>Huaraz</option><option>Ica</option><option>Lima</option><option>Otra ciudad</option></select></div>
+          <div class="field field--full"><label for="f-biz">Tu negocio o tu evento</label><input id="f-biz" name="biz" placeholder="Por ejemplo, panadería en Huaraz o quinceañero del 20 de diciembre"></div>
+          <div class="field field--full"><label for="f-msg">Cuéntame en una línea</label><textarea id="f-msg" name="msg" placeholder="Qué quieres lograr o qué te gustaría que pase en el video"></textarea></div>
+          <label class="check" id="permit-row"><input type="checkbox" id="f-permit" name="permit"><span id="permit-text">Tengo permiso de las personas que salen en las fotos.</span></label>
+        </form>
+        <aside class="preview" aria-live="polite">
+          <p class="tag">Tu mensaje</p>
+          <pre id="preview-text"></pre>
+          <div class="actions">
+            <a class="btn btn--red" id="send" href="https://wa.me/51961662512" target="_blank" rel="noopener">Enviar por WhatsApp</a>
+            <button class="btn btn--line" id="copy" type="button">Copiar mensaje</button>
+          </div>
+          <small>Si el botón no abre WhatsApp, escríbeme al +51 961 662 512.</small>
+        </aside>
+      </div>
+      <details class="prices">
+        <summary>Ver todos los precios</summary>
+        <p class="lead" style="margin-top:0">Toca uno y tu mensaje se arma solo.</p>
+        <div class="table-wrap"><table><caption class="sr-only">Precios de Tato Studio en soles</caption><tbody>{precios.map((g) => (<Fragment><tr class="grp"><th colspan="2" scope="colgroup">{g.grupo}</th></tr>{g.filas.map((f) => <tr data-id={f.id} data-price={f.precio} data-permit={f.permiso}><td><button class="pick" type="button">{f.nombre}</button></td><td class="money">{f.precio}</td></tr>)}</Fragment>))}</tbody></table></div>
+      </details>
+      <ol class="steps" aria-label="Así trabajamos">
+        <li>Me escribes con tu idea o lo que quieres resolver.</li>
+        <li>Te confirmo el precio, lo que necesito y la fecha.</li>
+        <li>Lo armamos en tus cuentas o te paso un avance.</li>
+        <li>Te lo entrego funcionando y te explico cómo usarlo.</li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="svc dark about" id="sobre-mi" aria-labelledby="sobre-t" data-fig="saluda" data-say="¡Ese soy yo!" data-mfig data-cta="">
+    <div class="wrap about__grid">
+      <figure style="margin:0">
+        <div class="reel"><video muted loop playsinline preload="none" poster="/inicio/clips/gym.jpg" data-src="/inicio/clips/gym.mp4" aria-label="Tato agarra la mancuerna dorada de 150 kilos para levantarla, en un video hecho con IA"></video></div>
+        <figcaption>Nadie la mueve: la pesa de 150 kilos del FIT 32, con IA.</figcaption>
+      </figure>
+      <div>
+        <h2 class="h2" id="sobre-t">Soy <span class="r">Tato</span></h2>
+        <p>Me llamo Carlos Quispe. Entreno en Huaraz y de ahí salió mi primer video viral: yo mismo, en el gym, convertido en un héroe. Hoy tengo 25 mil seguidores en TikTok y me han mencionado personajes conocidos del Perú.</p>
+        <p>Hago videos y automatizaciones para negocios entre Huaraz, Ica y Lima, doy clases de IA y te atiendo yo mismo por WhatsApp.</p>
+        <div class="svc__foot"><a class="btn btn--red" href="https://www.tiktok.com/@contactocontato" target="_blank" rel="noopener">Sígueme en TikTok</a></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="svc faq" id="preguntas" aria-labelledby="faq-t" data-fig="camina" data-say="¿Otra duda? Escríbeme." data-cta="">
+    <div class="wrap">
+      <h2 class="h2" id="faq-t">Preguntas</h2>
+      <div class="faq__list">
+        <details><summary>¿Cómo te pago?</summary><p>Por Yape, Plin o tarjeta. Las instalaciones se pagan 50% al reservar y 50% al entregar; lo demás, al reservar.</p></details>
+        <details><summary>¿Me vas a pedir contraseñas?</summary><p>No. Trabajamos compartiendo pantalla o con un acceso de socio o colaborador a tus cuentas.</p></details>
+        <details><summary>¿Las herramientas se pagan aparte?</summary><p>Algunas sí, cada mes. En cada servicio te digo cuáles y cuánto cuestan antes de empezar.</p></details>
+        <details><summary>¿En cuánto tiempo me lo entregas?</summary><p>Depende del servicio y te lo confirmo antes de pagar. Los homenajes salen en 48 a 72 horas, o en 24 horas por S/ 30 más.</p></details>
+        <details><summary>¿Puedo usar la foto de otra persona?</summary><p>Solo con su permiso. Para un homenaje necesito la autorización por escrito de un familiar directo.</p></details>
+        <details><summary>¿Se nota que es hecho con IA?</summary><p>Antes de entregarte te paso un avance para que lo apruebes. Los homenajes van rotulados como hechos con IA.</p></details>
+        <details><summary>¿Nara funciona en cualquier computadora?</summary><p>Se instala en Windows. Cuéntame qué PC tienes y te digo qué paquete te conviene.</p></details>
+        <details><summary>¿Trabajas fuera de Huaraz?</summary><p>Sí. Trabajo entre Huaraz, Ica y Lima, y lo demás lo vemos en línea desde cualquier parte del Perú.</p></details>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer data-fig="saluda-f" data-say="¡Nos vemos en TikTok!">
+  <div class="wrap">
+    <p class="foot__mark" aria-hidden="true">Tato <span>Studio</span></p>
+    <div class="foot__grid">
+      <div><h3>Escríbeme</h3><ul><li><a data-wa="Hola Tato, vi tu web y quiero conversar." href="https://wa.me/51961662512" target="_blank" rel="noopener">WhatsApp +51 961 662 512</a></li><li>contactocon@tato.pe</li></ul></div>
+      <div><h3>Sígueme</h3><ul><li><a href="https://www.tiktok.com/@contactocontato" target="_blank" rel="noopener">TikTok</a></li><li><a href="https://www.instagram.com/studiotato" target="_blank" rel="noopener">Instagram</a></li><li><a href="https://www.facebook.com/contactocontato/" target="_blank" rel="noopener">Facebook</a></li></ul></div>
+      <div><h3>Servicios</h3><ul><li><a href="#oficina">Oficina con IA</a></li><li><a href="#automatico">Automatiza tu negocio</a></li><li><a href="#contenido">Contenido y anuncios</a></li><li><a href="#familia">Para tu familia</a></li></ul></div>
+      <div><h3>Más en tato.pe</h3><ul><li><a href="/blog/">Blog</a></li><li><a href="/recarga/">Recarga el servidor</a></li><li><a href="/terminos/">Términos</a></li><li><a href="/privacidad/">Privacidad</a></li></ul></div>
+    </div>
+    <p class="foot__legal">Hecho en Huaraz, Perú. Las fotos de los servicios y el video del inicio están hechos con IA. El link de Higgsfield es de afiliado: si compras con él, yo gano una comisión y tú no pagas más. Los videos de clientes se muestran con su permiso.</p>
+  </div>
+</footer>
+
+<div class="fig" id="fig" aria-hidden="true">
+  <div class="fig__dodge">
+    <div class="fig__lean">
+      <div class="fig__swap">
+        <div class="fig__bob">
+          <img class="fig__img a" alt="" decoding="async" width="362" height="760">
+          <img class="fig__img b" alt="" decoding="async" width="362" height="760">
+        </div>
+      </div>
+    </div>
+    <p class="fig__say"></p>
+  </div>
+</div>
+
+<a class="chatme" data-wa="Hola Tato, vi tu web y quiero conversar." href="https://wa.me/51961662512" target="_blank" rel="noopener"><span class="face" style="background-image:url(/inicio/tato/cara.webp)"></span>Escríbeme</a>
+<div class="mbar">
+  <a class="face" style="background-image:url(/inicio/tato/cara.webp)" data-wa="Hola Tato, vi tu web y quiero conversar." href="https://wa.me/51961662512" target="_blank" rel="noopener" aria-label="Escribir a Tato por WhatsApp"></a>
+  <a class="btn btn--red" id="mbar-cta" href="#oficina">Ver servicios</a>
+</div>
+
+
+<script id="inicio-datos" type="application/json" set:html={JSON.stringify({ HERO, FIG })}></script>
+<script is:inline>
+(() => {
+  const WA = '51961662512';
+  const { HERO, FIG } = JSON.parse(document.getElementById('inicio-datos').textContent);
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const smooth = (a, b, v) => { const t = clamp((v - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* --- WhatsApp con la campaña de la visita --- */
+  const KEY = 'tato-utm';
+  try {
+    const q = new URLSearchParams(location.search); const o = {}; let n = 0;
+    ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'ref'].forEach(k => { const v = q.get(k); if (v) { o[k] = v; n++; } });
+    if (n) sessionStorage.setItem(KEY, JSON.stringify(Object.assign(JSON.parse(sessionStorage.getItem(KEY) || '{}'), o)));
+  } catch (e) {}
+  const ref = () => { try { const u = JSON.parse(sessionStorage.getItem(KEY) || '{}'); const r = String(u.ref || u.utm_campaign || '').replace(/[^\w.-]/g, '').slice(0, 40); return r ? ' (ref ' + r + ')' : ''; } catch (e) { return ''; } };
+  const wa = text => 'https://wa.me/' + WA + '?text=' + encodeURIComponent(text + ref());
+  $$('a[data-wa]').forEach(a => { a.href = wa(a.getAttribute('data-wa') || 'Hola Tato, vi tu web y quiero conversar.'); });
+
+  /* --- la toma del inicio --- */
+  const shot = $('#inicio'), stage = $('.shot__stage', shot), cv = $('.shot__cv', shot), ctx = cv.getContext('2d', { alpha: false });
+  const lines = $$('.shot__line', shot), bar = $('.shot__bar i', shot), dark = $('.shot__dark', shot), ink = $('.shot__ink', shot), inkPaths = $$('.shot__ink path', shot), copy = $('.shot__copy', shot);
+  const N = HERO.n, SEQ_END = .74, FOCUS = { x: HERO.fx, y: HERO.fy };
+  const frames = new Array(N); let set = '', W = 0, H = 0, lastKey = '', ticking = false, loadedCount = 0, stageNow = 0, lastP = -1;
+  const tiny = document.createElement('canvas'); tiny.width = 18; tiny.height = 32; const tctx = tiny.getContext('2d');
+  const mid = document.createElement('canvas'); mid.width = 72; mid.height = 128; const mctx = mid.getContext('2d');
+  const pickSet = () => (innerWidth < 700 ? 'p' : 'd');
+  const src = i => '/inicio/seq/' + set + '/f_' + String(i).padStart(3, '0') + '.webp';
+  function loadFrames() {
+    set = pickSet();
+    const order = [], seen = new Set();
+    [12, 6, 3, 1].forEach(step => { for (let i = 0; i < N; i += step) if (!seen.has(i)) { seen.add(i); order.push(i); } if (!seen.has(N - 1)) { seen.add(N - 1); order.push(N - 1); } });
+    let q = 0, active = 0;
+    const next = () => {
+      while (active < 6 && q < order.length) {
+        const i = order[q++], im = new Image(); active++;
+        im.decoding = 'async';
+        im.onload = () => { frames[i] = im; loadedCount++; active--; if (i === 0) cv.classList.add('ready'); request(); next(); if (loadedCount === N) preloadFig(); };
+        im.onerror = () => { active--; next(); };
+        im.src = src(i);
+      }
+    };
+    next();
+  }
+  function nearest(i) { if (frames[i]) return frames[i]; for (let d = 1; d < N; d++) { if (i - d >= 0 && frames[i - d]) return frames[i - d]; if (i + d < N && frames[i + d]) return frames[i + d]; } return null; }
+  function resize() {
+    const r = stage.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, innerWidth < 700 ? 1.5 : 2);
+    W = Math.max(1, Math.round(r.width * dpr)); H = Math.max(1, Math.round(r.height * dpr));
+    if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+    lastKey = ''; request();
+  }
+  const progress = () => { const r = shot.getBoundingClientRect(); const span = r.height - stage.clientHeight; return clamp(-r.top / Math.max(1, span), 0, 1); };
+  function geom(p, iw, ih) {
+    const wide = W / H > .8, cover = Math.max(W / iw, H / ih), s0 = wide ? H / ih : cover, cx0 = wide ? W * .66 : W / 2;
+    const tz = smooth(.06, .82, p), push = smooth(.72, .9, p);
+    const s = lerp(s0, wide ? cover : s0, tz) * (1 + .3 * push);
+    const w = iw * s, h = ih * s, tp = smooth(.06, .9, p);
+    return { x: lerp(cx0 - w / 2, W / 2 - FOCUS.x * w, tp), y: lerp(H / 2 - h / 2, H / 2 - FOCUS.y * h, tp), w, h, wide, zoom: s / s0 };
+  }
+  function drawBackdrop(im) {
+    tctx.drawImage(im, 0, 0, tiny.width, tiny.height);
+    mctx.imageSmoothingEnabled = true; mctx.drawImage(tiny, 0, 0, mid.width, mid.height);
+    const s = Math.max(W / mid.width, H / mid.height) * 1.08;
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(mid, (W - mid.width * s) / 2, (H - mid.height * s) / 2, mid.width * s, mid.height * s);
+    ctx.fillStyle = 'rgba(16,16,16,.58)'; ctx.fillRect(0, 0, W, H);
+  }
+  function renderShot() {
+    if (reduce) return;
+    const p = progress();
+    if (p !== lastP) {
+      lastP = p;
+      const st = p < .27 ? 0 : p < .56 ? 1 : 2;
+      if (st !== stageNow) { stageNow = st; lines.forEach((l, i) => l.classList.toggle('is-on', i === st)); }
+      bar.style.transform = 'scaleX(' + p.toFixed(4) + ')';
+      const d = smooth(.86, .985, p); dark.style.opacity = d.toFixed(3);
+      const fade = smooth(.84, .93, p); copy.style.opacity = (1 - fade).toFixed(3); copy.style.visibility = fade >= 1 ? 'hidden' : '';
+      const draw = smooth(.74, .88, p); ink.style.opacity = (draw > 0 ? 1 - d : 0).toFixed(3);
+      inkPaths.forEach((pth, k) => { pth.style.strokeDashoffset = (1 - clamp(draw * 1.3 - k * .3, 0, 1)).toFixed(3); });
+    }
+    if (!set) return;
+    const fi = Math.round(clamp(p / SEQ_END, 0, 1) * (N - 1)), im = nearest(fi); if (!im) return;
+    const g = geom(p, im.naturalWidth, im.naturalHeight);
+    const key = im.src + '|' + Math.round(g.x) + '|' + Math.round(g.y) + '|' + Math.round(g.w) + '|' + W + 'x' + H;
+    if (key !== lastKey) {
+      lastKey = key;
+      if (g.wide && (g.x > 0 || g.y > 0 || g.x + g.w < W || g.y + g.h < H)) drawBackdrop(im); else { ctx.fillStyle = '#151413'; ctx.fillRect(0, 0, W, H); }
+      ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(im, g.x, g.y, g.w, g.h);
+    }
+  }
+  if (matchMedia('(hover: hover) and (pointer: fine)').matches) stage.addEventListener('pointermove', ev => { stage.style.setProperty('--mx', ev.clientX + 'px'); stage.style.setProperty('--my', ev.clientY + 'px'); }, { passive: true });
+
+  /* --- secciones: chips, barra del celular y poses --- */
+  const sections = $$('main > section, footer');
+  const chips = $$('.chip[data-spy]');
+  const mcta = $('#mbar-cta');
+  let current = null;
+  function sectionAt() { const mid = innerHeight * .5; return sections.find(s => { const r = s.getBoundingClientRect(); return r.top < mid && r.bottom > mid; }) || null; }
+  function setBar(sec) {
+    const inHero = shot.getBoundingClientRect().bottom > innerHeight * .5;
+    if (inHero) { mcta.textContent = 'Ver servicios'; mcta.href = '#oficina'; mcta.removeAttribute('target'); return; }
+    const cta = sec && sec.dataset.cta;
+    if (cta === 'pedido') { mcta.textContent = 'Enviar por WhatsApp'; mcta.href = $('#send').href; mcta.target = '_blank'; mcta.rel = 'noopener'; }
+    else { mcta.textContent = cta ? 'Pregúntame por WhatsApp' : 'Escríbeme'; mcta.href = wa(cta || 'Hola Tato, vi tu web y quiero conversar.'); mcta.target = '_blank'; mcta.rel = 'noopener'; }
+  }
+  function updateSections() {
+    const sec = sectionAt();
+    if (sec !== current) { current = sec; setBar(sec); chips.forEach(c => c.classList.toggle('is-on', !!sec && c.dataset.spy === sec.id)); figSection(sec); }
+    else if (!sec) setBar(null);
+  }
+
+  /* --- Tato al costado: una foto por sección. Al cambiar de sección salta y cae con otra pose --- */
+  const fig = $('#fig'), figSwap = $('.fig__swap', fig), figBob = $('.fig__bob', fig), figA = $('.fig__img.a', fig), figB = $('.fig__img.b', fig), figSay = $('.fig__say', fig);
+  const figWide = matchMedia('(min-width: 1280px)');
+  const finePointer = matchMedia('(hover: hover) and (pointer: fine)').matches;
+  const figReady = !!(FIG && FIG.poses);
+  const poseSrc = n => '/inicio/tato/' + n + '.webp';
+  const keyOf = s => (s ? s.key : '');
+  let figLoaded = false, figShown = null, figTarget = null, figBusy = false, figGreeted = false, sayT = 0, movingT = 0, bobN = 0, bobStop = false, figLastY = -1;
+  const figActive = () => figReady && figWide.matches;
+  function syncFigLayout() { document.body.classList.toggle('has-fig', figActive()); figSection(current); }
+  function preloadFig() {
+    if (!figActive() || figLoaded) return; figLoaded = true;
+    new Set(Object.values(FIG.poses).flat()).forEach(n => { const im = new Image(); im.decoding = 'async'; im.src = poseSrc(n); });
+  }
+  // el globo: lo que va entre asteriscos sale resaltado (el precio)
+  function setSay(el, text) {
+    el.textContent = '';
+    String(text || '').split('*').forEach((part, i) => { if (!part) return; if (i % 2) { const b = document.createElement('b'); b.textContent = part; el.appendChild(b); } else el.appendChild(document.createTextNode(part)); });
+  }
+  function popSay(text) {
+    if (!text) { figSay.classList.remove('show'); return; }
+    setSay(figSay, text); figSay.classList.remove('show'); void figSay.offsetWidth; figSay.classList.add('show');
+  }
+  function say(text, ms) { popSay(text); clearTimeout(sayT); sayT = setTimeout(() => popSay(figShown ? figShown.say : ''), ms || 2600); }
+  function figSection(sec) {
+    const k = sec && sec.dataset.fig;
+    figTarget = figActive() && k && FIG.poses[k] ? { key: (sec.id || 'pie') + ':' + k, pose: k, say: sec.dataset.say || '' } : null;
+    if (figTarget) preloadFig();
+    figStep();
+  }
+  // sale hacia arriba y se desvanece; parte de donde esté, aunque venga a medio salto
+  const lift = () => figSwap.animate([{ opacity: 0, transform: 'translateY(-24px) scale(.97, 1.03)' }], { duration: 300, easing: 'cubic-bezier(.55, 0, .8, .2)', fill: 'forwards' });
+  // cae desde arriba, se aplasta un poco al tocar el piso y se acomoda
+  const drop = () => figSwap.animate([
+    { opacity: 0, transform: 'translateY(-48px) scale(.97, 1.04)' },
+    { opacity: 1, transform: 'translateY(0) scale(1.04, .95)', offset: .55 },
+    { opacity: 1, transform: 'translateY(-5px) scale(.99, 1.01)', offset: .78 },
+    { opacity: 1, transform: 'none' }
+  ], { duration: 620, easing: 'cubic-bezier(.25, .8, .3, 1)', fill: 'forwards' });
+  function figStep() {
+    if (figBusy || keyOf(figTarget) === keyOf(figShown)) return;
+    clearTimeout(sayT); figSay.classList.remove('show');
+    if (figShown && !reduce) {
+      figBusy = true; figShown = null; lift();
+      setTimeout(() => { figBusy = false; figLand(figTarget); }, 420);
+    } else figLand(figTarget);
+  }
+  function figLand(st) {
+    figShown = st;
+    if (!st) { if (reduce) figSwap.style.opacity = '0'; return; }
+    const frames = FIG.poses[st.pose];
+    figA.src = poseSrc(frames[0]); figB.src = poseSrc(frames[1] || frames[0]);
+    fig.classList.toggle('tilt', !frames[1]);
+    const shown = () => {
+      if (figShown !== st) return;
+      if (reduce) figSwap.style.opacity = '1'; else drop();
+      setTimeout(() => {
+        if (figShown !== st) return;
+        if (!figGreeted) { figGreeted = true; say('Hola, soy Tato 👋', 2400); } else popSay(st.say);
+      }, reduce ? 0 : 380);
+    };
+    Promise.all([figA, figB].map(im => (im.decode ? im.decode().catch(() => {}) : null))).then(shown);
+  }
+  // pasitos cuadro por cuadro: cambia de foto cada 110 px de scroll y trota mientras bajas
+  function figScroll() {
+    const y = scrollY; if (y === figLastY) return; figLastY = y;
+    if (!figShown || reduce) return;
+    fig.classList.toggle('alt', Math.floor(y / 110) % 2 === 1);
+    bobStop = false;
+    if (!fig.classList.contains('moving')) { bobN = 0; fig.classList.add('moving'); }
+    clearTimeout(movingT); movingT = setTimeout(() => { bobStop = true; }, 160);
+  }
+  // el trote termina en el piso: solo se apaga al final de una bajada
+  figBob.addEventListener('animationiteration', () => { bobN++; if (bobStop && bobN % 2 === 0) fig.classList.remove('moving'); });
+  // se aparta del mouse y, si lo persigues, se queja
+  let nearN = 0, nearT = 0, lastNag = -1e9, side = 0;
+  // al apartarse a la derecha el globo se queda donde estaba (no se corta en pantallas angostas) y solo su punta sigue la cabeza
+  const unDodge = () => { side = 0; fig.style.setProperty('--dx', '0px'); fig.style.setProperty('--dr', '0deg'); fig.style.setProperty('--sx', '0px'); };
+  if (figReady && finePointer) addEventListener('pointermove', ev => {
+    if (!figShown) { if (side) unDodge(); return; }
+    const r = fig.getBoundingClientRect();
+    const near = ev.clientX > r.left - 60 && ev.clientX < r.right + 60 && ev.clientY > r.top - 40 && ev.clientY < r.bottom;
+    if (!near) { if (side) unDodge(); return; }
+    const s = ev.clientX < r.left + r.width / 2 ? 1 : -1;
+    if (s !== side) { side = s; if (!reduce) { fig.style.setProperty('--dx', s * 46 + 'px'); fig.style.setProperty('--dr', s * 3 + 'deg'); fig.style.setProperty('--sx', s > 0 ? '46px' : '0px'); } }
+    nearN++; clearTimeout(nearT); nearT = setTimeout(() => { nearN = 0; }, 1400);
+    const now = performance.now();
+    if (nearN > 24 && now - lastNag > 6000) { lastNag = now; nearN = 0; say('¡Oe, tranquilo con el mouse! 😅', 2600); }
+  }, { passive: true });
+  if (figReady) { syncFigLayout(); figWide.addEventListener('change', syncFigLayout); }
+
+  /* --- en celular y tablet: Tato dentro de cada sección, con su globo --- */
+  if (figReady) {
+    const mfigs = [];
+    $$('[data-mfig]').forEach(sec => {
+      const frames = FIG.poses[sec.dataset.fig]; if (!frames) return;
+      const anchor = $('.lead', sec) || $('.row-head', sec) || $('h2', sec); if (!anchor) return;
+      const box = document.createElement('div'); box.className = 'mfig'; box.setAttribute('aria-hidden', 'true');
+      const p = document.createElement('p'); p.className = 'mfig__say'; setSay(p, sec.dataset.say);
+      const im = document.createElement('img'); im.className = 'mfig__img'; im.alt = ''; im.loading = 'lazy'; im.decoding = 'async'; im.width = FIG.w; im.height = FIG.h; im.src = poseSrc(frames[0]);
+      im.addEventListener('click', () => { if (reduce) return; box.classList.remove('wig'); void box.offsetWidth; box.classList.add('wig'); });
+      box.append(p, im); anchor.after(box); mfigs.push(box);
+    });
+    if ('IntersectionObserver' in window && !reduce) {
+      const mio = new IntersectionObserver(es => es.forEach(en => { if (en.isIntersecting) { en.target.classList.add('in'); mio.unobserve(en.target); } }), { threshold: .35 });
+      mfigs.forEach(b => mio.observe(b));
+    } else mfigs.forEach(b => b.classList.add('in'));
+  }
+
+  /* --- un solo bucle para el scroll --- */
+  function render() { ticking = false; renderShot(); updateSections(); figScroll(); }
+  function request() { if (!ticking) { ticking = true; requestAnimationFrame(render); } }
+  addEventListener('scroll', request, { passive: true, capture: true });
+  addEventListener('resize', () => { const s = pickSet(); if (set && s !== set) { frames.fill(undefined); loadedCount = 0; cv.classList.remove('ready'); loadFrames(); } resize(); syncFigLayout(); });
+  if (!reduce) { const start = () => { loadFrames(); resize(); }; if (document.readyState === 'complete') start(); else addEventListener('load', start, { once: true }); }
+  else addEventListener('load', () => setTimeout(preloadFig, 600), { once: true });
+  setTimeout(preloadFig, 6000);
+  request();
+
+  /* --- videos y logo: se cargan cerca y se reproducen solo a la vista --- */
+  const vids = $$('video[data-src]'), logos = $$('.logoanim');
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver(es => es.forEach(en => {
+      const el = en.target;
+      if (el.classList.contains('logoanim')) { el.classList.toggle('play', en.isIntersecting && !reduce); return; }
+      if (en.isIntersecting) { if (!el.src) { el.src = el.dataset.src; if (reduce) el.controls = true; } if (!reduce) { const pr = el.play(); if (pr && pr.catch) pr.catch(() => {}); } }
+      else if (!el.paused) el.pause();
+    }), { rootMargin: '200px 0px' });
+    vids.forEach(v => io.observe(v)); logos.forEach(l => io.observe(l));
+  } else vids.forEach(v => { v.src = v.dataset.src; });
+
+  /* --- precios y pedido --- */
+  const rows = $$('tr[data-id]'), sel = $('#f-prod');
+  rows.forEach(r => { const o = document.createElement('option'); o.value = r.dataset.id; o.textContent = $('.pick', r).textContent + ' (' + r.dataset.price + ')'; sel.appendChild(o); });
+  const pre = $('#preview-text'), send = $('#send'), permitRow = $('#permit-row'), permitText = $('#permit-text');
+  function composed() {
+    const r = rows.find(x => x.dataset.id === sel.value) || rows[0];
+    const name = $('#f-name').value.trim(), city = $('#f-city').value, biz = $('#f-biz').value.trim(), msg = $('#f-msg').value.trim(), permit = $('#f-permit').checked;
+    const kind = r.dataset.permit || '';
+    permitRow.style.display = kind ? '' : 'none';
+    permitText.textContent = kind === 'familia' ? 'La familia está de acuerdo con el homenaje.' : 'Tengo permiso de las personas que salen en las fotos.';
+    let t = 'Hola Tato' + (name ? ', soy ' + name : '') + (city ? (name ? ', de ' : ', escribo de ') + city : '') + '.';
+    t += '\nMe interesa: ' + $('.pick', r).textContent + ' (' + r.dataset.price + ').';
+    if (biz) t += '\nEs para: ' + biz + '.';
+    if (msg) t += '\n' + msg.replace(/\s+$/, '') + (/[.!?]$/.test(msg) ? '' : '.');
+    if (kind && permit) t += '\n' + permitText.textContent;
+    return t;
+  }
+  function refresh() { const t = composed(); pre.textContent = t + ref(); send.href = wa(t); rows.forEach(r => r.classList.toggle('is-picked', r.dataset.id === sel.value)); if (current && current.id === 'pedido') setBar(current); }
+  ['#f-name', '#f-city', '#f-biz', '#f-msg', '#f-permit'].forEach(s => $(s).addEventListener('input', refresh)); sel.addEventListener('change', refresh);
+  rows.forEach(r => r.addEventListener('click', () => { sel.value = r.dataset.id; refresh(); $('#order-form').scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' }); }));
+  $$('.card').forEach(c => { const id = c.id; if (rows.some(r => r.dataset.id === id)) c.addEventListener('dblclick', () => { sel.value = id; refresh(); }); });
+  refresh();
+  $('#copy').addEventListener('click', async () => {
+    const b = $('#copy'), t = composed() + ref();
+    try { await navigator.clipboard.writeText(t); b.textContent = 'Mensaje copiado'; }
+    catch (e) { const rg = document.createRange(); rg.selectNodeContents(pre); const s = getSelection(); s.removeAllRanges(); s.addRange(rg); b.textContent = 'Selecciónalo y cópialo'; }
+    setTimeout(() => { b.textContent = 'Copiar mensaje'; }, 2200);
+  });
+
+})();
+</script>
+</body>
+</html>

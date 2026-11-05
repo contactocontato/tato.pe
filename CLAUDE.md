@@ -3,6 +3,14 @@
 Web de Tato Studio en Astro 7 + Tailwind 4. Comandos, estructura y deploy están en `README.md`.
 Se publica como el Worker `tato-pe` de Cloudflare: lo que llega a `main` se publica solo en tato.pe. El panel privado de TikTok (`/panel/tiktok/`) y su conexión viven en `worker/index.js`; cómo funciona está en `README.md`, sección «Cloudflare Worker y panel de TikTok». Nunca pongas secretos ni tokens en el repo.
 
+## Portada
+
+- Servicios y precios: `src/data/inicio.ts`. El globo de Tato muestra el precio más bajo de cada sección y se calcula solo. Al cambiar un precio, cambia también el texto de "Incluye" si lo menciona.
+- Textos de las secciones, CSS y JS: en `src/pages/index.astro`, en línea. No usan Tailwind ni `global.css`: no les pongas clases de Tailwind.
+- Poses de Tato al costado: archivos en `public/inicio/tato/` y la lista `FIG` al inicio de `index.astro`. Cada sección elige su pose con `data-fig` y su globo con `data-say` (el precio va entre asteriscos). En la sección de homenajes Tato no aparece, por respeto al tema.
+- `/inicio/` tiene caché larga: si cambias una foto, una pose o un cuadro del video, súbelo con otro nombre.
+- La portada no lleva la lista de empresas que trabajaron con Tato («Han trabajado conmigo»): Tato decidió quitarla.
+
 ## Publicar una noticia o una nota del blog
 
 Cuando Tato pida "publica esta noticia" (o una nota de prompts, herramientas o personajes):
