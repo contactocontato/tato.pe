@@ -27,13 +27,15 @@ npm run export:cf  # build:cf + tato.pe-cloudflare.zip
 | Build output directory | `dist` |
 | Variable de entorno | `NODE_VERSION` = `22` |
 
-`public/_headers` define la caché larga para `/_astro`, `/video`, `/poster` y `/found`. Luego apunta el dominio `tato.pe` al proyecto en *Custom domains*.
+`public/_headers` define la caché larga para `/_astro`, `/video`, `/poster`, `/found`, `/notas` e `/inicio`. Luego apunta el dominio `tato.pe` al proyecto en *Custom domains*.
 
 ## Dónde está cada cosa
 
-- `src/pages/index.astro`: la página principal, armada con las secciones de `src/components/home/`.
-- `src/lib/site.ts`: WhatsApp, redes, links de afiliado, planes y precios del video personalizado, menú.
-- `src/content/products/*.md`: el taller y el pack (precio, cupos, fecha, qué incluye). Cada uno tiene su página en `/aprende/<slug>` y su ticket en la portada.
+- `src/pages/index.astro`: la portada. Lleva sus textos, su CSS y su JS en el mismo archivo (en línea, sin Tailwind ni `global.css`). Tiene el video del inicio que avanza con el scroll, las secciones de servicios, el armador de pedido por WhatsApp y a Tato al costado con una pose por sección.
+- `src/data/inicio.ts`: servicios y precios de la portada. Un precio cambiado aquí se actualiza en su tarjeta, en la tabla de precios y en el globo de Tato ("desde S/ ...", que se calcula solo). Las tarjetas se arman con `src/components/inicio/Tarjeta.astro`, y los gráficos de las tarjetas sin foto están en `src/components/inicio/graficos.ts`.
+- `public/inicio/`: archivos de la portada: `seq/d` y `seq/p` (60 cuadros del video del inicio para computadora y celular), `tato/` (poses de Tato y su cara para el botón de WhatsApp), `servicios/` (fotos de las tarjetas, 800 × 600), `clips/` (videos cortos de la sección de TikTok) y el logo.
+- `src/lib/site.ts`: WhatsApp, redes, links de afiliado, planes del carrito y el menú de las demás páginas.
+- `src/content/products/*.md`: el taller y el pack (precio, cupos, fecha, qué incluye). Cada uno tiene su página en `/aprende/<slug>`.
 - `src/content/blog/*.mdx`: notas del blog (`/blog`). Portada opcional en `cover` (las imágenes nuevas van en `public/notas/`). Cada nota lleva una `category` (noticias, prompts, herramientas, personajes), cada una con un color de la marca, y cada categoría con notas tiene su página en `/blog/categoria/<id>`. Las categorías se editan en `src/lib/blog.ts`. `video` (opcional) pone un clip propio en bucle en vez de la portada. Cómo publicar una nota paso a paso: `CLAUDE.md`.
 - `src/styles/global.css`: tokens de marca (`@theme`), tipografía, botones y helpers de movimiento.
 - `public/video/` y `public/poster/`: clips comprimidos para web y sus fotogramas. Los originales están en `assets/` (fuera de git).
