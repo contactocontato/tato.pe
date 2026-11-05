@@ -16,7 +16,7 @@ export const tipoBase = (t) => String(t || '').split(';')[0].trim().toLowerCase(
 
 /**
  * Guarda el cuerpo del pedido en R2. Devuelve { clave, tipo, tamano } o { error, status }.
- * El archivo se guarda como `${prefijo}-<fecha>.<ext>`.
+ * Cada subida recibe una clave única, incluso dentro del mismo milisegundo.
  */
 export async function guardarArchivo(env, request, clase, prefijo) {
   const c = CLASES[clase];
@@ -33,7 +33,7 @@ export async function guardarArchivo(env, request, clase, prefijo) {
     const b = new Uint8Array(cuerpo.slice(0, 3));
     if (b[0] !== 0xff || b[1] !== 0xd8 || b[2] !== 0xff) return { error: 'Esa foto no se pudo leer. Tómala otra vez.', status: 415 };
   }
-  const clave = `${prefijo}-${Date.now().toString(36)}.${c.tipos[tipo]}`;
+  const clave = `${prefijo}-${crypto.randomUUID()}.${c.tipos[tipo]}`;
   await env.MEDIOS.put(clave, cuerpo, { httpMetadata: { contentType: tipo } });
   return { clave, tipo, tamano };
 }
