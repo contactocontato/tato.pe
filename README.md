@@ -114,7 +114,8 @@ La web se publica como el Worker `tato-pe` (cuenta de Cloudflare de Tato). Cada 
 - **Actuación del guion:** al mandar un guion puedes pedir que el influencer lo actúe en audio, en video o en ambos. No puede aprobar el guion sin subirlo, y también puede subirlo por su cuenta para ayudar. Sirve de referencia para editar con Seedance. Las actuaciones se borran solas 30 días después de que el pedido termina.
 - **Archivos:** fotos, voces y actuaciones van en R2 (`MEDIOS`, privado). Solo salen por el Worker: al mismo influencer o al panel (`/panel/archivo`). Límite por subida: foto 8 MB, audio 25 MB, video 95 MB (Cloudflare acepta hasta 100 MB por pedido en el plan gratis).
 - **Antes de publicar, activa R2** en Cloudflare (R2 Object Storage). Es gratis hasta 10 GB al mes, pero Cloudflare pide registrar una tarjeta o PayPal para activarlo. Sin R2 activado, el deploy falla. El bucket se crea solo en el primer deploy.
-- **Cuenta del influencer:** `https://tato.pe/cuenta/`. Entra con su ID (el de su ficha, por ejemplo `rosa-perez`) y su contraseña. Ve las solicitudes, acepta o no, aprueba el guion y el video (o pide cambios), ve sus pagos, conecta su Mercado Pago y puede pausar sus pedidos.
+- **Registro en línea:** el creador se registra solo en `/influencers/unete/` con su correo (lo confirma con un código), sube sus fotos y su voz, y **Tato lo revisa**: su perfil sale en el catálogo recién cuando apruebas su identidad (en el resumen del panel o en su ficha). Se le avisa por correo.
+- **Cuenta del influencer:** `https://tato.pe/cuenta/`. Entra con su correo verificado o con su ID (el de su ficha, por ejemplo `rosa-perez`) y su contraseña. Si la olvida, crea una nueva con un código a su correo («¿Olvidaste tu contraseña?»). Las cuentas creadas desde el panel pueden agregar su correo en «Mi perfil y seguridad». Ve las solicitudes, acepta o no, aprueba el guion y el video (o pide cambios), ve sus pagos, conecta su Mercado Pago y puede pausar sus pedidos.
 - **Crear una cuenta:** en `/panel/influencers/`, cuando el convenio está firmado. Pones su WhatsApp, tu porcentaje y el costo de producción de cada paquete, generas una contraseña temporal y se la mandas por WhatsApp con el botón. Al entrar, la cuenta le pide cambiarla. «Poner contraseña temporal» sirve si la olvida, y cierra sus sesiones abiertas.
 - **Contraseñas:** el navegador las cifra (PBKDF2, 200 000 vueltas) y el Worker vuelve a cifrar lo que llega (5 000 vueltas, con sal al azar). El servidor nunca ve la contraseña. El trabajo pesado se hace en el navegador porque el plan gratis de Workers da 10 ms de CPU por pedido. Después de 5 intentos fallidos, la cuenta se bloquea 15 minutos.
 - **Pasos de un pedido** (`worker/pedidos.js`):
@@ -146,7 +147,23 @@ La web se publica como el Worker `tato-pe` (cuenta de Cloudflare de Tato). Cada 
 - **Cron diario:** renueva las conexiones de Mercado Pago que vencen en menos de 30 días (duran 180).
 - **Pruebas:** `npm test` (`worker/pedidos.test.mjs`) usa KV y R2 en memoria, un catálogo, un Mercado Pago y una IA falsos. Para probar con el Worker en local, `.dev.vars` acepta `MP_API`, `MP_AUTH`, `MP_REDIRECT_URI` y `SITIO` apuntando a un Mercado Pago falso, y `VOZ_MIN_SEGUNDOS` para acortar la grabación mínima (45 s por defecto).
 
+## Correos, portal de negocios y resumen del panel
+
+- **Correos** (`worker/correo.js` y `worker/avisos.js`): códigos de 6 números para confirmar el correo (registro de creadores y de negocios), entrar al portal del negocio y recuperar la contraseña del creador; y avisos de cada paso del pedido al creador y al negocio. Los códigos vencen en 15 minutos, aceptan 5 intentos y hay un minuto de espera entre uno y otro. Sin el envío configurado, los formularios funcionan como antes (sin código) y el portal de negocios no deja entrar.
+- **Portal del negocio:** `https://tato.pe/negocio/` (`worker/portal-negocio.js`). Entra con un código a su correo verificado, sin contraseña. Ve sus negocios y su código `TS-XXXXX`, lo que le toca pagar (con el link de Mercado Pago, o el botón para pedirlo por WhatsApp), en qué va cada pedido, el guion aprobado y dónde se publicó el video. Los negocios que se registraron sin correo vuelven a registrarse con el mismo RUC y DNI para agregarlo.
+- **Resumen del panel:** `https://tato.pe/panel/` (`worker/panel-resumen.js`). Junta a los creadores y a los negocios: lo que te toca (creadores y negocios por revisar, pedidos que esperan algo de ti, cobros sin link), cifras del mes, pedidos por paso, actividad reciente y las listas de creadores y negocios. Cada uno tiene su ficha (`/panel/creador/?id=`, `/panel/negocio/?ruc=`) con sus pedidos, su dinero y el botón para ver su página tal como la ve él (sin poder tocar nada).
+- **Pruebas:** `worker/correo.test.mjs` usa un servicio de correo falso. Para el Worker en local, `.dev.vars` acepta `CORREO_API` apuntando a un servicio falso con la forma de la API de Resend.
+
 ## Antes de publicar
+
+### Correos (códigos y avisos)
+
+Elige uno de los dos:
+
+- **Resend** (tiene plan gratis): crea la cuenta en [resend.com](https://resend.com), agrega el dominio `tato.pe` y copia en Cloudflare (DNS de tato.pe) los registros que te pide. Crea una API key con permiso de envío y guárdala en el Worker `tato-pe` como secreto `RESEND_API_KEY`.
+- **Cloudflare Email Service** (pide el plan Workers Paid): incorpora `tato.pe` al servicio y agrega a `wrangler.jsonc` el binding `"send_email": [{ "name": "EMAIL" }]`. Si existen los dos, se usa este.
+
+Luego, en las variables del Worker: `CORREO_REMITENTE` (por ejemplo `Tato Studio <avisos@tato.pe>`, con un correo del dominio verificado) y, si quieres recibir un aviso cuando alguien espera tu revisión, `CORREO_TATO` con tu correo. El resumen del panel muestra si los correos están listos. Haz una prueba: registra un negocio con tu propio correo.
 
 ### Códigos de WhatsApp para creadores
 

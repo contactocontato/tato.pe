@@ -1,6 +1,7 @@
 // Cuenta del influencer en tato.pe/cuenta/: entra con su ID y contraseña, ve las solicitudes de los
 // negocios, acepta o no, aprueba cada guion y cada video, ve sus pagos y conecta su Mercado Pago.
-// Las cuentas las crea Tato desde /panel/influencers/ cuando el convenio está firmado.
+// Las cuentas con convenio las crea Tato desde /panel/influencers/; las demás se crean en /influencers/unete/.
+// Entra con su correo verificado o con su ID; si olvida la contraseña, crea otra con un código a su correo.
 
 import reglas from '../src/data/negocios.json' with { type: 'json' };
 import { esc } from './ui.js';
@@ -11,7 +12,9 @@ import {
 import {
   leerCuenta, guardarCuenta, leerPedido, listarPedidos, accionInfluencer, cuentasDe, metodoSaldo, ajustes, texto,
   ESTADOS, PASOS, ACTIVOS, turno, soles, idValido, identidadDe, SUBIDAS_ABIERTAS, actuacionesQueFaltan, subirActuacion,
+  correoDe, idPorCorreo, ponerCorreo,
 } from './pedidos.js';
+import { configCorreo, correoValido, correoOculto, pedirCodigo, comprobarCodigoCorreo } from './correo.js';
 import { handleIdentidad } from './identidad.js';
 import { servirArchivo } from './medios.js';
 import { json } from './ui.js';
@@ -24,15 +27,18 @@ const RUBROS = Object.fromEntries(reglas.rubros.map((r) => [r.id, r.nombre]));
 
 // ---------- Páginas ----------
 
-function paginaEntrar(error) {
+function paginaEntrar(error, conCorreo) {
+  const olvido = conCorreo
+    ? '<a href="/cuenta/recuperar/">Crea una nueva con tu correo</a>.'
+    : `<a href="https://wa.me/${WHATSAPP_TATO}?text=${encodeURIComponent('Hola Tato, olvidé la contraseña de mi cuenta de influencer.')}" target="_blank" rel="noopener">Escríbele a Tato por WhatsApp</a> y te da una nueva.`;
   return pagina({
     titulo: 'Tu cuenta',
     error,
-    cuerpo: `<h1>Tu cuenta de <span class="fx">influencer</span></h1>
+    cuerpo: `<h1>Tu cuenta de <span class="fx">creador</span></h1>
 <p class="sub">Aquí ves las solicitudes de los negocios, apruebas cada guion y cada video, y ves tus pagos.</p>
 <form class="caja" method="post" action="/cuenta/entrar" data-clave>
-  <label for="id">Tu ID</label>
-  <input id="id" name="id" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required maxlength="60" placeholder="Te lo da Tato al crear tu cuenta">
+  <label for="id">Tu correo o tu ID</label>
+  <input id="id" name="id" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required maxlength="160" placeholder="tucorreo@gmail.com">
   <label for="clave">Contraseña</label>
   <input id="clave" type="password" autocomplete="current-password" required data-hash="clave">
   <input type="hidden" name="clave">
@@ -40,8 +46,80 @@ function paginaEntrar(error) {
   <div class="acciones"><button class="btn fucsia" type="submit">Entrar</button></div>
   <noscript><p class="nota">Activa JavaScript para entrar: tu contraseña se prepara en tu navegador y nunca viaja tal cual.</p></noscript>
 </form>
+<p class="nota">¿Olvidaste tu contraseña? ${olvido}</p>
 <p class="nota">¿Todavía no tienes cuenta? <a href="/influencers/unete/">Revisa los planes y crea tu cuenta</a>.</p>
-<p class="nota">¿Olvidaste tu contraseña? <a href="https://wa.me/${WHATSAPP_TATO}?text=${encodeURIComponent('Hola Tato, olvidé la contraseña de mi cuenta de influencer.')}" target="_blank" rel="noopener">Escríbele a Tato por WhatsApp</a> y te da una nueva.</p>`,
+<p class="nota">¿Tienes un negocio? Tus pedidos están en <a href="/negocio/">el portal de negocios</a>.</p>`,
+  });
+}
+
+/** Pasos para crear una contraseña nueva con un código al correo (sin sesión). */
+function paginaRecuperar({ paso = 'correo', correo = '', desafio = '', token = '', id = '', error = '', aviso = '' }) {
+  let cuerpo;
+  if (paso === 'codigo') {
+    cuerpo = `<form class="caja" method="post" action="/cuenta/recuperar/">
+  <input type="hidden" name="paso" value="codigo"><input type="hidden" name="correo" value="${esc(correo)}"><input type="hidden" name="desafio" value="${esc(desafio)}">
+  <p>Si <b>${esc(correoOculto(correo))}</b> tiene una cuenta, le llegó un código de 6 números. Vence en 15 minutos.</p>
+  <label for="codigo">Código</label>
+  <input id="codigo" name="codigo" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required>
+  <div class="acciones"><button class="btn fucsia" type="submit">Seguir</button><a class="btn linea" href="/cuenta/recuperar/">Pedir otro código</a></div>
+</form>`;
+  } else if (paso === 'clave') {
+    cuerpo = `<form class="caja" method="post" action="/cuenta/recuperar/" data-clave data-id="${esc(id)}" data-correo="${esc(correo)}">
+  <input type="hidden" name="paso" value="clave"><input type="hidden" name="token" value="${esc(token)}">
+  <p>Cuenta <code style="overflow-wrap:anywhere">${esc(id)}</code> · ${esc(correo)}</p>
+  <label for="nueva">Contraseña nueva</label>
+  <input id="nueva" type="password" autocomplete="new-password" required data-hash="nueva" data-hash-correo="nuevaCorreo" data-min="8" data-repetir="repetir"><input type="hidden" name="nueva"><input type="hidden" name="nuevaCorreo">
+  <label for="repetir">Repite la contraseña nueva</label>
+  <input id="repetir" type="password" autocomplete="new-password" required>
+  <p class="nota">Al menos 8 caracteres. Al guardarla se cierran tus otras sesiones.</p>
+  <p class="aviso err" data-aviso-clave hidden></p>
+  <div class="acciones"><button class="btn fucsia" type="submit">Guardar y entrar</button></div>
+</form>`;
+  } else {
+    cuerpo = `<form class="caja" method="post" action="/cuenta/recuperar/">
+  <input type="hidden" name="paso" value="correo">
+  <label for="correo">El correo de tu cuenta</label>
+  <input id="correo" name="correo" type="email" autocomplete="email" required maxlength="160" value="${esc(correo)}">
+  <div class="acciones"><button class="btn fucsia" type="submit">Mandarme un código</button></div>
+</form>
+<p class="nota">¿Tu cuenta no tiene correo? <a href="https://wa.me/${WHATSAPP_TATO}?text=${encodeURIComponent('Hola Tato, olvidé la contraseña de mi cuenta de creador.')}" target="_blank" rel="noopener">Escríbele a Tato por WhatsApp</a>.</p>`;
+  }
+  return pagina({
+    titulo: 'Nueva contraseña',
+    error,
+    aviso,
+    cuerpo: `<a class="volver" href="/cuenta/">← Entrar</a><h1>Crea una contraseña nueva</h1>
+<p class="sub">Te mandamos un código a tu correo para confirmar que eres tú.</p>${cuerpo}`,
+  });
+}
+
+/** Agregar o cambiar el correo de la cuenta (con un código). */
+function paginaCorreo(cuenta, { paso = 'correo', correo = '', desafio = '', error = '' }) {
+  const actual = correoDe(cuenta);
+  const cuerpo = paso === 'codigo'
+    ? `<form class="caja" method="post" action="/cuenta/correo/">
+  <input type="hidden" name="paso" value="codigo"><input type="hidden" name="correo" value="${esc(correo)}"><input type="hidden" name="desafio" value="${esc(desafio)}">
+  <p>Te mandamos un código de 6 números a <b>${esc(correo)}</b>. Vence en 15 minutos.</p>
+  <label for="codigo">Código</label>
+  <input id="codigo" name="codigo" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required>
+  <div class="acciones"><button class="btn fucsia" type="submit">Verificar mi correo</button><a class="btn linea" href="/cuenta/correo/">Cambiar el correo</a></div>
+</form>`
+    : `<form class="caja" method="post" action="/cuenta/correo/" data-clave data-id="${esc(cuenta.id)}">
+  <input type="hidden" name="paso" value="correo">
+  <label for="correo">Tu correo</label>
+  <input id="correo" name="correo" type="email" autocomplete="email" required maxlength="160" value="${esc(correo || cuenta.correo || '')}">
+  <label for="actual">Tu contraseña</label>
+  <input id="actual" type="password" autocomplete="current-password" required data-hash="actual" data-hash-correo="actualCorreo"><input type="hidden" name="actual"><input type="hidden" name="actualCorreo">
+  <p class="nota">La pedimos para que también puedas entrar con tu correo.</p>
+  <p class="aviso err" data-aviso-clave hidden></p>
+  <div class="acciones"><button class="btn fucsia" type="submit">Mandarme un código</button></div>
+</form>`;
+  return pagina({
+    titulo: 'Tu correo',
+    cuenta,
+    error,
+    cuerpo: `<a class="volver" href="/cuenta/#perfil">← Mi perfil</a><h1>${actual ? 'Cambia tu correo' : 'Agrega tu correo'}</h1>
+<p class="sub">${actual ? `Ahora es ${esc(actual)}.` : 'Con tu correo entras sin recordar tu ID, recuperas tu contraseña y te avisamos de cada pedido.'}</p>${cuerpo}`,
   });
 }
 
@@ -53,11 +131,11 @@ function paginaClave(cuenta, { obligatoria, error }) {
     cuerpo: `${obligatoria ? '' : '<a class="volver" href="/cuenta/">← Volver a tu cuenta</a>'}
 <h1>${obligatoria ? 'Crea tu contraseña' : 'Cambia tu contraseña'}</h1>
 <p class="sub">${obligatoria ? 'Entraste con una contraseña temporal. Cámbiala por una tuya para seguir.' : 'Al cambiarla se cierran tus otras sesiones.'}</p>
-<form class="caja" method="post" action="/cuenta/clave" data-clave data-id="${esc(cuenta.id)}">
+<form class="caja" method="post" action="/cuenta/clave" data-clave data-id="${esc(cuenta.id)}"${correoDe(cuenta) ? ` data-correo="${esc(correoDe(cuenta))}"` : ''}>
   <label for="actual">${obligatoria ? 'Contraseña temporal' : 'Contraseña actual'}</label>
   <input id="actual" type="password" autocomplete="current-password" required data-hash="actual"><input type="hidden" name="actual">
   <label for="nueva">Contraseña nueva</label>
-  <input id="nueva" type="password" autocomplete="new-password" required data-hash="nueva" data-min="8" data-repetir="repetir"><input type="hidden" name="nueva">
+  <input id="nueva" type="password" autocomplete="new-password" required data-hash="nueva" data-hash-correo="nuevaCorreo" data-min="8" data-repetir="repetir"><input type="hidden" name="nueva"><input type="hidden" name="nuevaCorreo">
   <label for="repetir">Repite la contraseña nueva</label>
   <input id="repetir" type="password" autocomplete="new-password" required>
   <p class="nota">Al menos 8 caracteres. Mejor una frase corta que solo tú recuerdes, y que no uses en otras apps.</p>
@@ -140,7 +218,7 @@ function estadoPago(p, c) {
   return p.pagoInfluencer ? `Te pagamos el ${fecha(p.pagoInfluencer.fecha)} (operación ${p.pagoInfluencer.operacion})` : 'Por pagarte';
 }
 
-async function paginaInicio(env, cuenta, { aviso, error }) {
+export async function paginaInicio(env, cuenta, { aviso, error, vista = null }) {
   const [pedidos, aj, publicaciones] = await Promise.all([
     listarPedidos(env, (k) => k.metadata?.influencer === cuenta.id, 300), ajustes(env), listarPublicaciones(env, cuenta.id),
   ]);
@@ -176,6 +254,12 @@ async function paginaInicio(env, cuenta, { aviso, error }) {
   const pausado = cuenta.aceptaPedidos === false;
   const identidad = identidadDe(cuenta);
   const whatsappOk = telefonoConfirmado(cuenta);
+  const conCorreo = configCorreo(env).listo;
+  const enRevision = identidad.estado === 'en-revision';
+  const pendientes = [
+    !correoDe(cuenta) && conCorreo ? ['Verifica tu correo para recibir los avisos de tus pedidos.', '/cuenta/correo/', 'Verificar correo'] : null,
+    !cuenta.mp?.accessToken && mpListo(env) ? ['Conecta tu Mercado Pago para cobrar tu parte al instante.', '#ganancias', 'Ver cómo'] : null,
+  ].filter(Boolean);
   const telefono = cuenta.whatsapp || '';
 
   let mp;
@@ -195,6 +279,7 @@ async function paginaInicio(env, cuenta, { aviso, error }) {
 
   return pagina({
     titulo: 'Tu cuenta',
+    vista,
     cuenta,
     ancho: true,
     aviso,
@@ -205,9 +290,16 @@ async function paginaInicio(env, cuenta, { aviso, error }) {
 <div class="estudio-cuerpo">
 <section id="resumen" class="estudio-hero"><p class="mono">INTRANET DE CREADORES</p>
 <h1>Hola, <span>${esc(cuenta.nombre.split(' ')[0])}</span></h1>
-<p>${identidad.estado === 'en-revision' ? 'Estamos revisando tus fotos y tu voz.' : pausado ? 'Tus pedidos están en pausa.' : 'Tu espacio para gestionar pedidos, ingresos y publicaciones.'}</p>
-${cuenta.alta ? `<div class="acciones"><a class="btn fucsia chico" href="/influencers/perfil/${esc(cuenta.id)}/">Ver mi perfil público ↗</a></div>` : ''}
+<p>${enRevision ? (cuenta.alta ? 'Tato está revisando tu registro.' : 'Estamos revisando tus fotos y tu voz.') : pausado ? 'Tus pedidos están en pausa.' : 'Tu espacio para gestionar pedidos, ingresos y publicaciones.'}</p>
+${cuenta.alta && !enRevision && identidad.estado === 'aprobada' ? `<div class="acciones"><a class="btn fucsia chico" href="/influencers/perfil/${esc(cuenta.id)}/">Ver mi perfil público ↗</a></div>` : ''}
 </section>
+${enRevision ? `<ol class="avance caja" aria-label="Tu registro">
+  <li class="hecho"><b>Cuenta creada</b><span>${esc(fecha(cuenta.alta?.fecha || cuenta.creada))}</span></li>
+  <li class="hecho"><b>Fotos y voz enviadas</b><span>${esc(fecha(identidad.enviada))}</span></li>
+  <li class="ahora"><b>Revisión de Tato</b><span>Revisa que las fotos, la voz y tu ficha estén bien.${correoDe(cuenta) ? ` Te avisamos a ${esc(correoDe(cuenta))}.` : ''}</span></li>
+  <li><b>Perfil en el catálogo</b><span>Los negocios verificados te envían solicitudes.</span></li>
+</ol>` : ''}
+${pendientes.length ? `<div class="pendientes">${pendientes.map(([t, href, b]) => `<p class="aviso ojo"><span>${esc(t)}</span> <a href="${href}">${esc(b)}</a></p>`).join('')}</div>` : ''}
 <div class="estudio-kpi">
   <div><span>Recibido este mes</span><b>${soles(meses.at(-1).monto)}</b></div>
   <div><span>Por cobrar</span><b>${soles(porCobrar)}</b></div>
@@ -233,10 +325,13 @@ ${filasPublicaciones(publicaciones.slice(0, 30))}
 </section>
 <section id="perfil" class="estudio-seccion"><h2>Mi perfil y seguridad</h2>
 <div class="estudio-doble">
-<div class="caja"><p>${cuenta.alta ? 'Registro de fotos y voz completo.' : identidad.estado === 'aprobada' ? 'Aprobada: Tato ya tiene tus fotos y tu voz para tu hoja de personaje y tu voz con IA.' : 'En revisión: Tato está viendo tus fotos y tu voz.'}</p>
+<div class="caja"><h3>Fotos y voz</h3><p>${identidad.estado === 'aprobada' ? 'Aprobadas: Tato ya tiene tus fotos y tu voz para tu hoja de personaje y tu voz con IA.' : enRevision ? 'En revisión: Tato está viendo tus fotos y tu voz.' : 'Faltan tus fotos o tu voz.'}</p>
 <div class="acciones"><a class="btn linea" href="/cuenta/identidad/">Ver mis fotos y mi voz</a></div></div>
 <div class="caja"><h3>WhatsApp ${telefono ? `· ••• ${esc(telefono.slice(-3))}` : ''}</h3><p>${whatsappOk ? 'Número verificado.' : 'Número pendiente de verificación.'}</p>
 ${whatsappOk ? '' : '<a class="btn linea chico" href="/cuenta/telefono/">Verificar mi número</a>'}</div>
+<div class="caja"><h3>Correo</h3>${correoDe(cuenta)
+    ? `<p>${esc(correoDe(cuenta))} · verificado.</p><p class="nota">Entras con tu correo y te avisamos ahí de cada pedido.</p>${conCorreo ? '<a class="btn linea chico" href="/cuenta/correo/">Cambiar mi correo</a>' : ''}`
+    : `<p>${cuenta.correo ? `${esc(cuenta.correo)} · sin verificar.` : 'Todavía no tienes un correo verificado.'}</p><p class="nota">Con tu correo entras sin recordar tu ID, recuperas tu contraseña y recibes los avisos de tus pedidos.</p>${conCorreo ? '<a class="btn fucsia chico" href="/cuenta/correo/">Verificar mi correo</a>' : ''}`}</div>
 </div>
 ${cuenta.alta ? `<details class="caja"><summary>Editar mi ficha pública</summary>
 <form method="post" action="/cuenta/perfil/">
@@ -246,7 +341,7 @@ ${cuenta.alta ? `<details class="caja"><summary>Editar mi ficha pública</summar
 <label>Qué contenido haces<textarea name="contenido" maxlength="500" required>${esc(cuenta.alta.perfil.contenido)}</textarea></label>
 <div class="acciones"><button class="btn fucsia chico" type="submit">Guardar perfil</button></div></form></details>` : ''}
 <div class="caja">
-  <p>Tu ID de acceso <code style="overflow-wrap:anywhere">${esc(cuenta.id)}</code></p>
+  <p>Tu ID de acceso <code style="overflow-wrap:anywhere">${esc(cuenta.id)}</code>${correoDe(cuenta) ? ' · también entras con tu correo' : ''}</p>
   <form method="post" action="/cuenta/pausa"><input type="hidden" name="pausa" value="${pausado ? 'no' : 'si'}">
     <p>${pausado ? 'Tus pedidos están en pausa.' : '¿Te vas de viaje o necesitas un descanso? Pausa tus pedidos y nadie podrá enviarte solicitudes nuevas. Los que ya están en curso siguen.'}</p>
     <div class="acciones"><button class="btn ${pausado ? 'fucsia' : 'linea'}" type="submit">${pausado ? 'Volver a recibir solicitudes' : 'Pausar mis pedidos'}</button><a class="btn linea" href="/cuenta/clave">Cambiar contraseña</a></div>
@@ -378,12 +473,13 @@ export async function handleCuenta(request, env, url, path) {
 
   if (path === '/cuenta/entrar' && post) return entrar(request, env);
   if (path === '/cuenta/salir' && post) return ir('/cuenta/', await cerrarSesion(env, request));
+  if (path === '/cuenta/recuperar') return recuperar(request, env, post);
 
   const sesion = await leerSesion(env, request);
   const cuenta = sesion ? await leerCuenta(env, sesion.id) : null;
   if (!cuenta || cuenta.activa === false) {
     if (path !== '/cuenta') return ir(`/cuenta/?e=${sesion ? 'pausada' : 'sesion'}`, sesion ? await cerrarSesion(env, request) : undefined);
-    return respuesta(paginaEntrar(error));
+    return respuesta(paginaEntrar(error, configCorreo(env).listo));
   }
 
   if (path === '/cuenta/clave') {
@@ -396,6 +492,9 @@ export async function handleCuenta(request, env, url, path) {
     if (!(await claveCorrecta(actual, cuenta.clave))) return respuesta(paginaClave(cuenta, { obligatoria: cuenta.cambiarClave, error: MENSAJES['clave-mal'] }), 400);
     if (await claveCorrecta(nueva, cuenta.clave)) return respuesta(paginaClave(cuenta, { obligatoria: cuenta.cambiarClave, error: 'La contraseña nueva tiene que ser distinta de la actual.' }), 400);
     cuenta.clave = await cifrarClave(nueva);
+    const nuevaCorreo = String(form.get('nuevaCorreo') || '');
+    if (correoDe(cuenta) && formatoClave(nuevaCorreo)) cuenta.claveCorreo = await cifrarClave(nuevaCorreo);
+    else delete cuenta.claveCorreo;
     cuenta.cambiarClave = false;
     cuenta.claveCambiada = new Date().toISOString();
     await guardarCuenta(env, cuenta);
@@ -425,6 +524,33 @@ export async function handleCuenta(request, env, url, path) {
       : estado === 'activa' && /^9\d{8}$/.test(numero) ? bloqueCodigoCuenta(numero, desafio)
         : '<p class="aviso ojo">El envío de códigos por WhatsApp aún no está disponible para tu cuenta.</p>';
     return respuesta(pagina({ titulo: 'Verificar WhatsApp', cuenta, error: mensaje, cuerpo: `<a class="volver" href="/cuenta/#perfil">← Mi perfil</a><h1>Verifica tu WhatsApp</h1>${bloque}` }), mensaje ? 400 : 200);
+  }
+  if (path === '/cuenta/correo') {
+    if (!configCorreo(env).listo) return respuesta(pagina({ titulo: 'Tu correo', cuenta, cuerpo: '<a class="volver" href="/cuenta/#perfil">← Mi perfil</a><h1>Tu correo</h1><p class="aviso ojo">La verificación por correo todavía no está disponible.</p>' }));
+    if (!post) return respuesta(paginaCorreo(cuenta, {}));
+    const f = await request.formData();
+    const correo = correoValido(f.get('correo'));
+    if (f.get('paso') === 'codigo') {
+      const r = await comprobarCodigoCorreo(env, { desafio: f.get('desafio'), codigo: f.get('codigo'), correo, proposito: 'correo-creador', titular: `cuenta:${cuenta.id}` });
+      if (r.error) return respuesta(paginaCorreo(cuenta, { paso: 'codigo', correo, desafio: f.get('desafio'), error: r.error }), 400);
+      const otro = await idPorCorreo(env, correo);
+      if (otro && otro !== cuenta.id) return respuesta(paginaCorreo(cuenta, { correo, error: 'Ese correo ya es de otra cuenta.' }), 409);
+      const actual = await leerCuenta(env, cuenta.id);
+      await ponerCorreo(env, actual, correo, r.extra?.claveCorreo);
+      await guardarCuenta(env, actual);
+      return ir('/cuenta/?m=correo-ok#perfil');
+    }
+    if (!correo) return respuesta(paginaCorreo(cuenta, { error: 'Revisa tu correo: parece que le falta algo.' }), 400);
+    const actualHash = String(f.get('actual') || '');
+    const actualCorreo = String(f.get('actualCorreo') || '');
+    if (!formatoClave(actualHash) || !formatoClave(actualCorreo)) return respuesta(paginaCorreo(cuenta, { correo, error: 'Escribe tu contraseña.' }), 400);
+    if ((await contar(env, `clave:${cuenta.id}`, 900)) > 8) return respuesta(paginaCorreo(cuenta, { correo, error: MENSAJES.espera }), 429);
+    if (!(await claveCorrecta(actualHash, cuenta.clave))) return respuesta(paginaCorreo(cuenta, { correo, error: MENSAJES['clave-mal'] }), 400);
+    const otro = await idPorCorreo(env, correo);
+    if (otro && otro !== cuenta.id) return respuesta(paginaCorreo(cuenta, { correo, error: 'Ese correo ya es de otra cuenta.' }), 409);
+    const r = await pedirCodigo(env, request, { correo, proposito: 'correo-creador', titular: `cuenta:${cuenta.id}`, extra: { claveCorreo: await cifrarClave(actualCorreo) } });
+    if (r.error) return respuesta(paginaCorreo(cuenta, { correo, error: r.error }), r.status || 400);
+    return respuesta(paginaCorreo(cuenta, { paso: 'codigo', correo, desafio: r.desafio }));
   }
   if (path === '/cuenta/perfil' && post && cuenta.alta) {
     const f = await request.formData();
@@ -504,21 +630,69 @@ export async function handleCuenta(request, env, url, path) {
 
 async function entrar(request, env) {
   const form = await request.formData();
-  const id = String(form.get('id') || '').trim().toLowerCase().replace(/^@/, '');
+  const escrito = String(form.get('id') || '').trim().toLowerCase().replace(/^@/, '');
   const clave = String(form.get('clave') || '');
   const ip = request.headers.get('CF-Connecting-IP') || 'sin-ip';
-  if (!idValido(id) || !formatoClave(clave)) return ir('/cuenta/?e=clave');
-  if ((await usos(env, `entrar:${id}`)) >= 5 || (await contar(env, `entrar-ip:${ip}`, 3600)) > 30) return ir('/cuenta/?e=espera');
-  const cuenta = await leerCuenta(env, id);
-  if (!cuenta || !(await claveCorrecta(clave, cuenta.clave))) {
-    await contar(env, `entrar:${id}`, 900);
+  // Con correo: se busca la cuenta y se compara con la verificación hecha con el correo (claveCorreo).
+  const correo = escrito.includes('@') ? correoValido(escrito) : '';
+  if ((escrito.includes('@') ? !correo : !idValido(escrito)) || !formatoClave(clave)) return ir('/cuenta/?e=clave');
+  if ((await usos(env, `entrar:${escrito}`)) >= 5 || (await contar(env, `entrar-ip:${ip}`, 3600)) > 30) return ir('/cuenta/?e=espera');
+  const id = correo ? await idPorCorreo(env, correo) : escrito;
+  const cuenta = id ? await leerCuenta(env, id) : null;
+  const guardada = correo ? (correoDe(cuenta) === correo ? cuenta.claveCorreo : null) : cuenta?.clave;
+  if (!cuenta || !guardada || !(await claveCorrecta(clave, guardada))) {
+    await contar(env, `entrar:${escrito}`, 900);
     return ir('/cuenta/?e=clave');
   }
   if (cuenta.activa === false) return ir('/cuenta/?e=pausada');
-  await borrarConteo(env, `entrar:${id}`);
+  await borrarConteo(env, `entrar:${escrito}`);
   cuenta.ultimoIngreso = new Date().toISOString();
   await guardarCuenta(env, cuenta);
   return ir('/cuenta/', await crearSesion(env, request, id));
+}
+
+/** /cuenta/recuperar: correo → código → contraseña nueva. No revela si un correo tiene cuenta. */
+async function recuperar(request, env, post) {
+  if (!configCorreo(env).listo) return respuesta(paginaRecuperar({ error: 'La recuperación por correo todavía no está disponible. Escríbele a Tato por WhatsApp.' }), 503);
+  if (!post) return respuesta(paginaRecuperar({}));
+  const f = await request.formData();
+  const paso = String(f.get('paso') || '');
+  const correo = correoValido(f.get('correo'));
+  if (paso === 'clave') {
+    const token = String(f.get('token') || '');
+    const datos = /^[A-Za-z0-9_-]{32}$/.test(token) ? await env.PEDIDOS_KV.get(`recuperar:${token}`, 'json') : null;
+    if (!datos) return respuesta(paginaRecuperar({ error: 'Pasaron más de 15 minutos. Pide un código nuevo.' }), 400);
+    const cuenta = await leerCuenta(env, datos.id);
+    const nueva = String(f.get('nueva') || '');
+    const nuevaCorreo = String(f.get('nuevaCorreo') || '');
+    if (!cuenta || cuenta.activa === false) return ir('/cuenta/?e=pausada');
+    if (!formatoClave(nueva) || !formatoClave(nuevaCorreo)) return respuesta(paginaRecuperar({ paso: 'clave', token, id: datos.id, correo: datos.correo, error: 'Escribe tu contraseña nueva.' }), 400);
+    await env.PEDIDOS_KV.delete(`recuperar:${token}`);
+    cuenta.clave = await cifrarClave(nueva);
+    cuenta.claveCorreo = await cifrarClave(nuevaCorreo);
+    cuenta.cambiarClave = false;
+    cuenta.claveCambiada = new Date().toISOString();
+    cuenta.ultimoIngreso = cuenta.claveCambiada;
+    await guardarCuenta(env, cuenta);
+    await cerrarSesionesDe(env, cuenta.id);
+    return ir('/cuenta/?m=recuperada', await crearSesion(env, request, cuenta.id));
+  }
+  if (paso === 'codigo') {
+    const desafio = String(f.get('desafio') || '');
+    const r = await comprobarCodigoCorreo(env, { desafio, codigo: f.get('codigo'), correo, proposito: 'recuperar-creador', titular: `recuperar:${correo}` });
+    if (r.error) return respuesta(paginaRecuperar({ paso: 'codigo', correo, desafio, error: r.error }), 400);
+    const id = await idPorCorreo(env, correo);
+    const cuenta = id ? await leerCuenta(env, id) : null;
+    if (!cuenta || correoDe(cuenta) !== correo) return respuesta(paginaRecuperar({ correo, error: 'Ese correo no tiene una cuenta de creador.' }), 404);
+    const token = aleatorio(24);
+    await env.PEDIDOS_KV.put(`recuperar:${token}`, JSON.stringify({ id, correo }), { expirationTtl: 900 });
+    return respuesta(paginaRecuperar({ paso: 'clave', token, id, correo }));
+  }
+  if (!correo) return respuesta(paginaRecuperar({ error: 'Revisa tu correo: parece que le falta algo.' }), 400);
+  const id = await idPorCorreo(env, correo);
+  const r = await pedirCodigo(env, request, { correo, proposito: 'recuperar-creador', titular: `recuperar:${correo}`, enviar: Boolean(id) });
+  if (r.error) return respuesta(paginaRecuperar({ correo, error: r.error }), r.status || 400);
+  return respuesta(paginaRecuperar({ paso: 'codigo', correo, desafio: r.desafio }));
 }
 
 /** GET /api/mp/conectado?code=&state=: vuelve de Mercado Pago con el permiso del influencer. */

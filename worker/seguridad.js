@@ -7,11 +7,18 @@
 //   2. En el Worker: otra pasada PBKDF2-SHA256 de 5 000 vueltas con una sal al azar por cuenta.
 //      Eso es lo único que se guarda.
 // La sesión es una cookie HttpOnly con un número al azar; en KV se guarda a qué cuenta pertenece.
+//
+// Entrar con el correo: la misma cuenta guarda una segunda verificación hecha con la sal
+// «tato.pe/cuenta:<correo>» (claveCorreo). Es el mismo cálculo; solo cambia lo que va después de «cuenta:».
+//
+// Los negocios entran a /negocio/ con un código que les llega al correo (sin contraseña): su sesión
+// usa otra cookie (tato_negocio) y otro prefijo en KV (sesion-negocio:).
 
 const VUELTAS = 5000;
 export const VUELTAS_NAVEGADOR = 200_000;
 const COOKIE = 'tato_cuenta';
 const DIAS_SESION = 14;
+const NEGOCIO = { cookie: 'tato_negocio', prefijo: 'sesion-negocio:', dias: 30 };
 const enc = new TextEncoder();
 
 export const b64url = (buf) =>
@@ -60,6 +67,8 @@ export async function claveCorrecta(desdeNavegador, guardada) {
  * no sale del navegador. El id de la cuenta sale del campo name="id" o de data-id en el <form>.
  * data-repetir="campo" pide que dos contraseñas coincidan; data-min="8", un largo mínimo.
  * Botones [data-generar] generan una clave temporal en el campo indicado (panel de Tato).
+ * data-hash-correo="campo" en un input[data-hash] guarda además el cálculo con el correo (campo name="correo"
+ * del formulario o data-correo del <form>), para entrar con el correo.
  */
 export const SCRIPT_CLAVE = `<script>
 (() => {
@@ -86,7 +95,7 @@ export const SCRIPT_CLAVE = `<script>
     const aviso = f.querySelector('[data-aviso-clave]');
     const decir = (t) => { if (aviso) { aviso.textContent = t; aviso.hidden = !t; } };
     const id = (f.querySelector('[name=id]')?.value || f.dataset.id || '').trim();
-    if (!id) return decir('Escribe tu ID.');
+    if (!id) return decir('Escribe tu correo o tu ID.');
     for (const c of f.querySelectorAll('input[data-hash]')) {
       if (!c.value) return decir(c.dataset.falta || 'Escribe la contraseña.');
       const min = Number(c.dataset.min || 0);
@@ -98,7 +107,12 @@ export const SCRIPT_CLAVE = `<script>
     const boton = f.querySelector('button[type=submit], button:not([type])');
     if (boton) { boton.disabled = true; boton.dataset.texto = boton.textContent; boton.textContent = 'Un momento…'; }
     try {
-      for (const c of f.querySelectorAll('input[data-hash]')) f.querySelector('input[type=hidden][name="' + c.dataset.hash + '"]').value = await paso1(id, c.value);
+      const correo = (f.querySelector('[name=correo]')?.value || f.dataset.correo || '').trim();
+      for (const c of f.querySelectorAll('input[data-hash]')) {
+        f.querySelector('input[type=hidden][name="' + c.dataset.hash + '"]').value = await paso1(id, c.value);
+        // La misma contraseña con el correo en la sal: para entrar con el correo.
+        if (c.dataset.hashCorreo && correo.includes('@')) f.querySelector('input[type=hidden][name="' + c.dataset.hashCorreo + '"]').value = await paso1(correo, c.value);
+      }
       f.dataset.listo = '1';
       decir('');
       f.submit();
@@ -154,6 +168,31 @@ export async function cerrarSesionesDe(env, id, salvo = '') {
     }
     cursor = lote.list_complete ? undefined : lote.cursor;
   } while (cursor);
+}
+
+// ---------- Sesiones de los negocios (/negocio/) ----------
+
+/** Crea la sesión del negocio con su correo (los RUC se buscan cada vez). Devuelve Set-Cookie. */
+export async function crearSesionNegocio(env, request, correo) {
+  const token = aleatorio(32);
+  await env.PEDIDOS_KV.put(`${NEGOCIO.prefijo}${token}`, JSON.stringify({ correo, creada: new Date().toISOString() }), {
+    expirationTtl: NEGOCIO.dias * 86400,
+  });
+  return `${NEGOCIO.cookie}=${token}; ${atributos(request, NEGOCIO.dias * 86400)}`;
+}
+
+/** { correo, token } o null. */
+export async function leerSesionNegocio(env, request) {
+  const token = leerCookie(request, NEGOCIO.cookie);
+  if (!token || token.length > 100) return null;
+  const s = await env.PEDIDOS_KV.get(`${NEGOCIO.prefijo}${token}`, 'json');
+  return s?.correo ? { correo: s.correo, token } : null;
+}
+
+export async function cerrarSesionNegocio(env, request) {
+  const token = leerCookie(request, NEGOCIO.cookie);
+  if (token && token.length <= 100) await env.PEDIDOS_KV.delete(`${NEGOCIO.prefijo}${token}`);
+  return `${NEGOCIO.cookie}=; ${atributos(request, 0)}`;
 }
 
 // ---------- Otros ----------

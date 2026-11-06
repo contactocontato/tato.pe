@@ -1,7 +1,7 @@
 # tato.pe — notas para Claude Code
 
 Web de Tato Studio en Astro 7 + Tailwind 4. Comandos, estructura y deploy están en `README.md`.
-Se publica como el Worker `tato-pe` de Cloudflare: lo que llega a `main` se publica solo en tato.pe. El panel privado de TikTok (`/panel/tiktok/`) y su conexión viven en `worker/index.js`; cómo funciona está en `README.md`, sección «Cloudflare Worker y panel de TikTok». El registro de negocios y su panel (`/panel/negocios/`) viven en `worker/negocios.js` (ver «Influencers» más abajo). Nunca pongas secretos ni tokens en el repo.
+Se publica como el Worker `tato-pe` de Cloudflare: lo que llega a `main` se publica solo en tato.pe. El panel privado de TikTok (`/panel/tiktok/`) y su conexión viven en `worker/index.js`; cómo funciona está en `README.md`, sección «Cloudflare Worker y panel de TikTok». El registro de negocios y su panel (`/panel/negocios/`) viven en `worker/negocios.js`; el portal del negocio (`/negocio/`) y el resumen del panel (`/panel/`), en `worker/portal-negocio.js` y `worker/panel-resumen.js` (ver «Influencers» más abajo). Nunca pongas secretos ni tokens en el repo.
 
 ## Portada
 
@@ -54,7 +54,8 @@ Cada categoría usa uno de los cuatro colores de la marca (noticias azul, prompt
 
 Catálogo en `/influencers/`. Cada influencer con convenio tiene una ficha en `src/content/influencers/<id>.md`. El id es su URL (`tato.pe/influencers/<id>/`): minúsculas, sin tildes ni ñ, con guiones. `ejemplo-tato.md` es una ficha de ejemplo en borrador (nunca se publica): cópiala y cambia todos los datos.
 
-- Agrega a alguien solo cuando Tato confirme que firmó el convenio. El repo es público: el convenio, el DNI, el teléfono y lo que gana cada influencer no van aquí. En la ficha va solo lo que se muestra en la web.
+- Hay dos formas de sumar creadores. Con convenio firmado: una ficha en el repo (lo de abajo) y su cuenta creada por Tato en `/panel/influencers/`. En línea: el creador se registra solo en `/influencers/unete/` (`worker/alta-influencer.js`, cuenta `creador-*` en KV, sin ficha en el repo); su perfil sale en el catálogo recién cuando Tato aprueba su identidad. No cambies eso: Tato revisa a cada creador antes de publicarlo.
+- Agrega una ficha al repo solo cuando Tato confirme que firmó el convenio. El repo es público: el convenio, el DNI, el teléfono, el correo y lo que gana cada influencer no van aquí. En la ficha va solo lo que se muestra en la web.
 - Qué significa cada campo: `src/content.config.ts`. Si un texto lleva `#` o dos puntos, va entre comillas; si no, el texto se corta o la web no compila.
 - La foto (vertical 4:5, aprobada por el influencer) y los videos de muestra van en `public/influencers/<id>/`. Las muestras son videos hechos con IA que el influencer aprobó; nada con personajes de la TV.
 - No inventes seguidores, precios, fechas ni temas que no acepta: pídeselos a Tato. `cifrasAl` es el día en que se contaron los seguidores. Un paquete sin `precio` sale «A cotizar».
@@ -68,9 +69,11 @@ Catálogo en `/influencers/`. Cada influencer con convenio tiene una ficha en `s
 
 ### Cuentas, pedidos y pagos
 
-- El influencer entra en `/cuenta/` (`worker/cuenta.js`). Tato crea cada cuenta en `/panel/influencers/`, nunca desde código. Las contraseñas se cifran primero en el navegador (`SCRIPT_CLAVE` en `worker/seguridad.js`): no cambies ese cálculo, porque nadie podría volver a entrar.
+- El influencer entra en `/cuenta/` (`worker/cuenta.js`) con su correo verificado o su ID. Las cuentas con convenio las crea Tato en `/panel/influencers/`, nunca desde código. Las contraseñas se cifran primero en el navegador (`SCRIPT_CLAVE` en `worker/seguridad.js`): no cambies ese cálculo, porque nadie podría volver a entrar. Para entrar con el correo se guarda el mismo cálculo con el correo en la sal (`claveCorreo`).
+- Correos (`worker/correo.js`, `worker/avisos.js`): códigos de verificación y avisos de cada pedido. El remitente y la clave del proveedor van como variables y secretos de Cloudflare, nunca en el repo. Si agregas un paso al pedido, revisa también `eventosPedido` para que cada uno reciba su aviso.
+- Portal del negocio en `/negocio/` (`worker/portal-negocio.js`): entra con un código a su correo. El resumen del panel (`/panel/`, `worker/panel-resumen.js`) junta creadores, negocios y pedidos; cada uno tiene su ficha y la vista de su página.
 - Pasos y reparto de cada pedido: `worker/pedidos.js` (adelanto = producción, para Tato; saldo menos la comisión de Mercado Pago, dividido según el porcentaje). Mercado Pago: `worker/mercadopago.js`.
 - El porcentaje de Tato, los costos de producción y la comisión de Mercado Pago se configuran en el panel (`/panel/ajustes/` y `/panel/influencers/`). No los pongas en el repo: es público.
 - `src/pages/influencers/datos.json.ts` publica los paquetes y precios que el Worker usa para armar cada pedido.
 - Fotos y voz del influencer (`worker/identidad.js`) y actuaciones del guion: son datos biométricos. Viven solo en el bucket privado R2 (`MEDIOS`): nunca los subas al repo, no los copies a `public/` ni hagas público el bucket. Si cambias el texto de la autorización (`CONSENTIMIENTO`), cambia también su `version`.
-- Si cambias pedidos, cuentas o pagos, corre `npm test`. Si cambian los datos que se guardan, actualiza `src/pages/privacidad.astro`.
+- Si cambias pedidos, cuentas, pagos, correos o el portal, corre `npm test`. Si cambian los datos que se guardan, actualiza `src/pages/privacidad.astro`.

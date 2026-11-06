@@ -10,7 +10,7 @@ import { site } from '../../lib/site';
     <div class="registro">
       <div>
         <h1 class="h1">Registra tu <span class="fx">negocio</span></h1>
-        <p class="lead">Completa los datos de tu negocio y de la persona de contacto. Si necesitamos revisar tu RUC o tus permisos, te escribiremos al WhatsApp que registres.</p>
+        <p class="lead">Completa los datos de tu negocio y de la persona de contacto. Confirmas tu correo con un código y, si necesitamos revisar tu RUC o tus permisos, te escribimos al WhatsApp que registres.</p>
 
         <form class="form" id="registro" method="post" action="/api/negocios/registro" novalidate>
           <div class="field">
@@ -50,8 +50,17 @@ import { site } from '../../lib/site';
             <input id="whatsapp" name="whatsapp" type="tel" inputmode="tel" autocomplete="tel-national" maxlength="15" required placeholder="9xx xxx xxx">
           </div>
           <div class="field">
-            <label for="correo">Tu correo (opcional)</label>
-            <input id="correo" name="correo" type="email" autocomplete="email" maxlength="160">
+            <label for="correo">Tu correo</label>
+            <input id="correo" name="correo" type="email" autocomplete="email" maxlength="160" autocapitalize="none" spellcheck="false">
+            <small>Con él entras a tu portal en tato.pe/negocio y te avisamos de cada pedido.</small>
+          </div>
+          <div class="field field--full correo-codigo" data-correo-codigo hidden>
+            <p><strong>Confirma tu correo.</strong> Te mandamos un código de 6 números; vence en 15 minutos.</p>
+            <button class="btn btn--line" type="button" data-correo-enviar>Mandarme el código</button>
+            <p class="correo-estado" data-correo-estado role="status"></p>
+            <input type="hidden" name="desafioCorreo">
+            <label for="codigoCorreo">Código del correo</label>
+            <input id="codigoCorreo" name="codigoCorreo" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="000000">
           </div>
           <fieldset class="grupo">
             <legend>Tus compromisos</legend>
@@ -85,7 +94,10 @@ import { site } from '../../lib/site';
 </Studio>
 
 <script>
+  import { prepararCodigoCorreo } from '../../lib/codigo-correo';
   const form = document.getElementById('registro') as HTMLFormElement;
+  const token = crypto.randomUUID();
+  const codigoCorreo = prepararCodigoCorreo(form, { proposito: 'registro-negocio', token });
   const error = document.getElementById('error') as HTMLElement;
   const enviar = document.getElementById('enviar') as HTMLButtonElement;
   const resultado = document.getElementById('resultado') as HTMLElement;
@@ -109,8 +121,11 @@ import { site } from '../../lib/site';
     if (String(f.get('contactoNombre') || '').trim().length < 3) return 'Escribe tu nombre.';
     if (!/^\d{8}$/.test(String(f.get('dni') || '').replace(/\D/g, ''))) return 'Tu DNI tiene que tener 8 números.';
     if (!/^9\d{8}$/.test(String(f.get('whatsapp') || '').replace(/\D/g, '').replace(/^51(?=9\d{8}$)/, ''))) return 'Tu WhatsApp tiene que ser un celular de 9 números que empiece con 9.';
+    const correo = String(f.get('correo') || '').trim();
+    if (codigoCorreo.activo() && !correo) return 'Escribe tu correo.';
+    if (correo && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) return 'Revisa tu correo: parece que le falta algo.';
     if (!['real', 'etiquetas', 'uso', 'datos'].every((k) => f.get(k))) return 'Para registrarte tienes que marcar los cuatro compromisos.';
-    return '';
+    return codigoCorreo.revisar();
   }
 
   form.addEventListener('submit', async (ev) => {
@@ -127,6 +142,7 @@ import { site } from '../../lib/site';
       nombreComercial: f.get('nombreComercial'), rubro: f.get('rubro'), promociona: f.get('promociona'), redes: f.get('redes'),
       contactoNombre: f.get('contactoNombre'), dni: f.get('dni'), whatsapp: f.get('whatsapp'), correo: f.get('correo'),
       influencer: f.get('influencer'), paquete: f.get('paquete'), sitio: f.get('sitio'),
+      token, desafioCorreo: f.get('desafioCorreo'), codigoCorreo: f.get('codigoCorreo'),
       acepta: { real: !!f.get('real'), etiquetas: !!f.get('etiquetas'), uso: !!f.get('uso'), datos: !!f.get('datos') },
     };
     try {
@@ -147,7 +163,7 @@ import { site } from '../../lib/site';
     }
   });
 
-  function mostrar(r: { semaforo: string; codigo?: string; razonSocial?: string; mensaje: string; motivos?: string[] }, ruc: string) {
+  function mostrar(r: { semaforo: string; codigo?: string; razonSocial?: string; mensaje: string; motivos?: string[]; portal?: boolean }, ruc: string) {
     const titulos: Record<string, string> = { verde: 'Tu negocio está verificado', amarillo: 'Lo revisamos y te escribimos', rojo: 'No podemos tomar tu pedido' };
     let extra = '';
     if (r.semaforo === 'verde' && r.codigo) {
@@ -155,6 +171,7 @@ import { site } from '../../lib/site';
       extra = `<p class="codigo">${esc(r.codigo)}</p><p>Guárdalo junto con tu RUC: con los dos pides videos desde el perfil de cada influencer.</p>`
         + (para ? `<a class="btn btn--fucsia" href="/influencers/${/^creador-[0-9a-f]{32}$/.test(para) ? 'perfil/' : ''}${esc(para)}/">Seguir con tu pedido</a>` : '<a class="btn btn--fucsia" href="/influencers/">Ver los influencers</a>');
     }
+    if (r.portal && r.semaforo !== 'rojo') extra += '<p>Sigue tus pedidos y pagos en <a class="link" href="/negocio/">tu portal de negocio</a>: entras con tu correo.</p>';
     const motivos = (r.motivos || []).length ? `<ul>${(r.motivos || []).map((m) => `<li>${esc(m)}</li>`).join('')}</ul>` : '';
     resultado.className = `resultado resultado--${r.semaforo}`;
     resultado.innerHTML = `<h2>${titulos[r.semaforo] || 'Recibimos tus datos'}</h2><p>${esc(r.mensaje)}</p>${motivos}${extra}`;
@@ -164,3 +181,10 @@ import { site } from '../../lib/site';
     resultado.focus();
   }
 </script>
+
+<style>
+  .correo-codigo { display: grid; gap: 10px; padding: 16px; border: 1px solid var(--card-line); border-radius: 14px; }
+  .correo-codigo[hidden] { display: none; }
+  .correo-codigo .btn { justify-self: start; }
+  .correo-estado:empty { display: none; }
+</style>

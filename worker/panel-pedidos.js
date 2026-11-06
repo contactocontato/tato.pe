@@ -8,12 +8,13 @@ import { page, html, esc } from './ui.js';
 import { SCRIPT_CLAVE, formatoClave, cifrarClave, cerrarSesionesDe } from './seguridad.js';
 import {
   leerPedido, listarPedidos, metasPedidos, accionTato, cuentasDe, cuentas, metodoSaldo, ajustes, guardarAjustes,
-  catalogo, leerCuenta, guardarCuenta, idValido, ESTADOS, ACTIVOS, turno, soles, r2, identidadDe,
+  catalogo, leerCuenta, guardarCuenta, idValido, ESTADOS, ACTIVOS, turno, soles, r2, identidadDe, correoDe,
 } from './pedidos.js';
 import { mpListo, REDIRECCION } from './mercadopago.js';
 import { servirArchivo } from './medios.js';
 import { FOTOS, ITEMS, NOMBRES, decidirIdentidad } from './identidad.js';
 import { telefonoConfirmado } from './verificacion.js';
+import { avisar } from './avisos.js';
 
 const fecha = (s) => (s ? new Date(s).toLocaleString('es-PE', { timeZone: 'America/Lima', dateStyle: 'medium', timeStyle: 'short' }) : '');
 const wa = (numero, textoMsj) => `https://wa.me/51${String(numero || '').replace(/\D/g, '').slice(-9)}?text=${encodeURIComponent(textoMsj)}`;
@@ -133,8 +134,9 @@ function bloquePedido(env, p, aj, cuentaInf, abierto) {
       <dt>Promocionar</dt><dd>${esc(p.brief.promociona)}</dd>
       ${p.brief.detalle ? `<dt>Detalles</dt><dd>${esc(p.brief.detalle).replace(/\n/g, '<br>')}</dd>` : ''}
       ${p.brief.fecha ? `<dt>Para cuándo</dt><dd>${esc(p.brief.fecha)}</dd>` : ''}
-      <dt>Negocio</dt><dd>${esc(n.razonSocial)} · RUC ${esc(n.ruc)} · código ${esc(n.codigo)}</dd>
-      <dt>Contacto</dt><dd>${esc(n.contacto?.nombre)} · ${esc(n.contacto?.whatsapp)}</dd>
+      <dt>Negocio</dt><dd><a href="/panel/negocio/?ruc=${esc(n.ruc)}">${esc(n.razonSocial || n.nombreComercial)}</a> · RUC ${esc(n.ruc)} · código ${esc(n.codigo)}</dd>
+      <dt>Contacto</dt><dd>${esc(n.contacto?.nombre)} · ${esc(n.contacto?.whatsapp)}${n.contacto?.correo ? ` · ${esc(n.contacto.correo)}` : ''}</dd>
+      <dt>Creador</dt><dd><a href="/panel/creador/?id=${esc(p.influencer.id)}">${esc(p.influencer.nombre)}</a></dd>
       ${p.guion?.texto ? `<dt>Guion v${p.guion.version}</dt><dd>${esc(p.guion.estado)}</dd>` : ''}
       ${Object.keys(p.actuaciones || {}).length ? `<dt>Actuación</dt><dd>${['audio', 'video'].filter((t) => p.actuaciones[t]).map((t) => `<a href="/panel/archivo?clave=${encodeURIComponent(p.actuaciones[t].clave)}" target="_blank" rel="noopener">${t}</a> (${esc(fecha(p.actuaciones[t].subido))}) · <a href="/panel/archivo?clave=${encodeURIComponent(p.actuaciones[t].clave)}&descargar=1">descargar</a>`).join('<br>')}</dd>` : ''}
       ${p.video?.link ? `<dt>Video v${p.video.version}</dt><dd><a href="${esc(p.video.link)}" target="_blank" rel="noopener">${esc(p.video.estado)}</a></dd>` : ''}
@@ -204,7 +206,7 @@ function camposClave(id, nombre, whatsapp) {
 }
 
 /** Fotos, voz, cuento leído y autorización del influencer, con los botones para aprobar o pedir que rehaga. */
-function bloqueIdentidad(cuenta, i) {
+export function bloqueIdentidad(cuenta, i, enFicha = false) {
   const id = cuenta.id;
   const archivo = (clave, descarga) => `/panel/archivo?clave=${encodeURIComponent(clave)}${descarga ? `&descargar=1` : ''}`;
   const fotos = FOTOS.map(([k, nombre]) => {
@@ -219,7 +221,7 @@ function bloqueIdentidad(cuenta, i) {
     : '<p class="muted">Sin grabación de voz.</p>';
   const consentimiento = i.consentimiento ? `<p class="muted">Autorizó el ${esc(fecha(i.consentimiento.fecha))} (versión ${esc(i.consentimiento.version)}${i.consentimiento.ip ? `, IP ${esc(i.consentimiento.ip)}` : ''}).</p>` : '';
   const acciones = ['en-revision', 'aprobada'].includes(i.estado)
-    ? `<form method="post" action="/panel/influencers/accion" class="acciones cuenta"><input type="hidden" name="id" value="${esc(id)}">
+    ? `<form method="post" action="/panel/influencers/accion" class="acciones cuenta"><input type="hidden" name="id" value="${esc(id)}">${enFicha ? '<input type="hidden" name="volver" value="ficha">' : ''}
         ${ITEMS.map((k) => `<label class="muted"><input type="checkbox" name="rehacer_${k}" value="1"> ${esc(NOMBRES[k])}</label>`).join('')}
         <input name="nota" maxlength="300" placeholder="Nota para el influencer (qué mejorar)">
         ${i.estado === 'en-revision' ? '<button class="ok" name="accion" value="identidad-aprobar">Aprobar identidad</button>' : ''}
@@ -232,6 +234,24 @@ function bloqueIdentidad(cuenta, i) {
   const estados = { incompleta: 'todavía no la completa', 'en-revision': 'te toca revisarla', aprobada: 'aprobada', rehacer: `rehaciendo: ${i.rehacer.map((k) => NOMBRES[k].toLowerCase()).join(', ')}`, borrada: 'la borró' };
   return `<div class="identidad"><h3>Identidad: ${esc(estados[i.estado] || i.estado)}</h3>${derivados}<div class="miniaturas">${fotos}</div>${voz}${consentimiento}${acciones}
     ${(i.historial || []).length ? `<details><summary class="muted">Historial de su identidad</summary><ol class="muted">${i.historial.map((h) => `<li>${esc(fecha(h.fecha))}: ${esc(h.que)}</li>`).join('')}</ol></details>` : ''}</div>`;
+}
+
+/** Aprueba la identidad o pide que rehaga algo, y se lo avisa por correo al creador (si tiene correo verificado). */
+export async function decidirYAvisar(env, cuenta, accion, opciones) {
+  const r = await decidirIdentidad(env, cuenta.id, accion, opciones);
+  if (r.error || !correoDe(cuenta)) return r;
+  const nota = opciones.nota ? [`Nota de Tato: ${opciones.nota}`] : [];
+  if (accion === 'aprobar') {
+    await avisar(env, correoDe(cuenta), cuenta.alta
+      ? { asunto: 'Tu perfil ya está en el catálogo', titulo: 'Tato aprobó tu registro', parrafos: ['Tu perfil ya sale en el catálogo de tato.pe y los negocios verificados pueden enviarte solicitudes.', ...nota], ruta: '/cuenta/', boton: 'Ir a mi cuenta' }
+      : { asunto: 'Tato aprobó tus fotos y tu voz', titulo: 'Ya recibes solicitudes', parrafos: ['Tato aprobó tus fotos y tu voz. Desde ahora los negocios verificados pueden enviarte solicitudes.', ...nota], ruta: '/cuenta/', boton: 'Ir a mi cuenta' });
+  } else if (accion === 'rehacer') {
+    await avisar(env, correoDe(cuenta), {
+      asunto: 'Tato te pide rehacer parte de tu registro', titulo: 'Falta un detalle en tu registro',
+      parrafos: [`Rehaz: ${opciones.rehacer.map((k) => NOMBRES[k].toLowerCase()).join(', ')}.`, ...nota], ruta: '/cuenta/identidad/', boton: 'Rehacerlo ahora',
+    });
+  }
+  return r;
 }
 
 /** /panel/archivo?clave=…: fotos, voz y actuaciones guardadas en R2 (solo con la contraseña del panel). */
@@ -277,9 +297,10 @@ export async function handlePanelInfluencers(request, env, url) {
         : ident.estado !== 'aprobada'
           ? ['gris', ident.estado === 'rehacer' ? 'Rehaciendo identidad' : ident.estado === 'borrada' ? 'Borró su identidad' : 'Falta su identidad']
           : cuenta.aceptaPedidos === false ? ['amarillo', 'No recibe pedidos'] : ['verde', 'Activa'];
-    filas.push(`<details class="reg"><summary><span class="badge b-${estado[0]}">${estado[1]}</span><b>${esc(nombre)}</b>
+    filas.push(`<details class="reg" id="c-${esc(id)}"${url.searchParams.get('abrir') === id ? ' open' : ''}><summary><span class="badge b-${estado[0]}">${estado[1]}</span><b>${esc(nombre)}</b>
       <span class="muted">ID ${esc(id)} · ${telefonoConfirmado(cuenta) ? 'WhatsApp verificado' : 'WhatsApp sin verificar'} · ${cuenta.mp?.accessToken ? `Mercado Pago: ${esc(cuenta.mp.nombre || cuenta.mp.userId)}` : 'sin Mercado Pago'} · ${cuenta.ultimoIngreso ? `entró ${esc(fecha(cuenta.ultimoIngreso))}` : 'no entra todavía'}${cuenta.alta ? ' · registro en línea' : inf ? '' : ' · ya no está en el catálogo'}</span></summary>
       <div class="cuerpo">
+        <p><a href="/panel/creador/?id=${esc(id)}">Abrir su ficha: pedidos, ganancias y su cuenta como la ve →</a></p>
         <form method="post" action="/panel/influencers/accion" class="acciones cuenta"><input type="hidden" name="id" value="${esc(id)}"><input type="hidden" name="accion" value="editar">
           ${camposCuenta(inf, cuenta, aj)}
           <label class="muted"><input type="checkbox" name="activa" value="1"${cuenta.activa === false ? '' : ' checked'}> Cuenta activa</label>
@@ -374,10 +395,12 @@ export async function handlePanelInfluencerAccion(request, env, url) {
     case 'identidad-rehacer':
     case 'identidad-derivados': {
       if (!cuenta) return fin({ err: 'Esa cuenta no existe.' });
-      const r = await decidirIdentidad(env, id, accion.replace('identidad-', ''), {
+      const r = await decidirYAvisar(env, cuenta, accion.replace('identidad-', ''), {
         rehacer: ITEMS.filter((k) => f.get(`rehacer_${k}`) === '1'),
         nota: String(f.get('nota') || '').trim().slice(0, 300),
       });
+      const destino = String(f.get('volver') || '');
+      if (destino === 'ficha') return volver(url, '/panel/creador/', { id, ...(r.error ? { err: r.error } : { msg: r.mensaje }) });
       return fin(r.error ? { err: r.error } : { msg: `${cuenta.nombre}: ${r.mensaje}` });
     }
     case 'clave': {
@@ -385,6 +408,7 @@ export async function handlePanelInfluencerAccion(request, env, url) {
       const clave = String(f.get('clave') || '');
       if (!formatoClave(clave)) return fin({ err: 'Genera la contraseña temporal primero.' });
       cuenta.clave = await cifrarClave(clave);
+      delete cuenta.claveCorreo; // con el correo vuelve a entrar cuando cambie la contraseña temporal
       cuenta.cambiarClave = true;
       await guardarCuenta(env, cuenta);
       await cerrarSesionesDe(env, id);

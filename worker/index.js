@@ -13,6 +13,10 @@
 //   /api/mp/webhook                  avisos de pago de Mercado Pago (POST)
 //   /cuenta/                         cuenta del influencer (entra con su ID y contraseña)
 //   /cuenta/identidad/               sus fotos y su voz (worker/identidad.js), guardadas privadas en R2 (binding MEDIOS)
+//   /negocio/                        portal del negocio: entra con un código a su correo (worker/portal-negocio.js)
+//   /api/correo/estado, /api/correo/codigo   códigos de verificación por correo (worker/correo.js)
+//   /panel/                          resumen de Tato: pendientes, cifras y actividad (worker/panel-resumen.js)
+//   /panel/negocio/, /panel/creador/ ficha de cada negocio y de cada creador, con lo que ve cada uno
 //   /panel/pedidos/, /panel/influencers/, /panel/ajustes/   panel privado de Tato
 //
 // Conexión con TikTok (app «Tatostudio», Login Kit + Display API):
@@ -36,6 +40,9 @@ import { handleCreadores, handlePerfilCreador } from './perfiles-creadores.js';
 import { configVerificacion, enviarCodigo } from './verificacion.js';
 import { handlePanelPublicaciones } from './publicaciones.js';
 import { handlePanelPedidos, handlePanelPedidoAccion, handlePanelInfluencers, handlePanelInfluencerAccion, handlePanelAjustes, handlePanelArchivo } from './panel-pedidos.js';
+import { estadoCorreo, handleCodigoCorreo } from './correo.js';
+import { handleNegocio } from './portal-negocio.js';
+import { handlePanelResumen, handlePanelFichaNegocio, handlePanelFichaCreador, handlePanelVista } from './panel-resumen.js';
 
 const REDIRECT_URI = 'https://tato.pe/api/tiktok/callback';
 const SCOPES = 'user.info.basic,video.list';
@@ -69,7 +76,10 @@ export default {
       if (estado) return await handleEstadoInfluencer(env, estado[1]);
       if (path === '/api/mp/webhook') return request.method === 'POST' ? await handleWebhook(request, env, url) : new Response('ok');
       if (path === '/api/mp/conectado') return await handleMpConectado(request, env, url);
+      if (path === '/api/correo/estado') return estadoCorreo(env);
+      if (path === '/api/correo/codigo') return await handleCodigoCorreo(request, env);
       if (path === '/cuenta' || path.startsWith('/cuenta/')) return await handleCuenta(request, env, url, path);
+      if (path === '/negocio' || path.startsWith('/negocio/')) return await handleNegocio(request, env, url, path);
 
       if (path.startsWith('/panel')) {
         const denied = checkPanelAuth(request, env);
@@ -89,7 +99,10 @@ export default {
         if (path === '/panel/influencers/accion' && request.method === 'POST') return await handlePanelInfluencerAccion(request, env, url);
         if (path === '/panel/ajustes') return await handlePanelAjustes(request, env, url);
         if (path === '/panel/archivo') return await handlePanelArchivo(request, env, url);
-        if (path === '/panel') return Response.redirect(`${url.origin}/panel/pedidos/`, 302);
+        if (path === '/panel/negocio') return await handlePanelFichaNegocio(request, env, url);
+        if (path === '/panel/creador') return await handlePanelFichaCreador(request, env, url);
+        if (path === '/panel/vista/negocio' || path === '/panel/vista/creador') return await handlePanelVista(request, env, url, path);
+        if (path === '/panel' || path === '/panel/resumen') return await handlePanelResumen(request, env, url);
       }
 
       return env.ASSETS.fetch(request);
@@ -97,6 +110,7 @@ export default {
       console.error(err);
       if (path.startsWith('/api/mp/webhook')) return new Response('error', { status: 500 }); // Mercado Pago vuelve a avisar
       if (path.startsWith('/api/')) return json({ error: 'Algo falló de nuestro lado. Inténtalo de nuevo en un rato o escríbenos por WhatsApp.' }, 500);
+      if (path.startsWith('/negocio')) return html(page('Algo falló', '<p>Algo falló de nuestro lado. Recarga la página en un rato.</p><p><a href="/negocio/">Volver a tu portal</a></p>', false), 500);
       if (path.startsWith('/cuenta')) return html(page('Algo falló', '<p>Algo falló de nuestro lado. Recarga la página en un rato.</p><p><a href="/cuenta/">Volver a tu cuenta</a></p>', false), 500);
       return html(page('Error', `<p class="err">Algo falló: ${esc(err.message || String(err))}</p><p><a href="/panel/tiktok/">Volver al panel</a></p>`), 500);
     }
@@ -136,7 +150,7 @@ export default {
 // Quita espacios o saltos de línea que se cuelan al copiar y pegar las claves en Cloudflare.
 function cleanEnv(env) {
   const out = Object.create(env);
-  for (const k of ['TIKTOK_CLIENT_KEY', 'TIKTOK_CLIENT_SECRET', 'PANEL_PASSWORD', 'RUC_API_TOKEN', 'RUC_API_URL', 'ANTHROPIC_API_KEY', 'MP_CLIENT_ID', 'MP_CLIENT_SECRET', 'MP_ACCESS_TOKEN', 'MP_WEBHOOK_SECRET']) {
+  for (const k of ['TIKTOK_CLIENT_KEY', 'TIKTOK_CLIENT_SECRET', 'PANEL_PASSWORD', 'RUC_API_TOKEN', 'RUC_API_URL', 'ANTHROPIC_API_KEY', 'MP_CLIENT_ID', 'MP_CLIENT_SECRET', 'MP_ACCESS_TOKEN', 'MP_WEBHOOK_SECRET', 'RESEND_API_KEY', 'CORREO_REMITENTE', 'CORREO_TATO']) {
     if (typeof env[k] === 'string') out[k] = env[k].trim();
   }
   return out;

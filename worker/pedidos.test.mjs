@@ -490,7 +490,7 @@ test('identidad: fotos, cuento con código, voz, autorización, revisión de Tat
   assert.equal(JSON.parse(env.PEDIDOS_KV.m.get('influencer:rosa-perez').v).identidad.derivadosPorBorrar, false);
 });
 
-test('alta en línea: consentimiento, archivos privados, publicación y pedido con precio estándar', async () => {
+test('alta en línea: consentimiento, archivos privados, revisión de Tato, publicación y pedido con precio estándar', async () => {
   const env = entorno({ conMP: false });
   const token = crypto.randomUUID();
   const id = await idDeAlta(token);
@@ -523,6 +523,9 @@ test('alta en línea: consentimiento, archivos privados, publicación y pedido c
   assert.equal((await cuenta(env, '/cuenta/identidad/enviar', { cookie, form: {} })).status, 400);
   assert.equal((await subir(env, '/cuenta/identidad/voz?segundos=60', cookie, AUDIO, 'audio/webm')).status, 200);
   assert.equal((await cuenta(env, '/cuenta/identidad/enviar', { cookie, form: {} })).headers.get('Location'), '/cuenta/?m=alta-lista');
+  assert.equal((await handlePerfilCreador(env, perfil, id)).status, 404, 'no sale en el catálogo hasta que Tato lo apruebe');
+  assert.equal((await pedir(env, { influencer: id, paquete: 'Historia' })).status, 404);
+  assert.equal((await panel(env, handlePanelInfluencerAccion, '/panel/influencers/accion', { id, accion: 'identidad-aprobar' })).status, 303);
   const pagina = await (await handlePerfilCreador(env, perfil, id)).text();
   assert.match(pagina, /Creadora de prueba/);
   assert.doesNotMatch(pagina, /900000000|identidad\/|captura:/);

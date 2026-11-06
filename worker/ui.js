@@ -1,15 +1,22 @@
 // Páginas y respuestas del Worker: el HTML sencillo de los paneles privados y las respuestas JSON.
 
-const NAV = [['/panel/pedidos/', 'Pedidos'], ['/panel/influencers/', 'Influencers'], ['/panel/postulaciones/', 'Postulaciones'], ['/panel/negocios/', 'Negocios'], ['/panel/ajustes/', 'Ajustes'], ['/panel/tiktok/', 'TikTok']];
+const NAV = [['/panel/', 'Resumen'], ['/panel/pedidos/', 'Pedidos'], ['/panel/influencers/', 'Influencers'], ['/panel/negocios/', 'Negocios'], ['/panel/postulaciones/', 'Postulaciones'], ['/panel/ajustes/', 'Ajustes'], ['/panel/tiktok/', 'TikTok']];
+// Páginas que no están en el menú pero cuelgan de una sección (para marcarla en el menú).
+const SECCION = { 'Ficha del negocio': 'Negocios', 'Ficha del creador': 'Influencers' };
 
 export function page(title, body, nav = true) {
   return `<!doctype html><html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow">
 <title>${esc(title)} · Tato Studio</title>
 <style>
-  body{font:16px/1.5 system-ui,sans-serif;margin:0;padding:24px;color:#111;background:#fafafa}
-  main{max-width:1100px;margin:0 auto}
-  h1{font-size:28px;margin:0 0 16px}
+  :root{--fucsia:#E2037E;--fucsia-tinta:#B50265;--ink:#141414;--soft:#5f5f5a;--line:#e3ded6;--paper:#f6f3ee}
+  body{font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;margin:0;color:#111;background:var(--paper)}
+  main{max-width:1180px;margin:0 auto;padding:20px clamp(14px,3vw,28px) 48px}
+  h1{font-size:28px;margin:0 0 16px;letter-spacing:-.01em}
+  :focus-visible{outline:2px solid var(--fucsia);outline-offset:2px}
+  .barra{background:#141414;color:#fff}
+  .barra .dentro{max-width:1180px;margin:0 auto;padding:10px clamp(14px,3vw,28px);display:flex;gap:6px 18px;align-items:center;flex-wrap:wrap}
+  .barra .marca{font-weight:800;letter-spacing:.04em;color:var(--fucsia);text-decoration:none;margin-right:6px}
   a{color:inherit}
   .btn{display:inline-block;background:#111;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:600}
   .muted{color:#666;font-size:14px}
@@ -28,7 +35,7 @@ export function page(title, body, nav = true) {
   .link{background:none;border:0;color:#a00;text-decoration:underline;cursor:pointer;margin-top:16px;padding:0;font:inherit}
   code{background:#f1f1f1;padding:1px 4px;border-radius:4px}
   @media (max-width:700px){table{display:block;overflow-x:auto}.reg dl{grid-template-columns:1fr}}
-  .nav{display:flex;flex-wrap:wrap;gap:8px 16px;margin:0 0 20px;font-size:14px}.nav a{color:#666}.nav a[aria-current]{color:#111;font-weight:700}
+  .nav{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:14px}.nav a{color:#cfcfcf;text-decoration:none;padding:4px 0;border-bottom:2px solid transparent}.nav a:hover{color:#fff}.nav a[aria-current]{color:#fff;font-weight:700;border-color:var(--fucsia)}
   .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px}.tabs a{padding:6px 12px;border:1px solid #ddd;border-radius:999px;text-decoration:none;font-size:14px;background:#fff}.tabs a[aria-current]{background:#111;color:#fff;border-color:#111}
   .reg{background:#fff;border:1px solid #e5e5e5;border-radius:10px;margin-bottom:10px}
   .reg summary{display:flex;gap:12px;align-items:center;padding:12px 14px;cursor:pointer;flex-wrap:wrap}
@@ -51,7 +58,27 @@ export function page(title, body, nav = true) {
   .identidad{border-top:1px solid #eee;padding-top:10px;margin-top:6px}.identidad h3{font-size:16px;margin:0 0 8px}
   .miniaturas{display:flex;gap:10px;flex-wrap:wrap;margin:8px 0}
   .miniatura{margin:0;width:130px;font-size:12px}.miniatura img{width:130px;height:173px;object-fit:cover;border-radius:8px;background:#eee;display:block}
-</style></head><body><main>${nav ? `<nav class="nav">${NAV.map(([href, nombre]) => `<a href="${href}"${nombre === title ? ' aria-current="page"' : ''}>${nombre}</a>`).join('')}</nav>` : ''}<h1>${esc(title)}</h1>${body}</main></body></html>`;
+  .tiles div{border-radius:12px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:14px}
+  .card h2{margin:0 0 10px;font-size:18px}.card h3{margin:14px 0 6px;font-size:15px}
+  .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin:0 0 16px}
+  .kpis a,.kpis div{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px;text-decoration:none;display:block}
+  .kpis span{display:block;color:var(--soft);font-size:13px}.kpis b{font-size:24px;font-variant-numeric:tabular-nums}.kpis small{display:block;color:var(--soft);font-size:12px}
+  .cola{list-style:none;margin:0;padding:0}.cola li{display:flex;gap:10px;align-items:baseline;justify-content:space-between;padding:9px 0;border-top:1px solid #eee;flex-wrap:wrap}.cola li:first-child{border-top:0}
+  .cola a{font-weight:600}.cola .que{color:var(--fucsia-tinta);font-weight:600;font-size:14px}
+  .vacio{color:var(--soft);font-size:14px;margin:4px 0}
+  .estado-cfg{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px}.estado-cfg span{font-size:13px;padding:4px 10px;border-radius:999px;background:#fff;border:1px solid var(--line)}
+  .estado-cfg .bien::before{content:"● ";color:#17602f}.estado-cfg .falta::before{content:"● ";color:#b26b00}
+  .barras{list-style:none;margin:0;padding:0;display:grid;gap:6px}.barras li{display:grid;grid-template-columns:130px 1fr 44px;gap:8px;align-items:center;font-size:14px}
+  .barras i{display:block;height:12px;border-radius:6px;background:var(--fucsia);min-width:2px}.barras b{text-align:right;font-variant-numeric:tabular-nums}
+  .feed{list-style:none;margin:0;padding:0;font-size:14px}.feed li{padding:7px 0;border-top:1px solid #eee;display:grid;grid-template-columns:170px 1fr;gap:10px}.feed time{white-space:nowrap}.feed li:first-child{border-top:0}.feed time{color:var(--soft);font-size:12px}
+  .ficha dl{display:grid;grid-template-columns:150px 1fr;gap:4px 12px;margin:0;font-size:14px}.ficha dt{color:var(--soft)}.ficha dd{margin:0;overflow-wrap:anywhere}
+  .botones{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.botones a{display:inline-block;padding:7px 12px;border:1px solid #ccc;border-radius:8px;text-decoration:none;font-size:14px;background:#fff}.botones a.fuerte{background:var(--ink);color:#fff;border-color:var(--ink)}
+  table.lista-t td{text-align:left;white-space:normal}table.lista-t td.n,table.lista-t th.n{text-align:right;white-space:nowrap}
+  .si{color:#17602f;font-weight:700}.no-tiene{color:#999}
+  @media (max-width:820px){.grid2,.grid3{grid-template-columns:1fr}.ficha dl{grid-template-columns:1fr}.feed li{grid-template-columns:1fr}.barras li{grid-template-columns:100px 1fr 36px}}
+</style></head><body>${nav ? `<header class="barra"><div class="dentro"><a class="marca" href="/panel/">TATO STUDIO</a><nav class="nav" aria-label="Panel">${NAV.map(([href, nombre]) => `<a href="${href}"${nombre === (SECCION[title] || title) ? ' aria-current="page"' : ''}>${nombre}</a>`).join('')}</nav></div></header>` : ''}<main><h1>${esc(title)}</h1>${body}</main></body></html>`;
 }
 
 export function html(body, status = 200) {
