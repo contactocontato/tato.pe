@@ -15,6 +15,7 @@ interface Props {
 }
 const { title, description, image = '/poster/transformacion.jpg', theme = '#ffffff', menu = true, type = 'website', published } = Astro.props;
 const canonical = new URL(Astro.url.pathname, Astro.site ?? site.url);
+import Medicion from '../components/Medicion.astro';
 ---
 <!doctype html>
 <html lang="es-PE">
@@ -46,5 +47,6 @@ const canonical = new URL(Astro.url.pathname, Astro.site ?? site.url);
     <script src="../scripts/motion.ts"></script>
     <script src="../scripts/clips.ts"></script>
     <script src="../scripts/cart.ts"></script>
+    <Medicion />
   </body>
 </html>

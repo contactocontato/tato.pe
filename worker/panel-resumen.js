@@ -17,7 +17,7 @@ import { configCorreo } from './correo.js';
 import { configVerificacion, telefonoConfirmado } from './verificacion.js';
 import { bloqueIdentidad } from './panel-pedidos.js';
 import { paginaInicio } from './cuenta.js';
-import { paginaInicioNegocio, situacionNegocio, pagoPendiente } from './portal-negocio.js';
+import { paginaInicioNegocio, situacionNegocio, pagoPendiente, avancePerfil, OBJETIVOS, PRESUPUESTOS } from './portal-negocio.js';
 import { listarPublicaciones } from './publicaciones.js';
 import { respuesta } from './portal.js';
 
@@ -62,6 +62,7 @@ async function todosLosNegocios(env) {
 function estadoCreador(c) {
   const i = identidadDe(c);
   if (c.activa === false) return ['pausado', 'Cuenta pausada'];
+  if (!c.clave && c.invitacion) return ['gris', 'Invitación enviada'];
   if (i.estado === 'en-revision') return ['amarillo', 'Por revisar'];
   if (i.estado === 'rehacer') return ['gris', 'Rehaciendo'];
   if (i.estado === 'borrada') return ['gris', 'Borró su identidad'];
@@ -280,10 +281,31 @@ export async function handlePanelFichaNegocio(request, env, url) {
   <input name="nota" placeholder="Nota (opcional): qué revisaste" maxlength="300">
   <button class="ok" name="decision" value="aprobar">Aprobar</button><button class="no" name="decision" value="rechazar">No entra</button><button class="pausa" name="decision" value="pausar">Pausar</button></form>
 </section>
+${bloquePerfil(n)}
 <div class="kpis"><div><span>Pedidos</span><b>${pedidos.length}</b></div><div><span>En curso</span><b>${pedidos.filter((p) => ACTIVOS.includes(p.estado)).length}</b></div><div><span>Pagó</span><b>${soles(pagado)}</b></div><div><span>Por pagar ahora</span><b>${soles(porPagar)}</b></div></div>
 <section class="card"><h2>Sus pedidos</h2>${tablaPedidos(env, pedidos, cuentasPorId, aj, 'creador')}</section>
 ${n.historial?.length ? `<section class="card"><h2>Historial del registro</h2><ul class="feed">${n.historial.slice().reverse().map((h) => `<li><time>${esc(fecha(h.fecha))}</time><span>${esc(ETIQUETA_NEG[h.semaforo] || h.semaforo)} · ${esc(h.por)}${h.nota ? ` · ${esc(h.nota)}` : ''}</span></li>`).join('')}</ul></section>` : ''}`;
   return html(page('Ficha del negocio', body));
+}
+
+/** El perfil de marca que completó el negocio en su panel. */
+function bloquePerfil(n) {
+  const p = n.perfil || {};
+  const [h, t] = avancePerfil(p);
+  if (!h) return '<section class="card"><h2>Perfil de marca</h2><p class="vacio">Todavía no lo completa. Se lo pedimos en su panel.</p></section>';
+  const red = (v) => (v && v.startsWith('http') ? `<a href="${esc(v)}" target="_blank" rel="noopener noreferrer">${esc(v.replace(/^https?:\/\//, ''))}</a>` : esc(v || ''));
+  const filas = [
+    ['Colores', p.colores?.length ? p.colores.map((c) => `<span title="${esc(c)}" style="display:inline-block;width:22px;height:22px;border-radius:6px;border:1px solid #ccc;vertical-align:middle;margin-right:6px;background:${esc(c)}"></span>${esc(c)}`).join(' ') : ''],
+    ['Instagram', red(p.instagram)], ['TikTok', red(p.tiktok)], ['Facebook', red(p.facebook)], ['Web', red(p.web)],
+    ['Dirección', esc(p.direccion || '')], ['Horario', esc(p.horario || '')], ['Estrella', esc(p.estrella || '')],
+    ['A quién le vende', esc(p.publico || '')],
+    ['Quiere', (p.objetivos || []).map((k) => esc(OBJETIVOS.find(([x]) => x === k)?.[1] || k)).join(', ')],
+    ['Presupuesto al mes', esc(PRESUPUESTOS.find(([x]) => x === p.presupuesto)?.[1] || '')],
+  ].filter(([, v]) => v);
+  return `<section class="card ficha"><h2>Perfil de marca <span class="muted">(${h} de ${t})</span></h2>
+${p.logo ? `<p><img src="/panel/archivo?clave=${encodeURIComponent(p.logo)}" alt="Logo" style="max-width:140px;max-height:140px;background:#fff;border:1px solid #eee;border-radius:10px;padding:6px"> <a href="/panel/archivo?clave=${encodeURIComponent(p.logo)}&descargar=1">descargar</a></p>` : ''}
+<dl>${filas.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join('')}</dl>
+<p class="muted">Actualizado el ${esc(fecha(p.actualizado))}.</p></section>`;
 }
 
 export async function handlePanelFichaCreador(request, env, url) {

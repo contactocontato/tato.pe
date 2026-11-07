@@ -150,11 +150,21 @@ La web se publica como el Worker `tato-pe` (cuenta de Cloudflare de Tato). Cada 
 ## Correos, portal de negocios y resumen del panel
 
 - **Correos** (`worker/correo.js` y `worker/avisos.js`): códigos de 6 números para confirmar el correo (registro de creadores y de negocios), entrar al portal del negocio y recuperar la contraseña del creador; y avisos de cada paso del pedido al creador y al negocio. Los códigos vencen en 15 minutos, aceptan 5 intentos y hay un minuto de espera entre uno y otro. Sin el envío configurado, los formularios funcionan como antes (sin código) y el portal de negocios no deja entrar.
-- **Portal del negocio:** `https://tato.pe/negocio/` (`worker/portal-negocio.js`). Entra con un código a su correo verificado, sin contraseña. Ve sus negocios y su código `TS-XXXXX`, lo que le toca pagar (con el link de Mercado Pago, o el botón para pedirlo por WhatsApp), en qué va cada pedido, el guion aprobado y dónde se publicó el video. Los negocios que se registraron sin correo vuelven a registrarse con el mismo RUC y DNI para agregarlo.
+- **Panel del negocio:** `https://tato.pe/negocio/` (`worker/portal-negocio.js`). Un solo registro: al terminar `/influencers/registro/` con su correo confirmado, el negocio ya queda dentro de su panel. Después entra con un código a su correo, sin contraseña. Ve sus negocios y su código `TS-XXXXX`, lo que le toca pagar (con el link de Mercado Pago, o el botón para pedirlo por WhatsApp), en qué va cada pedido, el guion aprobado y dónde se publicó el video.
+- **Negocios registrados antes del panel:** no se registran de nuevo. Si dejaron correo, entran con un código a ese correo (y queda confirmado). Si no, entran con su RUC, el DNI y el WhatsApp que registraron, y ponen su correo una vez. El índice de correos se arma solo la primera vez (y en el cron).
+- **Perfil de marca** (`/negocio/perfil/`): logo, colores, redes, dirección y horario, productos estrella, a quién le vende, qué quiere lograr y cuánto invierte al mes. El panel del negocio muestra cuánto le falta. Tato lo ve en la ficha del negocio; el logo va en R2 (`negocios/<ruc>/`), privado.
+- **Creadores con convenio:** al crear su cuenta en `/panel/influencers/` pones su correo y le llega una invitación (link de 7 días) para elegir su contraseña; con eso su correo queda confirmado. Sin correo, sigue existiendo la contraseña temporal por WhatsApp. A las cuentas que ya existen les puedes mandar la invitación desde su fila.
 - **Resumen del panel:** `https://tato.pe/panel/` (`worker/panel-resumen.js`). Junta a los creadores y a los negocios: lo que te toca (creadores y negocios por revisar, pedidos que esperan algo de ti, cobros sin link), cifras del mes, pedidos por paso, actividad reciente y las listas de creadores y negocios. Cada uno tiene su ficha (`/panel/creador/?id=`, `/panel/negocio/?ruc=`) con sus pedidos, su dinero y el botón para ver su página tal como la ve él (sin poder tocar nada).
 - **Pruebas:** `worker/correo.test.mjs` usa un servicio de correo falso. Para el Worker en local, `.dev.vars` acepta `CORREO_API` apuntando a un servicio falso con la forma de la API de Resend.
 
 ## Antes de publicar
+
+### Medición con Microsoft Clarity
+
+1. Crea un proyecto en [clarity.microsoft.com](https://clarity.microsoft.com) para `tato.pe` y copia su ID (el código corto de la configuración).
+2. En Clarity → Settings → Masking, elige **Strict** (oculta todo el texto escrito y de los formularios).
+3. En Cloudflare → Worker `tato-pe` → Settings → Build → Variables de compilación, agrega `PUBLIC_CLARITY_ID` con ese ID y vuelve a publicar. No es secreto: va en la página.
+4. Clarity solo se carga si la persona acepta el aviso (`src/components/Medicion.astro`). No corre en `/cuenta`, `/negocio` ni `/panel`. En `/privacidad/` hay un botón para cambiar la elección.
 
 ### Correos (códigos y avisos)
 

@@ -12,7 +12,7 @@ import { site } from '../../lib/site';
         <h1 class="h1">Registra tu <span class="fx">negocio</span></h1>
         <p class="lead">Completa los datos de tu negocio y de la persona de contacto. Confirmas tu correo con un código y, si necesitamos revisar tu RUC o tus permisos, te escribimos al WhatsApp que registres.</p>
 
-        <form class="form" id="registro" method="post" action="/api/negocios/registro" novalidate>
+        <form class="form" id="registro" method="post" action="/api/negocios/registro" novalidate data-clarity-mask="true">
           <div class="field">
             <label for="ruc">RUC</label>
             <input id="ruc" name="ruc" inputmode="numeric" autocomplete="off" maxlength="11" pattern="(10|15|16|17|20)[0-9]{9}" required placeholder="20123456789">
@@ -52,7 +52,7 @@ import { site } from '../../lib/site';
           <div class="field">
             <label for="correo">Tu correo</label>
             <input id="correo" name="correo" type="email" autocomplete="email" maxlength="160" autocapitalize="none" spellcheck="false">
-            <small>Con él entras a tu portal en tato.pe/negocio y te avisamos de cada pedido.</small>
+            <small>Al terminar el registro entras con él a tu panel, donde sigues tus pedidos y pagos.</small>
           </div>
           <div class="field field--full correo-codigo" data-correo-codigo hidden>
             <p><strong>Confirma tu correo.</strong> Te mandamos un código de 6 números; vence en 15 minutos.</p>
@@ -171,7 +171,7 @@ import { site } from '../../lib/site';
       extra = `<p class="codigo">${esc(r.codigo)}</p><p>Guárdalo junto con tu RUC: con los dos pides videos desde el perfil de cada influencer.</p>`
         + (para ? `<a class="btn btn--fucsia" href="/influencers/${/^creador-[0-9a-f]{32}$/.test(para) ? 'perfil/' : ''}${esc(para)}/">Seguir con tu pedido</a>` : '<a class="btn btn--fucsia" href="/influencers/">Ver los influencers</a>');
     }
-    if (r.portal && r.semaforo !== 'rojo') extra += '<p>Sigue tus pedidos y pagos en <a class="link" href="/negocio/">tu portal de negocio</a>: entras con tu correo.</p>';
+    if (r.portal) extra += '<p>Ya tienes tu panel: ahí sigues tus pedidos y pagos. Cuando puedas, completa el perfil de tu marca (logo, colores, productos estrella y a quién le vendes) para que tus videos suenen a tu negocio.</p><p class="cta-row"><a class="btn btn--line" href="/negocio/perfil/">Completar el perfil de mi marca</a> <a class="btn btn--line" href="/negocio/">Ir a mi panel</a></p>';
     const motivos = (r.motivos || []).length ? `<ul>${(r.motivos || []).map((m) => `<li>${esc(m)}</li>`).join('')}</ul>` : '';
     resultado.className = `resultado resultado--${r.semaforo}`;
     resultado.innerHTML = `<h2>${titulos[r.semaforo] || 'Recibimos tus datos'}</h2><p>${esc(r.mensaje)}</p>${motivos}${extra}`;
@@ -187,4 +187,5 @@ import { site } from '../../lib/site';
   .correo-codigo[hidden] { display: none; }
   .correo-codigo .btn { justify-self: start; }
   .correo-estado:empty { display: none; }
+  :global(.cta-row) { display: flex; flex-wrap: wrap; gap: 10px; }
 </style>

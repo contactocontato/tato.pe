@@ -263,3 +263,107 @@ test('avisos: cada paso tiene su mensaje y la clave no se repite', () => {
   assert.equal(eventosPedido({ ...base, estado: 'guion', guion: { estado: 'pendiente', version: 2 } }).creador.clave, 'guion-2');
   assert.equal(eventosPedido({ ...base, estado: 'guion', guion: { estado: 'cambios', version: 2 } }).creador, null);
 });
+
+test('un solo registro: el negocio queda dentro; los antiguos entran sin volver a registrarse; perfil de marca', async () => {
+  envActual = entorno();
+  const env = envActual;
+  env.MEDIOS = new (class { constructor() { this.m = new Map(); } async put(k, v, op) { this.m.set(k, { v, op }); } async get(k) { const e = this.m.get(k); return e ? { body: e.v, size: e.v.length, httpMetadata: e.op?.httpMetadata } : null; } async delete(k) { this.m.delete(k); } async head(k) { return this.m.get(k) ? { size: 1 } : null; } })();
+  const limpiarEspera = () => { for (const k of [...env.PEDIDOS_KV.m.keys()].filter((x) => x.startsWith('limite:correo-pausa:'))) env.PEDIDOS_KV.m.delete(k); };
+
+  // 1. Registro nuevo: la respuesta ya trae la sesión del panel
+  const RUC = ruc('2060103003');
+  const token = crypto.randomUUID();
+  const correo = 'luis@polleria.pe';
+  const { desafio } = await (await handleCodigoCorreo(post('/api/correo/codigo', { correo, proposito: 'registro-negocio', token }), env)).json();
+  const res = await handleRegistro(post('/api/negocios/registro', {
+    ruc: RUC, nombreComercial: 'Pollería Luis', rubro: 'restaurante', promociona: 'El pollo a la brasa de los jueves',
+    contactoNombre: 'Luis Rojas', dni: '41234567', whatsapp: '987333444', correo, token, desafioCorreo: desafio, codigoCorreo: codigoDe(correo),
+    acepta: { real: true, etiquetas: true, uso: true, datos: true },
+  }), env);
+  assert.equal((await res.json()).portal, true);
+  const sesion = cookieDe(res);
+  assert.match(sesion, /^tato_negocio=/);
+  const panelNeg = await (await enNegocio(get('/negocio/', sesion))).text();
+  assert.match(panelNeg, /Completa el perfil de tu marca/);
+  assert.match(panelNeg, /Llevas 0 de 9/);
+
+  // 2. Perfil de marca y logo
+  const guardado = await enNegocio(post('/negocio/perfil', {
+    color1: '#E2037E', color2: '#141414', color3: '#ffffff', instagram: 'polleria.luis', tiktok: '', facebook: 'facebook.com/polleria', web: '',
+    direccion: 'Jr. San Martín 456, Huaraz', horario: 'Todos los días de 6 a 11 p. m.', estrella: 'Pollo a la brasa con papas nativas',
+    publico: 'Familias de Huaraz', objetivos: 'ventas', presupuesto: '300-800',
+  }, { json: false, cookie: sesion }));
+  assert.equal(guardado.status, 303);
+  const n = await env.NEGOCIOS_KV.get(`negocio:${RUC}`, 'json');
+  assert.deepEqual(n.perfil.colores, ['#e2037e', '#141414', '#ffffff']);
+  assert.equal(n.perfil.instagram, '@polleria.luis');
+  assert.equal(n.perfil.facebook, 'https://facebook.com/polleria');
+  assert.deepEqual(n.perfil.objetivos, ['ventas']);
+  assert.equal((await enNegocio(post('/negocio/perfil', { instagram: 'no es un link válido !!' }, { json: false, cookie: sesion }))).status, 400);
+  const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+  const fd = new FormData();
+  fd.set('logo', new File([png], 'logo.png', { type: 'image/png' }));
+  for (const [k, v] of Object.entries({ estrella: 'Pollo a la brasa con papas nativas', presupuesto: '300-800', objetivos: 'ventas', instagram: 'polleria.luis' })) fd.set(k, v);
+  const subida = await enNegocio(new Request(`${B}/negocio/perfil?ruc=${RUC}`, { method: 'POST', headers: { Origin: B, Cookie: sesion }, body: fd }));
+  assert.equal(subida.status, 303);
+  const conLogo = await env.NEGOCIOS_KV.get(`negocio:${RUC}`, 'json');
+  assert.match(conLogo.perfil.logo, new RegExp(`^negocios/${RUC}/logo-`));
+  assert.equal((await enNegocio(get(`/negocio/logo?ruc=${RUC}`, sesion))).status, 200);
+  const falso = new FormData();
+  falso.set('logo', new File([new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])], 'x.png', { type: 'image/png' }));
+  assert.equal((await enNegocio(new Request(`${B}/negocio/perfil?ruc=${RUC}`, { method: 'POST', headers: { Origin: B, Cookie: sesion }, body: falso }))).status, 400);
+  assert.equal((await env.NEGOCIOS_KV.get(`negocio:${RUC}`, 'json')).perfil.logo, conLogo.perfil.logo, 'un archivo falso no cambia el logo');
+  const ficha = await (await handlePanelFichaNegocio(new Request(`${B}/panel/negocio/?ruc=${RUC}`), env, new URL(`${B}/panel/negocio/?ruc=${RUC}`))).text();
+  assert.match(ficha, /Perfil de marca/);
+  assert.match(ficha, /S\/ 300 a S\/ 800/);
+
+  // 3. Negocio antiguo con correo sin confirmar: entra con un código a ese correo (sin índice todavía)
+  const RUC2 = ruc('2060103004');
+  await env.NEGOCIOS_KV.put(`negocio:${RUC2}`, JSON.stringify({ ruc: RUC2, semaforo: 'verde', codigo: 'TS-AAAAA', negocio: { nombreComercial: 'Bodega Antigua' }, contacto: { nombre: 'Rosa', dni: '40000001', whatsapp: '987000222', correo: 'Bodega@Antigua.pe' }, historial: [] }));
+  limpiarEspera();
+  const p1 = await (await enNegocio(post('/negocio/entrar', { paso: 'correo', correo: 'bodega@antigua.pe' }, { json: false, ip: '7.7.7.7' }))).text();
+  assert.ok(codigoDe('bodega@antigua.pe'), 'le llega el código a su correo guardado');
+  const dentro = await enNegocio(post('/negocio/entrar', { paso: 'codigo', correo: 'bodega@antigua.pe', desafio: valor(p1, 'desafio'), codigo: codigoDe('bodega@antigua.pe') }, { json: false }));
+  assert.equal(dentro.headers.get('Location'), '/negocio/');
+  assert.ok((await env.NEGOCIOS_KV.get(`negocio:${RUC2}`, 'json')).contacto.correoVerificado, 'su correo quedó confirmado');
+
+  // 4. Negocio antiguo sin correo: RUC + DNI + WhatsApp y luego su correo
+  const RUC3 = ruc('2060103005');
+  await env.NEGOCIOS_KV.put(`negocio:${RUC3}`, JSON.stringify({ ruc: RUC3, semaforo: 'amarillo', negocio: { nombreComercial: 'Juguería Sin Correo' }, contacto: { nombre: 'Pedro', dni: '40000002', whatsapp: '987000333', correo: '' }, historial: [] }));
+  const malo = await enNegocio(post('/negocio/entrar', { paso: 'ruc', ruc: RUC3, dni: '40000002', whatsapp: '999999999' }, { json: false }));
+  assert.equal(malo.status, 404);
+  const r1 = await (await enNegocio(post('/negocio/entrar', { paso: 'ruc', ruc: RUC3, dni: '40000002', whatsapp: '+51 987 000 333' }, { json: false }))).text();
+  const tok = valor(r1, 'token');
+  assert.ok(tok);
+  const r2 = await (await enNegocio(post('/negocio/entrar', { paso: 'reclamo-correo', token: tok, correo: 'pedro@jugueria.pe' }, { json: false, ip: '8.8.8.8' }))).text();
+  const r3 = await enNegocio(post('/negocio/entrar', { paso: 'reclamo-codigo', token: tok, correo: 'pedro@jugueria.pe', desafio: valor(r2, 'desafio'), codigo: codigoDe('pedro@jugueria.pe') }, { json: false }));
+  assert.equal(r3.headers.get('Location'), '/negocio/?m=bienvenida');
+  const sesion3 = cookieDe(r3);
+  assert.match(await (await enNegocio(get('/negocio/', sesion3))).text(), /Juguería Sin Correo|En revisión/);
+  assert.deepEqual(await env.NEGOCIOS_KV.get('correo-negocio:pedro@jugueria.pe', 'json'), [RUC3]);
+  assert.equal((await enNegocio(post('/negocio/entrar', { paso: 'ruc', ruc: RUC3, dni: '40000002', whatsapp: '987000333' }, { json: false }))).status, 409, 'después entra con su correo');
+});
+
+test('creador con convenio: invitación por correo, elige su contraseña y entra con su correo', async () => {
+  envActual = entorno();
+  const env = envActual;
+  const { handlePanelInfluencerAccion } = await import('./panel-pedidos.js');
+  const url = new URL(`${B}/panel/influencers/accion`);
+  const r = await handlePanelInfluencerAccion(new Request(url, {
+    method: 'POST', headers: { Origin: B, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ id: 'rosa-perez', accion: 'crear-invitar', correo: 'Rosa@Perez.pe', whatsapp: '987654321', porcentaje: '40', paq_0: 'Un video', prod_0: '80' }),
+  }), env, url);
+  assert.match(decodeURIComponent(r.headers.get('Location')).replace(/\+/g, ' '), /invitación a rosa@perez\.pe/);
+  const link = ultimo('rosa@perez.pe').texto.match(/\/cuenta\/invitacion\/\?t=([A-Za-z0-9_-]{32})/);
+  assert.ok(link);
+  const pagina = await (await enCuenta(get(`/cuenta/invitacion/?t=${link[1]}`))).text();
+  assert.match(pagina, /data-id="rosa-perez" data-correo="rosa@perez\.pe"/);
+  const lista = await enCuenta(post('/cuenta/invitacion/', {
+    t: link[1], nueva: await claveDelNavegador('rosa-perez', 'clave-de-rosa-1'), nuevaCorreo: await claveDelNavegador('rosa@perez.pe', 'clave-de-rosa-1'),
+  }, { json: false }));
+  assert.equal(lista.headers.get('Location'), '/cuenta/');
+  assert.ok(cookieDe(lista));
+  assert.equal((await enCuenta(get(`/cuenta/invitacion/?t=${link[1]}`))).status, 410, 'el link sirve una vez');
+  const entra = await enCuenta(post('/cuenta/entrar', { id: 'rosa@perez.pe', clave: await claveDelNavegador('rosa@perez.pe', 'clave-de-rosa-1') }, { json: false }));
+  assert.equal(entra.headers.get('Location'), '/cuenta/');
+});

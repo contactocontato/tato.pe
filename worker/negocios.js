@@ -15,7 +15,7 @@
 //   codigo:<código> el RUC al que pertenece un código de verificación
 //   ruc:<ruc>       la respuesta del servicio de RUC, guardada 24 horas para no pagar dos veces la misma consulta
 //   ip:<día>:<ip>   cuántos registros hizo una conexión hoy (se borra solo)
-//   correo-negocio:<correo>  los RUC registrados con ese correo verificado (para entrar a /negocio/)
+//   correo-negocio:<correo>  los RUC registrados con ese correo (para entrar a /negocio/ con un código)
 //   correo-ok:<token>        el correo que ya se confirmó con código en ese formulario (1 hora)
 //
 // Las reglas (rubros, actividades y palabras) están en src/data/negocios.json.
@@ -24,6 +24,7 @@ import reglas from '../src/data/negocios.json' with { type: 'json' };
 import { page, html, json, esc } from './ui.js';
 import { comprobarCodigoCorreo, configCorreo } from './correo.js';
 import { avisar, avisarTato } from './avisos.js';
+import { crearSesionNegocio } from './seguridad.js';
 
 const RUC_URL_POR_DEFECTO = 'https://api.decolecta.com/v1/sunat/ruc/full?numero={ruc}';
 const MAX_POR_IP_AL_DIA = 8;
@@ -422,17 +423,24 @@ export async function handleRegistro(request, env) {
   }
 
   const nombre = registro.sunat?.razonSocial || datos.negocio.nombreComercial || 'tu negocio';
-  return json({
+  // Un solo registro: con el correo confirmado, el negocio queda dentro de su panel (/negocio/).
+  const portal = Boolean(contacto.correoVerificado) && semaforo !== 'rojo';
+  const res = json({
     semaforo,
     codigo: semaforo === 'verde' ? codigo : null,
     razonSocial: registro.sunat?.razonSocial || '',
     mensaje: MENSAJES[semaforo](nombre, codigo),
     motivos,
-    portal: Boolean(contacto.correoVerificado),
+    portal,
   });
+  if (portal) res.headers.append('Set-Cookie', await crearSesionNegocio(env, request, contacto.correo));
+  return res;
 }
 
-/** Mantiene el índice correo → RUC para entrar a /negocio/. Solo cuenta el correo verificado. */
+/**
+ * Índice correo → RUC para entrar a /negocio/. Cuenta todo correo registrado, verificado o no:
+ * para entrar igual hace falta el código que llega a ese correo, y al usarlo el correo queda verificado.
+ */
 export async function indexarCorreo(env, r, correoAntes = '') {
   const quitar = async (correo) => {
     const k = `correo-negocio:${correo}`;
@@ -441,19 +449,84 @@ export async function indexarCorreo(env, r, correoAntes = '') {
     if (resto.length !== lista.length) await (resto.length ? env.NEGOCIOS_KV.put(k, JSON.stringify(resto)) : env.NEGOCIOS_KV.delete(k));
   };
   if (correoAntes && correoAntes !== r.contacto?.correo) await quitar(correoAntes);
-  if (r.contacto?.correo && r.contacto.correoVerificado) {
+  if (r.contacto?.correo) {
     const k = `correo-negocio:${r.contacto.correo}`;
     const lista = (await env.NEGOCIOS_KV.get(k, 'json')) || [];
     if (!lista.includes(r.ruc)) await env.NEGOCIOS_KV.put(k, JSON.stringify([...lista, r.ruc].slice(-20)));
   }
 }
 
-/** Los negocios de un correo verificado (para el portal /negocio/). */
-export async function negociosDeCorreo(env, correo) {
+/**
+ * Los negocios de un correo. Por defecto, solo los que ya lo confirmaron (los que se ven en el portal);
+ * con `todos`, también los que lo escribieron al registrarse y todavía no lo confirman.
+ */
+export async function negociosDeCorreo(env, correo, { todos = false } = {}) {
+  if (!correo) return [];
   const rucs = (await env.NEGOCIOS_KV.get(`correo-negocio:${correo}`, 'json')) || [];
   const regs = await Promise.all(rucs.map((ruc) => env.NEGOCIOS_KV.get(`negocio:${ruc}`, 'json')));
-  return regs.filter((r) => r && r.contacto?.correo === correo && r.contacto.correoVerificado);
+  return regs.filter((r) => r && r.contacto?.correo === correo && (todos || r.contacto.correoVerificado));
 }
+
+/** El negocio ya probó que el correo es suyo (con un código): todos sus registros con ese correo quedan verificados. */
+export async function confirmarCorreoNegocios(env, correo) {
+  const ahora = new Date().toISOString();
+  for (const r of await negociosDeCorreo(env, correo, { todos: true })) {
+    if (r.contacto.correoVerificado) continue;
+    r.contacto.correoVerificado = ahora;
+    r.historial = [...(r.historial || []).slice(-9), { fecha: ahora, semaforo: r.semaforo, por: 'portal', nota: 'Confirmó su correo al entrar a su panel.' }];
+    await guardar(env, r);
+  }
+}
+
+/**
+ * Para los negocios que se registraron sin correo: los encuentra con su RUC, el DNI y el WhatsApp
+ * del contacto tal como los registraron. Devuelve el registro o null.
+ */
+export async function negocioPorContacto(env, { ruc, dni, whatsapp }) {
+  const r = /^\d{11}$/.test(ruc || '') ? await env.NEGOCIOS_KV.get(`negocio:${ruc}`, 'json') : null;
+  const solo = (x) => String(x || '').replace(/\D/g, '').slice(-9);
+  if (!r || String(r.contacto?.dni || '') !== String(dni || '').trim() || solo(r.contacto?.whatsapp) !== solo(whatsapp)) return null;
+  return r;
+}
+
+/** Pone y verifica el correo de un negocio (después de un código) y lo indexa. */
+export async function ponerCorreoNegocio(env, r, correo) {
+  const antes = r.contacto?.correo || '';
+  const ahora = new Date().toISOString();
+  r.contacto = { ...r.contacto, correo, correoVerificado: ahora };
+  r.actualizado = ahora;
+  r.historial = [...(r.historial || []).slice(-9), { fecha: ahora, semaforo: r.semaforo, por: 'portal', nota: antes && antes !== correo ? `Cambió su correo; antes era ${antes}.` : 'Agregó y confirmó su correo.' }];
+  await guardar(env, r);
+  await indexarCorreo(env, r, antes);
+}
+
+/** Una sola vez: indexa el correo de los negocios registrados antes del portal. */
+export async function migrarIndiceCorreos(env) {
+  const marca = 'migracion:indice-correos:1';
+  if (await env.NEGOCIOS_KV.get(marca)) return 0;
+  let cursor;
+  let n = 0;
+  do {
+    const lote = await env.NEGOCIOS_KV.list({ prefix: 'negocio:', cursor });
+    for (const k of lote.keys) {
+      const r = await env.NEGOCIOS_KV.get(k.name, 'json');
+      if (r?.contacto?.correo) {
+        const limpio = String(r.contacto.correo).trim().toLowerCase();
+        if (limpio !== r.contacto.correo) {
+          r.contacto.correo = limpio;
+          await guardar(env, r);
+        }
+        await indexarCorreo(env, r);
+        n += 1;
+      }
+    }
+    cursor = lote.list_complete ? undefined : lote.cursor;
+  } while (cursor);
+  await env.NEGOCIOS_KV.put(marca, new Date().toISOString());
+  return n;
+}
+
+export const guardarNegocio = (env, r) => guardar(env, r);
 
 async function guardar(env, r) {
   await env.NEGOCIOS_KV.put(`negocio:${r.ruc}`, JSON.stringify(r), {
@@ -504,7 +577,7 @@ export async function handlePanelNegocios(request, env, url) {
         <b>${esc(s.razonSocial || r.negocio.nombreComercial || 'Sin nombre')}</b>
         <span class="muted">RUC ${esc(r.ruc)} · ${esc(fecha(r.actualizado))}${r.codigo ? ` · ${esc(r.codigo)}` : ''}</span></summary>
       <div class="cuerpo">
-        <p><a href="/panel/negocio/?ruc=${esc(r.ruc)}">Abrir su ficha: pedidos, pagos y su portal como lo ve →</a></p>
+        <p><a href="/panel/negocio/?ruc=${esc(r.ruc)}">Abrir su ficha: pedidos, pagos y su panel como lo ve →</a></p>
         ${r.motivos?.length ? `<ul>${r.motivos.map((m) => `<li>${esc(m)}</li>`).join('')}</ul>` : ''}
         ${r.notas?.length ? `<p class="muted">${r.notas.map(esc).join(' · ')}</p>` : ''}
         <dl>
@@ -565,7 +638,7 @@ export async function handleDecidir(request, env, url) {
   let avisado = false;
   if (r.contacto?.correoVerificado) {
     const textos = {
-      verde: { asunto: `${nombre} está verificado`, titulo: 'Tu negocio está verificado', parrafos: [`Tu código es ${r.codigo}. Con tu RUC y este código pides videos desde el perfil de cada influencer.`], ruta: '/negocio/', boton: 'Ir a mi portal' },
+      verde: { asunto: `${nombre} está verificado`, titulo: 'Tu negocio está verificado', parrafos: [`Tu código es ${r.codigo}. Con tu RUC y este código pides videos desde el perfil de cada influencer.`], ruta: '/negocio/', boton: 'Ir a mi panel' },
       rojo: { asunto: `Sobre el registro de ${nombre}`, titulo: 'No podemos tomar pedidos de tu negocio', parrafos: ['Revisamos tu registro y por ahora no podemos hacer videos con influencers para tu negocio.', ...(nota ? [nota] : [])] },
       pausado: { asunto: `El registro de ${nombre} está en pausa`, titulo: 'Tu registro está en pausa', parrafos: ['Te escribimos por WhatsApp para ver cómo seguir.', ...(nota ? [nota] : [])] },
     };

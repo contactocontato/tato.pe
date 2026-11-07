@@ -98,7 +98,7 @@ h3{font-size:1.05rem;margin:0 0 8px}
 .btn[disabled]{opacity:.6;cursor:wait}
 form{margin:0}
 label{display:block;font-weight:600;margin:14px 0 6px}
-input[type=text],input[type=password],input[type=url],input[type=date],input[type=number],select,textarea{width:100%;min-height:48px;padding:10px 13px;border:1.5px solid var(--line);border-radius:12px;background:#fff;color:var(--ink);font:inherit}
+input[type=text],input[type=password],input[type=url],input[type=email],input[type=tel],input[type=date],input[type=number],input:not([type]),select,textarea{width:100%;min-height:48px;padding:10px 13px;border:1.5px solid var(--line);border-radius:12px;background:#fff;color:var(--ink);font:inherit}
 textarea{min-height:96px;resize:vertical}
 input:focus,select:focus,textarea:focus{outline:2px solid var(--fucsia);outline-offset:1px;border-color:transparent}
 .acciones{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;align-items:center}
@@ -182,6 +182,15 @@ label.btn:focus-within{outline:2px solid var(--fucsia);outline-offset:3px}
 .pago-pendiente{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.pago-pendiente p{margin:4px 0 0}
 .hitos{margin:0;padding-left:20px;display:grid;gap:6px}
 .estudio-hero .btn.linea{color:#fff;border-color:rgba(255,255,255,.55);background:transparent}.estudio-hero .btn.linea:hover{border-color:#fff}
+.barra-avance{height:8px;border-radius:99px;background:var(--line);overflow:hidden;margin:10px 0}.barra-avance i{display:block;height:100%;background:var(--fucsia);border-radius:99px}
+.perfil-aviso{display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap;border-color:var(--fucsia)}.perfil-aviso>div{flex:1 1 320px}.perfil-aviso h2{margin:0 0 6px;font-size:1.25rem}.perfil-aviso p{margin:0}
+.perfil-form h2{font-size:1.2rem;margin:22px 0 4px}.perfil-form h2:first-child{margin-top:0}
+.perfil-form .dos{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+.perfil-form fieldset{border:0;padding:0;margin:14px 0 4px}.perfil-form legend{font-weight:700;margin-bottom:8px}
+.colores>div{display:flex;gap:10px;margin-bottom:8px}.colores input[type=color]{width:56px;height:44px;padding:2px;border:1px solid var(--line);border-radius:10px;background:#fff;cursor:pointer}
+.opciones{display:flex;flex-wrap:wrap;gap:8px 18px}.check{display:inline-flex;gap:8px;align-items:center;font-weight:400;margin:0}
+.logo-form{display:flex;gap:18px;align-items:center;flex-wrap:wrap}.logo-actual{width:110px;height:110px;border-radius:14px;border:1px dashed var(--line);display:grid;place-items:center;background:#fff;overflow:hidden;color:var(--soft);font-size:13px}.logo-actual img{max-width:100%;max-height:100%;object-fit:contain}
+@media(max-width:600px){.perfil-form .dos{grid-template-columns:1fr}}
 .vista-tato{position:sticky;top:0;z-index:9;background:var(--ink);color:#fff;padding:10px clamp(16px,4vw,32px);font:600 14px/1.4 var(--sans);display:flex;gap:12px;flex-wrap:wrap;justify-content:space-between}
 .vista-tato a{color:#fff}
 @media(max-width:880px){.avance{grid-template-columns:1fr 1fr}}

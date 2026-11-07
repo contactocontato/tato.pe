@@ -38,7 +38,7 @@ import { cuentas, soles } from '../../../worker/pedidos.js';
     <div>
       <h2 class="h2" id="postular-t">Regístrate como <span class="fx">influencer</span></h2>
       <p class="lead">Crea tu acceso y escribe cómo quieres aparecer en el catálogo. Todos los campos son obligatorios.</p>
-      <form class="form alta-form" id="postulacion" method="post" action="/api/influencers/alta" data-verificacion="alta">
+      <form class="form alta-form" id="postulacion" method="post" action="/api/influencers/alta" data-verificacion="alta" data-clarity-mask="true">
         <input type="hidden" name="version" value={planes.version}>
         <input type="hidden" name="token">
         <div class="alta-etapa field--full"><span>01</span><div><h3>Tu perfil público</h3><p>Así te encontrarán las marcas en el catálogo.</p></div></div>

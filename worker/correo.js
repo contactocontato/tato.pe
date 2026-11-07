@@ -101,7 +101,7 @@ function codigoAlAzar() {
 const ASUNTOS = {
   'alta-creador': ['Confirma tu correo', 'Escribe este código en tato.pe para crear tu cuenta de creador.'],
   'registro-negocio': ['Confirma el correo de tu negocio', 'Escribe este código en tato.pe para terminar el registro de tu negocio.'],
-  'entrar-negocio': ['Tu código para entrar', 'Escribe este código en tato.pe/negocio para entrar al portal de tu negocio.'],
+  'entrar-negocio': ['Tu código para entrar', 'Escribe este código en tato.pe/negocio para entrar al panel de tu negocio.'],
   'recuperar-creador': ['Cambia tu contraseña', 'Escribe este código en tato.pe/cuenta para crear una contraseña nueva.'],
   'correo-creador': ['Confirma tu correo', 'Escribe este código en tu cuenta de tato.pe para guardar este correo.'],
 };

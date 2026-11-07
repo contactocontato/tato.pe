@@ -79,7 +79,7 @@ const fecha = (x: Date) => x.toLocaleDateString('es-PE', { day: 'numeric', month
       <h2 class="h3" id="solicitud-t">Pide tu video con {d.nombre}</h2>
       <button type="button" class="solicitud__x" data-cerrar aria-label="Cerrar">×</button>
     </div>
-    <form class="form" id="solicitud-form" novalidate>
+    <form class="form" id="solicitud-form" novalidate data-clarity-mask="true">
       <div class="field field--full">
         <label for="s-paquete">Paquete</label>
         <select id="s-paquete" name="paquete">

@@ -65,7 +65,7 @@ export function eventosPedido(p) {
     case 'adelanto':
       negocio = { clave: `adelanto:${link('adelanto')}`, asunto: `${inf} aceptó tu pedido ${p.id}`, titulo: `${inf} aceptó tu pedido`,
         parrafos: [link('adelanto')
-          ? `Para empezar, paga el adelanto de producción (${soles(adelanto)}) desde tu portal.`
+          ? `Para empezar, paga el adelanto de producción (${soles(adelanto)}) desde tu panel.`
           : `Para empezar, falta el adelanto de producción (${soles(adelanto)}). Te escribimos por WhatsApp con el link para pagarlo.`] };
       break;
     case 'guion':
@@ -78,7 +78,7 @@ export function eventosPedido(p) {
     case 'saldo':
       negocio = { clave: `saldo:${link('saldo')}`, asunto: `Tu video ${p.id} está listo`, titulo: 'Tu video está listo',
         parrafos: [link('saldo')
-          ? `Paga el saldo (${soles(saldo)}) desde tu portal y te lo entregamos.`
+          ? `Paga el saldo (${soles(saldo)}) desde tu panel y te lo entregamos.`
           : `Falta el saldo (${soles(saldo)}). Te escribimos por WhatsApp con el link para pagarlo.`] };
       break;
     case 'entrega':

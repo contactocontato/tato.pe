@@ -31,7 +31,7 @@
 // Almacenamiento: KV con el binding TIKTOK_KV (tokens y estados temporales del login).
 
 import { page, html, json, esc } from './ui.js';
-import { handleRegistro, handlePanelNegocios, handleDecidir, revisarRucs } from './negocios.js';
+import { handleRegistro, handlePanelNegocios, handleDecidir, revisarRucs, migrarIndiceCorreos } from './negocios.js';
 import { handlePedidoNuevo, handleEstadoInfluencer, handleWebhook, renovarConexiones, limpiarActuaciones } from './pedidos.js';
 import { handleCuenta, handleMpConectado } from './cuenta.js';
 import { handlePostulacion, handlePanelPostulaciones } from './postulaciones.js';
@@ -125,6 +125,12 @@ export default {
       if (tokens && Date.now() <= tokens.refresh_expires_at) await refreshTokens(env, tokens);
     } catch (err) {
       console.error('TikTok: no se pudo renovar el token', err);
+    }
+    try {
+      const n = await migrarIndiceCorreos(env);
+      if (n) console.log(`Negocios: ${n} correos indexados para el portal`);
+    } catch (err) {
+      console.error('Negocios: no se pudo indexar los correos', err);
     }
     try {
       const r = await revisarRucs(env);

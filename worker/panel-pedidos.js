@@ -5,10 +5,11 @@
 // Usa el mismo acceso que el resto del panel (usuario «tato» + PANEL_PASSWORD).
 
 import { page, html, esc } from './ui.js';
-import { SCRIPT_CLAVE, formatoClave, cifrarClave, cerrarSesionesDe } from './seguridad.js';
+import { SCRIPT_CLAVE, formatoClave, cifrarClave, cerrarSesionesDe, aleatorio } from './seguridad.js';
+import { configCorreo, correoValido } from './correo.js';
 import {
   leerPedido, listarPedidos, metasPedidos, accionTato, cuentasDe, cuentas, metodoSaldo, ajustes, guardarAjustes,
-  catalogo, leerCuenta, guardarCuenta, idValido, ESTADOS, ACTIVOS, turno, soles, r2, identidadDe, correoDe,
+  catalogo, leerCuenta, guardarCuenta, idValido, ESTADOS, ACTIVOS, turno, soles, r2, identidadDe, correoDe, idPorCorreo,
 } from './pedidos.js';
 import { mpListo, REDIRECCION } from './mercadopago.js';
 import { servirArchivo } from './medios.js';
@@ -236,6 +237,25 @@ export function bloqueIdentidad(cuenta, i, enFicha = false) {
     ${(i.historial || []).length ? `<details><summary class="muted">Historial de su identidad</summary><ol class="muted">${i.historial.map((h) => `<li>${esc(fecha(h.fecha))}: ${esc(h.que)}</li>`).join('')}</ol></details>` : ''}</div>`;
 }
 
+/**
+ * Invitación por correo: un link de 7 días para que el creador elija su contraseña (/cuenta/invitacion/).
+ * Usar el link prueba que el correo es suyo, así que queda verificado. Guarda la invitación en la cuenta
+ * (no guarda la cuenta). Devuelve true si el correo salió.
+ */
+export async function mandarInvitacion(env, cuenta, correo) {
+  const token = aleatorio(24);
+  await env.PEDIDOS_KV.put(`invitacion:${token}`, JSON.stringify({ id: cuenta.id, correo }), { expirationTtl: 7 * 86400 });
+  if (cuenta.invitacion?.token) await env.PEDIDOS_KV.delete(`invitacion:${cuenta.invitacion.token}`);
+  cuenta.invitacion = { token, correo, enviada: new Date().toISOString() };
+  return avisar(env, correo, {
+    asunto: 'Tato Studio te invita a tu cuenta de creador',
+    titulo: `Hola, ${cuenta.nombre.split(' ')[0]}: tu cuenta está lista`,
+    parrafos: ['Elige tu contraseña con este link y entra a tu cuenta. Ahí ves las solicitudes de los negocios, apruebas cada guion y cada video, y ves tus pagos.', 'El link vence en 7 días. Desde ahora entras con este correo.'],
+    ruta: `/cuenta/invitacion/?t=${token}`,
+    boton: 'Elegir mi contraseña',
+  });
+}
+
 /** Aprueba la identidad o pide que rehaga algo, y se lo avisa por correo al creador (si tiene correo verificado). */
 export async function decidirYAvisar(env, cuenta, accion, opciones) {
   const r = await decidirIdentidad(env, cuenta.id, accion, opciones);
@@ -257,13 +277,14 @@ export async function decidirYAvisar(env, cuenta, accion, opciones) {
 /** /panel/archivo?clave=…: fotos, voz y actuaciones guardadas en R2 (solo con la contraseña del panel). */
 export async function handlePanelArchivo(request, env, url) {
   const clave = url.searchParams.get('clave') || '';
-  if (!/^(identidad|pedidos)\/[A-Za-z0-9-]+\/[A-Za-z0-9.-]+$/.test(clave)) return new Response('No encontrado', { status: 404 });
+  if (!/^(identidad|pedidos|negocios)\/[A-Za-z0-9-]+\/[A-Za-z0-9.-]+$/.test(clave)) return new Response('No encontrado', { status: 404 });
   const descarga = url.searchParams.get('descargar') === '1' ? clave.replace(/\//g, '-') : '';
   return servirArchivo(env, request, clave, { descarga });
 }
 
 export async function handlePanelInfluencers(request, env, url) {
   const [cat, aj] = await Promise.all([catalogo(env), ajustes(env)]);
+  const conCorreo = configCorreo(env).listo;
   const cuentasKV = [];
   let cursor;
   do {
@@ -284,9 +305,13 @@ export async function handlePanelInfluencers(request, env, url) {
     const nombre = inf?.nombre || cuenta?.nombre || id;
     if (!cuenta) {
       filas.push(`<details class="reg"><summary><span class="badge b-gris">Sin cuenta</span><b>${esc(nombre)}</b><span class="muted">ID ${esc(id)}</span></summary><div class="cuerpo">
-        <p>Crea su cuenta cuando el convenio esté firmado. Genera la contraseña temporal, mándasela por WhatsApp y luego crea la cuenta. Al entrar, le pide cambiarla.</p>
+        <p>Crea su cuenta cuando el convenio esté firmado.${conCorreo ? ' Pon su correo: le llega una invitación para elegir su contraseña y entrar. No tienes que mandarle nada más.' : ''}</p>
+        ${conCorreo ? `<form method="post" action="/panel/influencers/accion" class="acciones cuenta"><input type="hidden" name="id" value="${esc(id)}"><input type="hidden" name="accion" value="crear-invitar">
+          <label class="muted">Su correo<input name="correo" type="email" required maxlength="160" placeholder="correo@ejemplo.com"></label>
+          ${camposCuenta(inf, null, aj)}<button class="ok">Crear cuenta e invitar</button></form>
+        <details><summary class="muted">No tiene correo: crear con contraseña temporal por WhatsApp</summary>` : ''}
         <form method="post" action="/panel/influencers/accion" class="acciones cuenta" data-clave data-id="${esc(id)}"><input type="hidden" name="id" value="${esc(id)}"><input type="hidden" name="accion" value="crear">
-          ${camposCuenta(inf, null, aj)}${camposClave(id, nombre, '')}<button class="ok">Crear cuenta</button></form></div></details>`);
+          ${camposCuenta(inf, null, aj)}${camposClave(id, nombre, '')}<button class="ok">Crear cuenta</button></form>${conCorreo ? '</details>' : ''}</div></details>`);
       continue;
     }
     const ident = identidadDe(cuenta);
@@ -301,6 +326,10 @@ export async function handlePanelInfluencers(request, env, url) {
       <span class="muted">ID ${esc(id)} · ${telefonoConfirmado(cuenta) ? 'WhatsApp verificado' : 'WhatsApp sin verificar'} · ${cuenta.mp?.accessToken ? `Mercado Pago: ${esc(cuenta.mp.nombre || cuenta.mp.userId)}` : 'sin Mercado Pago'} · ${cuenta.ultimoIngreso ? `entró ${esc(fecha(cuenta.ultimoIngreso))}` : 'no entra todavía'}${cuenta.alta ? ' · registro en línea' : inf ? '' : ' · ya no está en el catálogo'}</span></summary>
       <div class="cuerpo">
         <p><a href="/panel/creador/?id=${esc(id)}">Abrir su ficha: pedidos, ganancias y su cuenta como la ve →</a></p>
+        ${conCorreo && !correoDe(cuenta) ? `<form method="post" action="/panel/influencers/accion" class="acciones cuenta"><input type="hidden" name="id" value="${esc(id)}"><input type="hidden" name="accion" value="invitar">
+          <label class="muted">Su correo<input name="correo" type="email" required maxlength="160" value="${esc(cuenta.invitacion?.correo || cuenta.correo || '')}"></label>
+          <button class="pausa">${cuenta.invitacion ? 'Reenviar la invitación' : 'Mandarle una invitación por correo'}</button>
+          <span class="muted">${cuenta.invitacion ? `Enviada el ${esc(fecha(cuenta.invitacion.enviada))}. ` : ''}Con el link elige su contraseña y desde ahí entra con su correo.</span></form>` : ''}
         <form method="post" action="/panel/influencers/accion" class="acciones cuenta"><input type="hidden" name="id" value="${esc(id)}"><input type="hidden" name="accion" value="editar">
           ${camposCuenta(inf, cuenta, aj)}
           <label class="muted"><input type="checkbox" name="activa" value="1"${cuenta.activa === false ? '' : ' checked'}> Cuenta activa</label>
@@ -373,6 +402,32 @@ export async function handlePanelInfluencerAccion(request, env, url) {
       };
       await guardarCuenta(env, cuenta);
       return fin({ msg: `Cuenta de ${inf.nombre} creada. Su ID es ${id}; al entrar le pide cambiar la contraseña temporal.` });
+    }
+    case 'crear-invitar': {
+      if (cuenta) return fin({ err: `${id} ya tiene cuenta.` });
+      if (!inf) return fin({ err: 'Ese influencer no está publicado en el catálogo.' });
+      const campos = leerCampos();
+      if (campos.error) return fin({ err: campos.error });
+      const correo = correoValido(f.get('correo'));
+      if (!correo) return fin({ err: 'Revisa su correo.' });
+      if (await idPorCorreo(env, correo)) return fin({ err: 'Ese correo ya es de otra cuenta.' });
+      cuenta = {
+        id, nombre: inf.nombre, usuario: inf.usuario, whatsapp: campos.whatsapp, porcentajeTato: campos.porcentaje, produccion: campos.produccion,
+        clave: null, cambiarClave: false, activa: true, aceptaPedidos: true, creada: new Date().toISOString(),
+      };
+      const ok = await mandarInvitacion(env, cuenta, correo);
+      await guardarCuenta(env, cuenta);
+      return fin(ok ? { msg: `Cuenta de ${inf.nombre} creada. Le mandamos la invitación a ${correo}: con el link elige su contraseña.` } : { err: `Cuenta creada, pero no se pudo mandar el correo a ${correo}. Revisa el correo y reenvía la invitación.` });
+    }
+    case 'invitar': {
+      if (!cuenta) return fin({ err: 'Esa cuenta no existe.' });
+      const correo = correoValido(f.get('correo'));
+      if (!correo) return fin({ err: 'Revisa su correo.' });
+      const otro = await idPorCorreo(env, correo);
+      if (otro && otro !== id) return fin({ err: 'Ese correo ya es de otra cuenta.' });
+      const ok = await mandarInvitacion(env, cuenta, correo);
+      await guardarCuenta(env, cuenta);
+      return fin(ok ? { msg: `Le mandamos la invitación a ${correo}.` } : { err: `No se pudo mandar el correo a ${correo}. Revísalo e inténtalo otra vez.` });
     }
     case 'editar': {
       if (!cuenta) return fin({ err: 'Esa cuenta no existe.' });

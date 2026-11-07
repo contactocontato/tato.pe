@@ -257,7 +257,6 @@ export async function paginaInicio(env, cuenta, { aviso, error, vista = null }) 
   const conCorreo = configCorreo(env).listo;
   const enRevision = identidad.estado === 'en-revision';
   const pendientes = [
-    !correoDe(cuenta) && conCorreo ? ['Verifica tu correo para recibir los avisos de tus pedidos.', '/cuenta/correo/', 'Verificar correo'] : null,
     !cuenta.mp?.accessToken && mpListo(env) ? ['Conecta tu Mercado Pago para cobrar tu parte al instante.', '#ganancias', 'Ver cómo'] : null,
   ].filter(Boolean);
   const telefono = cuenta.whatsapp || '';
@@ -474,6 +473,7 @@ export async function handleCuenta(request, env, url, path) {
   if (path === '/cuenta/entrar' && post) return entrar(request, env);
   if (path === '/cuenta/salir' && post) return ir('/cuenta/', await cerrarSesion(env, request));
   if (path === '/cuenta/recuperar') return recuperar(request, env, post);
+  if (path === '/cuenta/invitacion') return invitacion(request, env, url, post);
 
   const sesion = await leerSesion(env, request);
   const cuenta = sesion ? await leerCuenta(env, sesion.id) : null;
@@ -649,6 +649,49 @@ async function entrar(request, env) {
   cuenta.ultimoIngreso = new Date().toISOString();
   await guardarCuenta(env, cuenta);
   return ir('/cuenta/', await crearSesion(env, request, id));
+}
+
+/** /cuenta/invitacion/?t=: el creador elige su contraseña con el link que le mandó Tato. Su correo queda verificado. */
+async function invitacion(request, env, url, post) {
+  const f = post ? await request.formData() : null;
+  const token = String((f ? f.get('t') : url.searchParams.get('t')) || '');
+  const datos = /^[A-Za-z0-9_-]{32}$/.test(token) ? await env.PEDIDOS_KV.get(`invitacion:${token}`, 'json') : null;
+  const cuenta = datos ? await leerCuenta(env, datos.id) : null;
+  if (!datos || !cuenta || cuenta.invitacion?.token !== token) {
+    return respuesta(pagina({ titulo: 'Invitación', cuerpo: `<h1>Este link ya no sirve</h1><p class="sub">Venció o ya lo usaste. Si ya elegiste tu contraseña, <a href="/cuenta/">entra con tu correo</a>. Si no, pídele a Tato que te mande otra invitación.</p>` }), 410);
+  }
+  const form = (error = '') => pagina({
+    titulo: 'Elige tu contraseña',
+    error,
+    cuerpo: `<h1>Hola, <span class="fx">${esc(cuenta.nombre.split(' ')[0])}</span></h1>
+<p class="sub">Elige tu contraseña para entrar a tu cuenta de creador. Desde ahora entras con ${esc(datos.correo)}.</p>
+<form class="caja" method="post" action="/cuenta/invitacion/" data-clave data-id="${esc(cuenta.id)}" data-correo="${esc(datos.correo)}">
+  <input type="hidden" name="t" value="${esc(token)}">
+  <label for="nueva">Tu contraseña</label>
+  <input id="nueva" type="password" autocomplete="new-password" required data-hash="nueva" data-hash-correo="nuevaCorreo" data-min="8" data-repetir="repetir"><input type="hidden" name="nueva"><input type="hidden" name="nuevaCorreo">
+  <label for="repetir">Repite tu contraseña</label>
+  <input id="repetir" type="password" autocomplete="new-password" required>
+  <p class="nota">Al menos 8 caracteres. Que no sea la misma de otras cuentas.</p>
+  <p class="aviso err" data-aviso-clave hidden></p>
+  <div class="acciones"><button class="btn fucsia" type="submit">Guardar y entrar</button></div>
+</form>`,
+  });
+  if (!post) return respuesta(form());
+  const nueva = String(f.get('nueva') || '');
+  const nuevaCorreo = String(f.get('nuevaCorreo') || '');
+  if (!formatoClave(nueva) || !formatoClave(nuevaCorreo)) return respuesta(form('Escribe tu contraseña.'), 400);
+  const otro = await idPorCorreo(env, datos.correo);
+  if (otro && otro !== cuenta.id) return respuesta(form('Ese correo ya es de otra cuenta. Pídele a Tato que revise tu invitación.'), 409);
+  cuenta.clave = await cifrarClave(nueva);
+  await ponerCorreo(env, cuenta, datos.correo, await cifrarClave(nuevaCorreo));
+  cuenta.cambiarClave = false;
+  cuenta.claveCambiada = new Date().toISOString();
+  cuenta.ultimoIngreso = cuenta.claveCambiada;
+  delete cuenta.invitacion;
+  await env.PEDIDOS_KV.delete(`invitacion:${token}`);
+  await guardarCuenta(env, cuenta);
+  await cerrarSesionesDe(env, cuenta.id);
+  return ir('/cuenta/', await crearSesion(env, request, cuenta.id));
 }
 
 /** /cuenta/recuperar: correo → código → contraseña nueva. No revela si un correo tiene cuenta. */

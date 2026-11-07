@@ -16,6 +16,7 @@ interface Props {
 const { title, description, image = '/poster/transformacion.jpg', actual, noindex = false } = Astro.props;
 const canonical = new URL(Astro.url.pathname, Astro.site ?? site.url);
 const wa = `https://wa.me/${site.whatsappNumber}`;
+import Medicion from '../components/Medicion.astro';
 ---
 <!doctype html>
 <html lang="es-PE">
@@ -74,5 +75,6 @@ const wa = `https://wa.me/${site.whatsappNumber}`;
     <p class="foot__legal">Hecho en Huaraz, Perú. Los videos de los influencers están hechos con IA, con su permiso, y cada uno aprueba sus guiones.</p>
   </div>
 </footer>
+<Medicion />
 </body>
 </html>

@@ -1,0 +1,74 @@
+---
+/**
+ * Medición con Microsoft Clarity, solo si la persona acepta.
+ * - Sin ID de proyecto (site.clarity) no se muestra nada ni se carga nada.
+ * - La elección queda en este navegador (localStorage «tato-medicion»: «si» o «no»).
+ * - Clarity oculta lo que se escribe en los formularios; además los formularios con datos personales
+ *   llevan data-clarity-mask. Las páginas de /cuenta, /negocio y /panel no pasan por aquí: no se miden.
+ * - Cualquier botón con [data-medicion-abrir] (por ejemplo en /privacidad/) vuelve a mostrar el aviso.
+ */
+import { site } from '../lib/site';
+const id = /^[a-z0-9]{6,20}$/i.test(site.clarity) ? site.clarity : '';
+---
+{id && (
+  <div class="medicion" data-medicion data-clarity-id={id} role="dialog" aria-live="polite" aria-label="Medición de la web" hidden>
+    <p><b>¿Nos ayudas a mejorar la web?</b> Con tu permiso usamos Microsoft Clarity para ver qué partes se entienden y cuáles no. Guarda cookies y no graba lo que escribes en los formularios. <a href="/privacidad/#medicion">Más detalles</a>.</p>
+    <div class="medicion__botones">
+      <button type="button" class="medicion__si" data-medicion-respuesta="si">Sí, acepto</button>
+      <button type="button" class="medicion__no" data-medicion-respuesta="no">No, gracias</button>
+    </div>
+  </div>
+)}
+{id && (
+  <script is:inline>
+    (() => {
+      const caja = document.querySelector('[data-medicion]');
+      if (!caja) return;
+      const id = caja.dataset.clarityId;
+      const leer = () => { try { return localStorage.getItem('tato-medicion'); } catch (e) { return null; } };
+      const guardar = (v) => { try { localStorage.setItem('tato-medicion', v); } catch (e) { /* sin almacenamiento: se vuelve a preguntar */ } };
+      const cargar = () => {
+        if (window.clarity) return;
+        (function (c, l, a, r, i, t, y) {
+          c[a] = c[a] || function () { (c[a].q = c[a].q || []).push(arguments); };
+          t = l.createElement(r); t.async = 1; t.src = 'https://www.clarity.ms/tag/' + i;
+          y = l.getElementsByTagName(r)[0]; y.parentNode.insertBefore(t, y);
+        })(window, document, 'clarity', 'script', id);
+        window.clarity('consentv2', { ad_Storage: 'denied', analytics_Storage: 'granted' });
+      };
+      const respuesta = leer();
+      if (respuesta === 'si') cargar();
+      else if (respuesta !== 'no') caja.hidden = false;
+      caja.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-medicion-respuesta]');
+        if (!b) return;
+        const v = b.dataset.medicionRespuesta;
+        const antes = leer();
+        guardar(v);
+        caja.hidden = true;
+        if (v === 'si') cargar();
+        else if (antes === 'si' && window.clarity) {
+          // Retira el permiso: Clarity borra sus cookies y deja de medir.
+          window.clarity('consentv2', { ad_Storage: 'denied', analytics_Storage: 'denied' });
+          window.clarity('consent', false);
+        }
+      });
+      document.addEventListener('click', (e) => {
+        if (e.target.closest('[data-medicion-abrir]')) { caja.hidden = false; caja.querySelector('button').focus(); }
+      });
+    })();
+  </script>
+)}
+<style is:global>
+  .medicion { position: fixed; z-index: 60; left: 12px; right: 12px; bottom: 12px; max-width: 560px; margin-inline: auto;
+    background: #141414; color: #fff; border-radius: 16px; padding: 14px 16px; box-shadow: 0 10px 30px rgba(0,0,0,.25);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; display: grid; gap: 10px; }
+  .medicion[hidden] { display: none; }
+  .medicion p { margin: 0; }
+  .medicion a { color: #ff87c8; }
+  .medicion__botones { display: flex; gap: 8px; flex-wrap: wrap; }
+  .medicion button { font: inherit; font-weight: 700; border-radius: 999px; padding: 9px 16px; cursor: pointer; min-height: 44px; }
+  .medicion__si { background: #E2037E; color: #fff; border: 0; }
+  .medicion__no { background: transparent; color: #fff; border: 1.5px solid rgba(255,255,255,.6); }
+  .medicion button:focus-visible { outline: 2px solid #ff87c8; outline-offset: 2px; }
+</style>
