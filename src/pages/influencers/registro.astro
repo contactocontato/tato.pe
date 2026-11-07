@@ -163,15 +163,23 @@ import { site } from '../../lib/site';
     }
   });
 
-  function mostrar(r: { semaforo: string; codigo?: string; razonSocial?: string; mensaje: string; motivos?: string[]; portal?: boolean }, ruc: string) {
+  function mostrar(r: { semaforo: string; codigo?: string; razonSocial?: string; mensaje: string; motivos?: string[]; portal?: boolean; acceso?: string | null; tieneUsuario?: boolean }, ruc: string) {
     const titulos: Record<string, string> = { verde: 'Tu negocio está verificado', amarillo: 'Lo revisamos y te escribimos', rojo: 'No podemos tomar tu pedido' };
     let extra = '';
+    // Después de registrarse, el pedido se arma en su panel: /negocio/pedir/<influencer>/
+    const destino = r.semaforo === 'verde' && para ? `/negocio/pedir/${encodeURIComponent(para)}/` : '/negocio/';
     if (r.semaforo === 'verde' && r.codigo) {
       try { localStorage.setItem('tato-negocio', JSON.stringify({ codigo: r.codigo, razonSocial: r.razonSocial || '', ruc })); } catch (e) { /* sin almacenamiento: igual tiene el código en pantalla */ }
-      extra = `<p class="codigo">${esc(r.codigo)}</p><p>Guárdalo junto con tu RUC: con los dos pides videos desde el perfil de cada influencer.</p>`
-        + (para ? `<a class="btn btn--fucsia" href="/influencers/${/^creador-[0-9a-f]{32}$/.test(para) ? 'perfil/' : ''}${esc(para)}/">Seguir con tu pedido</a>` : '<a class="btn btn--fucsia" href="/influencers/">Ver los influencers</a>');
+      extra = `<p class="codigo">${esc(r.codigo)}</p><p>Es el código de tu negocio verificado.</p>`;
     }
-    if (r.portal) extra += '<p>Ya tienes tu panel: ahí sigues tus pedidos y pagos. Cuando puedas, completa el perfil de tu marca (logo, colores, productos estrella y a quién le vendes) para que tus videos suenen a tu negocio.</p><p class="cta-row"><a class="btn btn--line" href="/negocio/perfil/">Completar el perfil de mi marca</a> <a class="btn btn--line" href="/negocio/">Ir a mi panel</a></p>';
+    if (r.acceso) {
+      extra += `<p><strong>Último paso: crea tu usuario y tu contraseña.</strong> Con ellos entras a tu panel, donde ${r.semaforo === 'verde' ? 'pides tus videos, apruebas tu storytelling y sigues cada pedido' : 'ves cómo va la revisión de tu negocio'}.</p>`
+        + `<p class="cta-row"><a class="btn btn--fucsia" href="/negocio/acceso/?t=${encodeURIComponent(r.acceso)}&volver=${encodeURIComponent(destino)}">Crear mi usuario y contraseña</a></p>`;
+    } else if (r.portal) {
+      extra += `<p>Sumamos este negocio a tu panel.</p><p class="cta-row"><a class="btn btn--fucsia" href="${destino}">${destino === '/negocio/' ? 'Ir a mi panel' : 'Seguir con tu pedido'}</a></p>`;
+    } else if (r.tieneUsuario) {
+      extra += `<p>Tu negocio ya tiene acceso al panel. Entra con tu usuario y tu contraseña.</p><p class="cta-row"><a class="btn btn--fucsia" href="/negocio/?volver=${encodeURIComponent(destino)}">Entrar a mi panel</a></p>`;
+    }
     const motivos = (r.motivos || []).length ? `<ul>${(r.motivos || []).map((m) => `<li>${esc(m)}</li>`).join('')}</ul>` : '';
     resultado.className = `resultado resultado--${r.semaforo}`;
     resultado.innerHTML = `<h2>${titulos[r.semaforo] || 'Recibimos tus datos'}</h2><p>${esc(r.mensaje)}</p>${motivos}${extra}`;

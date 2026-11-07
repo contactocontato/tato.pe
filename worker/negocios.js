@@ -24,7 +24,8 @@ import reglas from '../src/data/negocios.json' with { type: 'json' };
 import { page, html, json, esc } from './ui.js';
 import { comprobarCodigoCorreo, configCorreo } from './correo.js';
 import { avisar, avisarTato } from './avisos.js';
-import { crearSesionNegocio } from './seguridad.js';
+import { leerSesionNegocio } from './seguridad.js';
+import { leerCuentaNegocio, cuentaDeRuc, sumarRuc, tokenAcceso } from './cuenta-negocio.js';
 
 const RUC_URL_POR_DEFECTO = 'https://api.decolecta.com/v1/sunat/ruc/full?numero={ruc}';
 const MAX_POR_IP_AL_DIA = 8;
@@ -423,18 +424,28 @@ export async function handleRegistro(request, env) {
   }
 
   const nombre = registro.sunat?.razonSocial || datos.negocio.nombreComercial || 'tu negocio';
-  // Un solo registro: con el correo confirmado, el negocio queda dentro de su panel (/negocio/).
-  const portal = Boolean(contacto.correoVerificado) && semaforo !== 'rojo';
-  const res = json({
+  // Un solo registro: al terminar, el negocio crea su usuario y su contraseña (o, si ya tiene sesión, el RUC
+  // se suma a su cuenta). Si el RUC ya tiene acceso, entra con ese usuario.
+  let acceso = null;
+  let portal = false;
+  let usuario = null;
+  if (semaforo !== 'rojo') {
+    const sesion = await leerSesionNegocio(env, request);
+    const cuenta = sesion?.usuario ? await leerCuentaNegocio(env, sesion.usuario) : null;
+    usuario = await cuentaDeRuc(env, datos.ruc);
+    if (cuenta && (!usuario || usuario === cuenta.usuario)) portal = await sumarRuc(env, cuenta, datos.ruc);
+    else if (!usuario) acceso = await tokenAcceso(env, { modo: 'crear', rucs: [datos.ruc], nombre: datos.contacto.nombre, correo: contacto.correoVerificado ? contacto.correo : '' });
+  }
+  return json({
     semaforo,
     codigo: semaforo === 'verde' ? codigo : null,
     razonSocial: registro.sunat?.razonSocial || '',
     mensaje: MENSAJES[semaforo](nombre, codigo),
     motivos,
     portal,
+    acceso,
+    tieneUsuario: Boolean(usuario && !portal),
   });
-  if (portal) res.headers.append('Set-Cookie', await crearSesionNegocio(env, request, contacto.correo));
-  return res;
 }
 
 /**

@@ -11,7 +11,7 @@
 // Entrar con el correo: la misma cuenta guarda una segunda verificación hecha con la sal
 // «tato.pe/cuenta:<correo>» (claveCorreo). Es el mismo cálculo; solo cambia lo que va después de «cuenta:».
 //
-// Los negocios entran a /negocio/ con un código que les llega al correo (sin contraseña): su sesión
+// Los negocios entran a /negocio/ con su usuario y contraseña (la sal lleva «negocio-<usuario>»): su sesión
 // usa otra cookie (tato_negocio) y otro prefijo en KV (sesion-negocio:).
 
 const VUELTAS = 5000;
@@ -67,6 +67,7 @@ export async function claveCorrecta(desdeNavegador, guardada) {
  * no sale del navegador. El id de la cuenta sale del campo name="id" o de data-id en el <form>.
  * data-repetir="campo" pide que dos contraseñas coincidan; data-min="8", un largo mínimo.
  * Botones [data-generar] generan una clave temporal en el campo indicado (panel de Tato).
+ * data-prefijo="negocio-" en el <form> antepone ese texto al usuario en la sal (cuentas de negocio).
  * data-hash-correo="campo" en un input[data-hash] guarda además el cálculo con el correo (campo name="correo"
  * del formulario o data-correo del <form>), para entrar con el correo.
  */
@@ -94,13 +95,15 @@ export const SCRIPT_CLAVE = `<script>
     e.preventDefault();
     const aviso = f.querySelector('[data-aviso-clave]');
     const decir = (t) => { if (aviso) { aviso.textContent = t; aviso.hidden = !t; } };
-    const id = (f.querySelector('[name=id]')?.value || f.dataset.id || '').trim();
-    if (!id) return decir('Escribe tu correo o tu ID.');
+    const escrito = (f.querySelector('[name=id]')?.value || f.dataset.id || '').trim();
+    if (!escrito) return decir(f.dataset.prefijo ? 'Escribe tu usuario.' : 'Escribe tu correo o tu ID.');
+    // data-prefijo (por ejemplo «negocio-» en el panel del negocio) se antepone al usuario en la sal.
+    const id = (f.dataset.prefijo || '') + escrito;
     for (const c of f.querySelectorAll('input[data-hash]')) {
       if (!c.value) return decir(c.dataset.falta || 'Escribe la contraseña.');
       const min = Number(c.dataset.min || 0);
       if (min && c.value.length < min) return decir('La contraseña nueva tiene que tener al menos ' + min + ' caracteres.');
-      if (min && c.value.toLowerCase().includes(id.toLowerCase())) return decir('No uses tu ID dentro de la contraseña.');
+      if (min && c.value.toLowerCase().includes(escrito.toLowerCase())) return decir(f.dataset.prefijo ? 'No uses tu usuario dentro de la contraseña.' : 'No uses tu ID dentro de la contraseña.');
       if (c.dataset.repetir && c.value !== f.querySelector('#' + c.dataset.repetir)?.value) return decir('Las dos contraseñas nuevas no coinciden.');
     }
     if (!window.crypto?.subtle) return decir('Este navegador no puede entrar. Actualízalo o usa Chrome.');
@@ -172,21 +175,35 @@ export async function cerrarSesionesDe(env, id, salvo = '') {
 
 // ---------- Sesiones de los negocios (/negocio/) ----------
 
-/** Crea la sesión del negocio con su correo (los RUC se buscan cada vez). Devuelve Set-Cookie. */
-export async function crearSesionNegocio(env, request, correo) {
+/** Crea la sesión del negocio con su usuario (sus RUC se buscan cada vez). Devuelve Set-Cookie. */
+export async function crearSesionNegocio(env, request, usuario) {
   const token = aleatorio(32);
-  await env.PEDIDOS_KV.put(`${NEGOCIO.prefijo}${token}`, JSON.stringify({ correo, creada: new Date().toISOString() }), {
+  await env.PEDIDOS_KV.put(`${NEGOCIO.prefijo}${token}`, JSON.stringify({ usuario, creada: new Date().toISOString() }), {
     expirationTtl: NEGOCIO.dias * 86400,
   });
   return `${NEGOCIO.cookie}=${token}; ${atributos(request, NEGOCIO.dias * 86400)}`;
 }
 
-/** { correo, token } o null. */
+/** { usuario, token } o null. (Las sesiones antiguas con solo correo devuelven { correo, token }.) */
 export async function leerSesionNegocio(env, request) {
   const token = leerCookie(request, NEGOCIO.cookie);
   if (!token || token.length > 100) return null;
   const s = await env.PEDIDOS_KV.get(`${NEGOCIO.prefijo}${token}`, 'json');
+  if (s?.usuario) return { usuario: s.usuario, token };
   return s?.correo ? { correo: s.correo, token } : null;
+}
+
+/** Cierra todas las sesiones de un usuario de negocio (al cambiar la contraseña). */
+export async function cerrarSesionesNegocio(env, usuario) {
+  let cursor;
+  do {
+    const lote = await env.PEDIDOS_KV.list({ prefix: NEGOCIO.prefijo, cursor });
+    for (const k of lote.keys) {
+      const s = await env.PEDIDOS_KV.get(k.name, 'json');
+      if (s?.usuario === usuario) await env.PEDIDOS_KV.delete(k.name);
+    }
+    cursor = lote.list_complete ? undefined : lote.cursor;
+  } while (cursor);
 }
 
 export async function cerrarSesionNegocio(env, request) {
