@@ -15,11 +15,16 @@
 //   codigo:<código> el RUC al que pertenece un código de verificación
 //   ruc:<ruc>       la respuesta del servicio de RUC, guardada 24 horas para no pagar dos veces la misma consulta
 //   ip:<día>:<ip>   cuántos registros hizo una conexión hoy (se borra solo)
+//   correo-negocio:<correo>  los RUC registrados con ese correo (para entrar a /negocio/ con un código)
+//   correo-ok:<token>        el correo que ya se confirmó con código en ese formulario (1 hora)
 //
 // Las reglas (rubros, actividades y palabras) están en src/data/negocios.json.
 
 import reglas from '../src/data/negocios.json' with { type: 'json' };
 import { page, html, json, esc } from './ui.js';
+import { comprobarCodigoCorreo, configCorreo } from './correo.js';
+import { avisar, avisarTato } from './avisos.js';
+import { crearSesionNegocio } from './seguridad.js';
 
 const RUC_URL_POR_DEFECTO = 'https://api.decolecta.com/v1/sunat/ruc/full?numero={ruc}';
 const MAX_POR_IP_AL_DIA = 8;
@@ -72,7 +77,7 @@ export function leerSolicitud(body) {
   if (!/^\d{8}$/.test(dni)) return { error: 'Tu DNI tiene que tener 8 números.' };
   const whatsapp = String(body.whatsapp ?? '').replace(/\D/g, '').replace(/^51(?=9\d{8}$)/, '');
   if (!/^9\d{8}$/.test(whatsapp)) return { error: 'Tu WhatsApp tiene que ser un celular de 9 números que empiece con 9.' };
-  const correo = limpiar(body.correo, 160);
+  const correo = limpiar(body.correo, 160).toLowerCase();
   if (correo && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) return { error: 'Revisa tu correo.' };
   const acepta = body.acepta || {};
   if (!acepta.real || !acepta.etiquetas || !acepta.uso || !acepta.datos) return { error: 'Para registrarte tienes que marcar los cuatro compromisos.' };
@@ -313,6 +318,20 @@ export async function handleRegistro(request, env) {
   if (usos >= MAX_POR_IP_AL_DIA) return json({ error: 'Hiciste muchos registros hoy. Escríbenos por WhatsApp y lo vemos.' }, 429);
   await env.NEGOCIOS_KV.put(claveIp, String(usos + 1), { expirationTtl: 86400 });
 
+  // Correo confirmado con un código (si el envío de correos está configurado). Si el registro se reenvía
+  // desde el mismo formulario (por ejemplo, para corregir el RUC), el correo ya confirmado se recuerda 1 hora.
+  let correoVerificado = '';
+  if (configCorreo(env).listo) {
+    const token = /^[0-9a-f-]{36}$/.test(String(body.token || '')) ? body.token : '';
+    if (!datos.contacto.correo || !token) return json({ error: 'Escribe tu correo y confírmalo con el código que te llega.' }, 400);
+    if ((await env.NEGOCIOS_KV.get(`correo-ok:${token}`)) !== datos.contacto.correo) {
+      const r = await comprobarCodigoCorreo(env, { desafio: String(body.desafioCorreo || ''), codigo: body.codigoCorreo, correo: datos.contacto.correo, proposito: 'registro-negocio', titular: `registro-negocio:${token}` });
+      if (r.error) return json({ error: r.error }, 400);
+      await env.NEGOCIOS_KV.put(`correo-ok:${token}`, datos.contacto.correo, { expirationTtl: 3600 });
+    }
+    correoVerificado = new Date().toISOString();
+  }
+
   const consulta = await consultarRuc(env, datos.ruc);
   const { semaforo: sem, motivos, notas } = clasificar(datos, consulta);
   let semaforo = sem;
@@ -345,10 +364,13 @@ export async function handleRegistro(request, env) {
     });
   }
   // Si Tato lo rechazó o lo pausó a mano, volver a registrarse no cambia su decisión.
+  const contacto = { ...datos.contacto, correoVerificado: correoVerificado || (previo?.contacto?.correo === datos.contacto.correo ? previo.contacto.correoVerificado || '' : '') };
   if (previo && previo.decision?.por === 'Tato' && (previo.semaforo === 'rojo' || previo.semaforo === 'pausado')) {
-    Object.assign(previo, { negocio: datos.negocio, contacto: datos.contacto, para: datos.para, actualizado: ahora });
+    const correoAntes = previo.contacto?.correo;
+    Object.assign(previo, { negocio: datos.negocio, contacto, para: datos.para, actualizado: ahora });
     previo.historial = [...(previo.historial || []).slice(-9), { fecha: ahora, semaforo: previo.semaforo, por: 'registro', nota: 'Se volvió a registrar; se mantuvo la decisión de Tato.' }];
     await guardar(env, previo);
+    await indexarCorreo(env, previo, correoAntes);
     const rechazado = previo.semaforo === 'rojo';
     return json({
       semaforo: rechazado ? 'rojo' : 'amarillo',
@@ -375,7 +397,7 @@ export async function handleRegistro(request, env) {
     motivos,
     notas,
     negocio: datos.negocio,
-    contacto: datos.contacto,
+    contacto,
     para: datos.para,
     sunat: consulta.ok ? consulta.sunat : null,
     ia,
@@ -394,17 +416,117 @@ export async function handleRegistro(request, env) {
     intentos: previo?.intentos || [],
   };
   await guardar(env, registro);
+  await indexarCorreo(env, registro, previo?.contacto?.correo);
   if (codigo && codigo !== previo?.codigo) await env.NEGOCIOS_KV.put(`codigo:${codigo}`, datos.ruc);
+  if (semaforo === 'amarillo') {
+    await avisarTato(env, { asunto: `Negocio por revisar: ${registro.sunat?.razonSocial || datos.negocio.nombreComercial || datos.ruc}`, titulo: 'Un negocio espera tu revisión', parrafos: [motivos.join(' ') || 'Revísalo en el panel.'], ruta: `/panel/negocio/?ruc=${datos.ruc}` });
+  }
 
   const nombre = registro.sunat?.razonSocial || datos.negocio.nombreComercial || 'tu negocio';
-  return json({
+  // Un solo registro: con el correo confirmado, el negocio queda dentro de su panel (/negocio/).
+  const portal = Boolean(contacto.correoVerificado) && semaforo !== 'rojo';
+  const res = json({
     semaforo,
     codigo: semaforo === 'verde' ? codigo : null,
     razonSocial: registro.sunat?.razonSocial || '',
     mensaje: MENSAJES[semaforo](nombre, codigo),
     motivos,
+    portal,
   });
+  if (portal) res.headers.append('Set-Cookie', await crearSesionNegocio(env, request, contacto.correo));
+  return res;
 }
+
+/**
+ * Índice correo → RUC para entrar a /negocio/. Cuenta todo correo registrado, verificado o no:
+ * para entrar igual hace falta el código que llega a ese correo, y al usarlo el correo queda verificado.
+ */
+export async function indexarCorreo(env, r, correoAntes = '') {
+  const quitar = async (correo) => {
+    const k = `correo-negocio:${correo}`;
+    const lista = (await env.NEGOCIOS_KV.get(k, 'json')) || [];
+    const resto = lista.filter((x) => x !== r.ruc);
+    if (resto.length !== lista.length) await (resto.length ? env.NEGOCIOS_KV.put(k, JSON.stringify(resto)) : env.NEGOCIOS_KV.delete(k));
+  };
+  if (correoAntes && correoAntes !== r.contacto?.correo) await quitar(correoAntes);
+  if (r.contacto?.correo) {
+    const k = `correo-negocio:${r.contacto.correo}`;
+    const lista = (await env.NEGOCIOS_KV.get(k, 'json')) || [];
+    if (!lista.includes(r.ruc)) await env.NEGOCIOS_KV.put(k, JSON.stringify([...lista, r.ruc].slice(-20)));
+  }
+}
+
+/**
+ * Los negocios de un correo. Por defecto, solo los que ya lo confirmaron (los que se ven en el portal);
+ * con `todos`, también los que lo escribieron al registrarse y todavía no lo confirman.
+ */
+export async function negociosDeCorreo(env, correo, { todos = false } = {}) {
+  if (!correo) return [];
+  const rucs = (await env.NEGOCIOS_KV.get(`correo-negocio:${correo}`, 'json')) || [];
+  const regs = await Promise.all(rucs.map((ruc) => env.NEGOCIOS_KV.get(`negocio:${ruc}`, 'json')));
+  return regs.filter((r) => r && r.contacto?.correo === correo && (todos || r.contacto.correoVerificado));
+}
+
+/** El negocio ya probó que el correo es suyo (con un código): todos sus registros con ese correo quedan verificados. */
+export async function confirmarCorreoNegocios(env, correo) {
+  const ahora = new Date().toISOString();
+  for (const r of await negociosDeCorreo(env, correo, { todos: true })) {
+    if (r.contacto.correoVerificado) continue;
+    r.contacto.correoVerificado = ahora;
+    r.historial = [...(r.historial || []).slice(-9), { fecha: ahora, semaforo: r.semaforo, por: 'portal', nota: 'Confirmó su correo al entrar a su panel.' }];
+    await guardar(env, r);
+  }
+}
+
+/**
+ * Para los negocios que se registraron sin correo: los encuentra con su RUC, el DNI y el WhatsApp
+ * del contacto tal como los registraron. Devuelve el registro o null.
+ */
+export async function negocioPorContacto(env, { ruc, dni, whatsapp }) {
+  const r = /^\d{11}$/.test(ruc || '') ? await env.NEGOCIOS_KV.get(`negocio:${ruc}`, 'json') : null;
+  const solo = (x) => String(x || '').replace(/\D/g, '').slice(-9);
+  if (!r || String(r.contacto?.dni || '') !== String(dni || '').trim() || solo(r.contacto?.whatsapp) !== solo(whatsapp)) return null;
+  return r;
+}
+
+/** Pone y verifica el correo de un negocio (después de un código) y lo indexa. */
+export async function ponerCorreoNegocio(env, r, correo) {
+  const antes = r.contacto?.correo || '';
+  const ahora = new Date().toISOString();
+  r.contacto = { ...r.contacto, correo, correoVerificado: ahora };
+  r.actualizado = ahora;
+  r.historial = [...(r.historial || []).slice(-9), { fecha: ahora, semaforo: r.semaforo, por: 'portal', nota: antes && antes !== correo ? `Cambió su correo; antes era ${antes}.` : 'Agregó y confirmó su correo.' }];
+  await guardar(env, r);
+  await indexarCorreo(env, r, antes);
+}
+
+/** Una sola vez: indexa el correo de los negocios registrados antes del portal. */
+export async function migrarIndiceCorreos(env) {
+  const marca = 'migracion:indice-correos:1';
+  if (await env.NEGOCIOS_KV.get(marca)) return 0;
+  let cursor;
+  let n = 0;
+  do {
+    const lote = await env.NEGOCIOS_KV.list({ prefix: 'negocio:', cursor });
+    for (const k of lote.keys) {
+      const r = await env.NEGOCIOS_KV.get(k.name, 'json');
+      if (r?.contacto?.correo) {
+        const limpio = String(r.contacto.correo).trim().toLowerCase();
+        if (limpio !== r.contacto.correo) {
+          r.contacto.correo = limpio;
+          await guardar(env, r);
+        }
+        await indexarCorreo(env, r);
+        n += 1;
+      }
+    }
+    cursor = lote.list_complete ? undefined : lote.cursor;
+  } while (cursor);
+  await env.NEGOCIOS_KV.put(marca, new Date().toISOString());
+  return n;
+}
+
+export const guardarNegocio = (env, r) => guardar(env, r);
 
 async function guardar(env, r) {
   await env.NEGOCIOS_KV.put(`negocio:${r.ruc}`, JSON.stringify(r), {
@@ -455,6 +577,7 @@ export async function handlePanelNegocios(request, env, url) {
         <b>${esc(s.razonSocial || r.negocio.nombreComercial || 'Sin nombre')}</b>
         <span class="muted">RUC ${esc(r.ruc)} · ${esc(fecha(r.actualizado))}${r.codigo ? ` · ${esc(r.codigo)}` : ''}</span></summary>
       <div class="cuerpo">
+        <p><a href="/panel/negocio/?ruc=${esc(r.ruc)}">Abrir su ficha: pedidos, pagos y su panel como lo ve →</a></p>
         ${r.motivos?.length ? `<ul>${r.motivos.map((m) => `<li>${esc(m)}</li>`).join('')}</ul>` : ''}
         ${r.notas?.length ? `<p class="muted">${r.notas.map(esc).join(' · ')}</p>` : ''}
         <dl>
@@ -465,7 +588,7 @@ export async function handlePanelNegocios(request, env, url) {
           <dt>SUNAT</dt><dd>${s.estado ? `${esc(s.estado)} · ${esc(s.condicion)} · ${esc(s.tipo)}` : 'Sin consulta'}</dd>
           <dt>Actividad</dt><dd>${esc(s.actividad || '—')}</dd>
           <dt>Dirección</dt><dd>${esc([s.direccion, s.distrito, s.provincia, s.departamento].filter(Boolean).join(', ') || '—')}</dd>
-          <dt>Contacto</dt><dd>${esc(r.contacto.nombre)} · DNI ${esc(r.contacto.dni)} · <a href="${esc(wa)}" target="_blank" rel="noopener">WhatsApp ${esc(r.contacto.whatsapp)}</a>${r.contacto.correo ? ` · ${esc(r.contacto.correo)}` : ''}</dd>
+          <dt>Contacto</dt><dd>${esc(r.contacto.nombre)} · DNI ${esc(r.contacto.dni)} · <a href="${esc(wa)}" target="_blank" rel="noopener">WhatsApp ${esc(r.contacto.whatsapp)}</a>${r.contacto.correo ? ` · ${esc(r.contacto.correo)}${r.contacto.correoVerificado ? ' (verificado)' : ' (sin verificar)'}` : ''}</dd>
           ${r.para?.influencer ? `<dt>Venía a pedir</dt><dd>${esc(r.para.influencer)}${r.para.paquete ? ` · ${esc(r.para.paquete)}` : ''}</dd>` : ''}
           ${r.intentos?.length ? `<dt>Otros contactos</dt><dd>${r.intentos.map((x) => `${esc(fecha(x.fecha))}: ${esc(x.contacto.nombre)} · DNI ${esc(x.contacto.dni)} · ${esc(x.contacto.whatsapp)}`).join('<br>')}</dd>` : ''}
           <dt>Decisión</dt><dd>${esc(r.decision?.por || '')} · ${esc(fecha(r.decision?.fecha))}${r.decision?.nota ? ` · ${esc(r.decision.nota)}` : ''}</dd>
@@ -512,7 +635,19 @@ export async function handleDecidir(request, env, url) {
   r.historial = [...(r.historial || []).slice(-9), { fecha: ahora, semaforo, por: 'Tato', nota }];
   await guardar(env, r);
   const nombre = r.sunat?.razonSocial || r.negocio.nombreComercial || r.ruc;
-  return volver(semaforo === 'verde' ? `${nombre} quedó verificado con el código ${r.codigo}. Avísale por WhatsApp.` : `${nombre}: ${ETIQUETA[semaforo].toLowerCase()}.`);
+  let avisado = false;
+  if (r.contacto?.correoVerificado) {
+    const textos = {
+      verde: { asunto: `${nombre} está verificado`, titulo: 'Tu negocio está verificado', parrafos: [`Tu código es ${r.codigo}. Con tu RUC y este código pides videos desde el perfil de cada influencer.`], ruta: '/negocio/', boton: 'Ir a mi panel' },
+      rojo: { asunto: `Sobre el registro de ${nombre}`, titulo: 'No podemos tomar pedidos de tu negocio', parrafos: ['Revisamos tu registro y por ahora no podemos hacer videos con influencers para tu negocio.', ...(nota ? [nota] : [])] },
+      pausado: { asunto: `El registro de ${nombre} está en pausa`, titulo: 'Tu registro está en pausa', parrafos: ['Te escribimos por WhatsApp para ver cómo seguir.', ...(nota ? [nota] : [])] },
+    };
+    avisado = await avisar(env, r.contacto.correo, textos[semaforo]);
+  }
+  const ok = semaforo === 'verde' ? `${nombre} quedó verificado con el código ${r.codigo}.` : `${nombre}: ${ETIQUETA[semaforo].toLowerCase()}.`;
+  const mensaje = `${ok}${avisado ? ' Le avisamos por correo.' : semaforo === 'verde' ? ' Avísale por WhatsApp.' : ''}`;
+  if (form.get('volver') === 'ficha') return Response.redirect(`${url.origin}/panel/negocio/?ruc=${r.ruc}&msg=${encodeURIComponent(mensaje)}`, 303);
+  return volver(mensaje);
 }
 
 // ---------- Revisión diaria ----------

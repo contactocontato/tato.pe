@@ -8,7 +8,7 @@ import { cuentas, soles } from '../../../worker/pedidos.js';
     <div class="wrap">
       <p class="migas" style="padding-top:0;margin-bottom:24px"><a href="/influencers/">Influencers</a> / Súmate</p>
       <h1 class="h1">Tu imagen trabaja, <span class="fx">tú decides</span></h1>
-      <p class="lead">Crea tu cuenta, configura tu perfil y completa tus fotos y voz en la web. Tú decides qué pedidos aceptas y apruebas cada guion y video antes de su entrega.</p>
+      <p class="lead">Crea tu cuenta, configura tu perfil y completa tus fotos y voz en la web. Tato revisa tu registro antes de publicarlo. Tú decides qué pedidos aceptas y apruebas cada guion y video antes de su entrega.</p>
       <div class="actions"><a class="btn btn--fucsia" href="#planes">Ver planes y ganancias</a><a class="btn btn--line" href="/cuenta/">Ya tengo una cuenta</a></div>
     </div>
   </section>
@@ -38,7 +38,7 @@ import { cuentas, soles } from '../../../worker/pedidos.js';
     <div>
       <h2 class="h2" id="postular-t">Regístrate como <span class="fx">influencer</span></h2>
       <p class="lead">Crea tu acceso y escribe cómo quieres aparecer en el catálogo. Todos los campos son obligatorios.</p>
-      <form class="form alta-form" id="postulacion" method="post" action="/api/influencers/alta" data-verificacion="alta">
+      <form class="form alta-form" id="postulacion" method="post" action="/api/influencers/alta" data-verificacion="alta" data-clarity-mask="true">
         <input type="hidden" name="version" value={planes.version}>
         <input type="hidden" name="token">
         <div class="alta-etapa field--full"><span>01</span><div><h3>Tu perfil público</h3><p>Así te encontrarán las marcas en el catálogo.</p></div></div>
@@ -63,7 +63,20 @@ import { cuentas, soles } from '../../../worker/pedidos.js';
           <label for="contenido">¿Qué contenido haces?</label>
           <textarea id="contenido" name="contenido" maxlength="500" required placeholder="Cuéntanos de tus temas y del tipo de negocios con los que te gustaría trabajar"></textarea>
         </div>
-        <div class="alta-etapa field--full"><span>02</span><div><h3>Protege tu acceso</h3><p>Usa una contraseña que no utilices en otras cuentas.</p></div></div>
+        <div class="alta-etapa field--full"><span>02</span><div><h3>Protege tu acceso</h3><p>Entras con tu correo y una contraseña que no utilices en otras cuentas.</p></div></div>
+        <div class="field field--full">
+          <label for="correo">Tu correo</label>
+          <input id="correo" name="correo" type="email" autocomplete="email" maxlength="160" required placeholder="tucorreo@gmail.com" autocapitalize="none" spellcheck="false">
+          <small>Es privado. Con él entras a tu cuenta, recuperas tu contraseña y recibes los avisos de tus pedidos.</small>
+        </div>
+        <div class="alta-otp field--full" data-correo-codigo hidden>
+          <h4>Confirma tu correo</h4>
+          <p>Te mandamos un código de 6 números. Vence en 15 minutos.</p>
+          <button class="btn btn--line" type="button" data-correo-enviar>Mandarme el código</button>
+          <p data-correo-estado role="status"></p>
+          <input type="hidden" name="desafioCorreo">
+          <div class="field"><label for="codigo-correo">Código del correo</label><input id="codigo-correo" name="codigoCorreo" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="000000"></div>
+        </div>
         <div class="alta-otp field--full" data-otp hidden>
           <h4>Confirma tu WhatsApp</h4>
           <p>Completa el control de seguridad para recibir un código en el número que escribiste.</p>
@@ -96,17 +109,18 @@ import { cuentas, soles } from '../../../worker/pedidos.js';
       </form>
       <div class="resultado resultado--verde" id="postulacion-recibo" tabindex="-1" hidden>
         <h2>Tu cuenta está creada</h2>
-        <p>Guarda este ID para volver a entrar con tu contraseña.</p>
+        <p>Entras con tu correo y tu contraseña. Tu ID de acceso, por si lo necesitas:</p>
         <p><strong id="postulacion-referencia" style="overflow-wrap:anywhere"></strong> <button type="button" class="link" id="copiar-id">Copiar ID</button></p>
+        <p>Sigue con tus fotos y tu voz. Cuando termines, Tato revisa tu registro y, al aprobarlo, tu perfil sale en el catálogo.</p>
         <a class="btn btn--fucsia" href="/cuenta/identidad/">Continuar con fotos y voz</a>
       </div>
     </div>
     <aside class="lado" aria-labelledby="pasos-t">
       <h2 id="pasos-t">Qué pasa después</h2>
       <ol>
-        <li><strong>Creas tu cuenta.</strong> Elige tu contraseña y guarda tu ID de acceso.</li>
-        <li><strong>Das tu autorización.</strong> Después subes cuatro fotos y grabas tu voz.</li>
-        <li><strong>Publicas tu perfil.</strong> Al completar el registro, tu ficha queda disponible para recibir solicitudes. Puedes pausar pedidos desde tu cuenta.</li>
+        <li><strong>Creas tu cuenta.</strong> Confirmas tu correo con un código y eliges tu contraseña.</li>
+        <li><strong>Das tu autorización.</strong> Después subes cuatro fotos y grabas tu voz, todo desde la web.</li>
+        <li><strong>Tato revisa tu registro.</strong> Cuando lo aprueba, tu perfil sale en el catálogo y te avisamos por correo. Puedes pausar pedidos desde tu cuenta.</li>
       </ol>
     </aside>
   </section>
@@ -129,6 +143,7 @@ import { cuentas, soles } from '../../../worker/pedidos.js';
 <script>
   import { idDeAlta } from '../../lib/id-alta.js';
   import { claveDelNavegador } from '../../../worker/seguridad.js';
+  import { prepararCodigoCorreo } from '../../lib/codigo-correo';
   const form = document.querySelector<HTMLFormElement>('#postulacion')!;
   const boton = document.querySelector<HTMLButtonElement>('#postulacion-enviar')!;
   const telefono = document.querySelector<HTMLInputElement>('#whatsapp')!;
@@ -137,6 +152,8 @@ import { cuentas, soles } from '../../../worker/pedidos.js';
   const referencia = document.querySelector<HTMLElement>('#postulacion-referencia')!;
   const token = crypto.randomUUID();
   (form.elements.namedItem('token') as HTMLInputElement).value = token;
+  const codigoCorreo = prepararCodigoCorreo(form, { proposito: 'alta-creador', token });
+  const correo = document.querySelector<HTMLInputElement>('#correo')!;
   const clave = document.querySelector<HTMLInputElement>('#nueva-clave')!;
   const repite = document.querySelector<HTMLInputElement>('#repite-clave')!;
 
@@ -166,15 +183,23 @@ import { cuentas, soles } from '../../../worker/pedidos.js';
       repite.reportValidity();
       return;
     }
+    const faltaCorreo = codigoCorreo.revisar();
+    if (faltaCorreo) {
+      error.textContent = faltaCorreo;
+      error.hidden = false;
+      return;
+    }
     boton.disabled = true;
     boton.textContent = 'Creando tu cuenta…';
     try {
       const id = await idDeAlta(token);
       const verificador = await claveDelNavegador(id, clave.value);
+      // La misma contraseña con el correo: para entrar con el correo.
+      const claveCorreo = correo.value.trim() ? await claveDelNavegador(correo.value, clave.value) : '';
       const respuesta = await fetch(form.action, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...Object.fromEntries(datos), token, clave: verificador, whatsapp, mayor: datos.has('mayor'), autoriza: datos.has('autoriza'), convenio: datos.has('convenio') }),
+        body: JSON.stringify({ ...Object.fromEntries(datos), token, clave: verificador, claveCorreo, whatsapp, mayor: datos.has('mayor'), autoriza: datos.has('autoriza'), convenio: datos.has('convenio') }),
         signal: AbortSignal.timeout(15000),
       });
       const resultado = await respuesta.json();

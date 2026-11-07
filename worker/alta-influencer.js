@@ -2,7 +2,8 @@ import planes from '../src/data/planes-influencer.json' with { type: 'json' };
 import { idDeAlta } from '../src/lib/id-alta.js';
 import { json } from './ui.js';
 import { cifrarClave, claveCorrecta, contar, crearSesion, formatoClave, mismoOrigen, usos } from './seguridad.js';
-import { guardarCuenta, leerCuenta } from './pedidos.js';
+import { guardarCuenta, leerCuenta, idPorCorreo, ponerCorreo } from './pedidos.js';
+import { comprobarCodigoCorreo, configCorreo, correoValido } from './correo.js';
 import { comprobarCodigo, configVerificacion, telefonoPE } from './verificacion.js';
 
 export async function handleAltaInfluencer(request, env) {
@@ -34,6 +35,8 @@ export async function handleAltaInfluencer(request, env) {
   const redes = campo('redes', 200);
   const contenido = campo('contenido', 500);
   const clave = datos?.clave;
+  const correo = correoValido(campo('correo', 160));
+  const claveCorreo = datos?.claveCorreo;
   if (datos?.version !== planes.version) return json({ error: 'Los planes se actualizaron. Recarga la página para revisar los precios vigentes.' }, 409);
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(token) || !formatoClave(clave) ||
       datos.sitio || !nombre || !/^9\d{8}$/.test(whatsapp) || !region || !redes || !contenido ||
@@ -51,6 +54,14 @@ export async function handleAltaInfluencer(request, env) {
       return json({ error: 'Ya existe esta cuenta. Entra con el ID que recibiste al crearla.' }, 409);
     }
   } else {
+    // Correo verificado con un código (si el envío de correos está configurado; ver worker/correo.js).
+    const conCorreo = configCorreo(env).listo;
+    if (conCorreo) {
+      if (!correo || !formatoClave(claveCorreo)) return json({ error: 'Escribe tu correo y confírmalo con el código que te llega.' }, 400);
+      if (await idPorCorreo(env, correo)) return json({ error: 'Ese correo ya tiene una cuenta de creador. Entra en tato.pe/cuenta o recupera tu contraseña.' }, 409);
+      const r = await comprobarCodigoCorreo(env, { desafio: campo('desafioCorreo', 40), codigo: campo('codigoCorreo', 8), correo, proposito: 'alta-creador', titular: `alta-creador:${token}` });
+      if (r.error) return json({ error: r.error }, 400);
+    }
     const verificacion = configVerificacion(env).estado;
     if (verificacion === 'pendiente') return json({ error: 'La verificación por WhatsApp todavía no está disponible.' }, 503);
     if (verificacion === 'activa') {
@@ -58,14 +69,17 @@ export async function handleAltaInfluencer(request, env) {
       if (error) return json({ error }, 400);
     }
     await contar(env, limite, 86400);
-    await guardarCuenta(env, {
+    const nueva = {
       id, nombre, whatsapp, clave: await cifrarClave(clave), cambiarClave: false,
       activa: true, aceptaPedidos: true,
       ...(verificacion === 'activa' ? { whatsappVerificado: { numero: whatsapp, fecha: new Date().toISOString() } } : {}),
       porcentajeTato: planes.porcentajeTato,
       produccion: Object.fromEntries(planes.paquetes.map((p) => [p.nombre, p.produccion])),
       alta: { fecha: new Date().toISOString(), version: planes.version, perfil: { region, redes, contenido }, paquetes: planes.paquetes },
-    });
+    };
+    if (conCorreo) await ponerCorreo(env, nueva, correo, await cifrarClave(claveCorreo));
+    else if (correo) nueva.correo = correo; // sin verificar: lo confirma después desde su cuenta
+    await guardarCuenta(env, nueva);
   }
   const cookie = await crearSesion(env, request, id);
   const respuesta = json({ id, continuar: '/cuenta/identidad/' }, actual ? 200 : 201);

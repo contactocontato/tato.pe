@@ -10,8 +10,8 @@
     "binding": "ASSETS",
     "html_handling": "auto-trailing-slash",
     "not_found_handling": "none",
-    // Las cuentas y las fichas creadas en línea pasan por el Worker.
-    "run_worker_first": ["/api/*", "/panel/*", "/cuenta", "/cuenta/*", "/influencers/perfil/*"]
+    // Las cuentas, el portal de negocios y las fichas creadas en línea pasan por el Worker.
+    "run_worker_first": ["/api/*", "/panel", "/panel/*", "/cuenta", "/cuenta/*", "/negocio", "/negocio/*", "/influencers/perfil/*", "/dev/*"]
   },
   // Tokens de TikTok, registros de negocios y pedidos con cuentas de influencer.
   // Sin "id": wrangler crea cada namespace solo en el primer deploy.

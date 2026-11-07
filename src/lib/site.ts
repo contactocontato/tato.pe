@@ -13,6 +13,11 @@ export const site = {
   agentia: 'https://agentia.com.pe',
   higgsfield: 'https://higgsfield.ai/?fpr=carlos-952a07',
   cities: ['Huaraz', 'Ica', 'Lima'],
+  /**
+   * ID del proyecto de Microsoft Clarity (no es secreto: va en la página). Vacío = no se mide nada.
+   * También se puede poner como variable de compilación PUBLIC_CLARITY_ID en Cloudflare.
+   */
+  clarity: (import.meta.env.PUBLIC_CLARITY_ID as string | undefined) || '',
 };
 
 export function wa(text: string, number = site.whatsappNumber) {

@@ -8,8 +8,8 @@ import { SCRIPT_MEDIOS } from './medios.js';
 export const WHATSAPP_TATO = '51961662512'; // el mismo de src/lib/site.ts
 
 export const MENSAJES = {
-  clave: 'El ID o la contraseña no coinciden.',
-  espera: 'Probaste muchas veces. Espera 15 minutos o pídele a Tato una contraseña nueva.',
+  clave: 'El correo o ID y la contraseña no coinciden.',
+  espera: 'Probaste muchas veces. Espera 15 minutos o cambia tu contraseña con «¿Olvidaste tu contraseña?».',
   pausada: 'Tu cuenta está pausada. Escríbele a Tato.',
   sesion: 'Tu sesión se cerró. Vuelve a entrar.',
   origen: 'No pudimos confirmar que el envío venga de tato.pe. Recarga la página.',
@@ -28,7 +28,11 @@ export const MENSAJES = {
   'mp-error': 'No se pudo conectar tu Mercado Pago. Inténtalo otra vez en unos minutos.',
   'mp-no': 'La conexión con Mercado Pago todavía no está disponible.',
   'identidad-enviada': 'Listo: le mandamos tus fotos y tu voz a Tato. Te avisa cuando las revise.',
-  'alta-lista': 'Tu registro está completo. Tu perfil ya puede recibir solicitudes de negocios verificados.',
+  'alta-lista': 'Listo: mandaste tu registro. Tato revisa tus fotos, tu voz y tu ficha; cuando lo apruebe, tu perfil sale en el catálogo y te avisamos.',
+  'correo-ok': 'Tu correo quedó verificado. Ya puedes entrar con él.',
+  'correo-enviado': 'Te mandamos un código. Revisa tu correo (y la carpeta de spam).',
+  'recuperada': 'Listo: tu contraseña nueva quedó guardada. Ya estás dentro.',
+  codigo: 'El código no coincide o venció. Pide uno nuevo.',
   'telefono-ok': 'Tu número de WhatsApp quedó verificado.',
   'publicacion-ok': 'Se actualizó el registro de publicaciones.',
   'perfil-ok': 'Tu ficha pública quedó actualizada.',
@@ -41,7 +45,11 @@ export const fecha = (s, conHora = false) =>
 export const fechaDia = (s) => (s ? new Date(`${s}T12:00:00-05:00`).toLocaleDateString('es-PE', { timeZone: 'America/Lima', day: 'numeric', month: 'long', year: 'numeric' }) : '');
 export const multilinea = (s) => esc(s).replace(/\n/g, '<br>');
 
-export function pagina({ titulo, cuerpo, cuenta = null, aviso = '', error = '', ancho = false }) {
+/**
+ * La página de la cuenta. `vista` (solo desde el panel de Tato) muestra la página tal como la ve la persona,
+ * con un aviso arriba y todo lo de abajo sin poder usarse (inert).
+ */
+export function pagina({ titulo, cuerpo, cuenta = null, aviso = '', error = '', ancho = false, vista = null, salir = '/cuenta/salir', inicio = '/cuenta/' }) {
   return `<!doctype html><html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow">
 <title>${esc(titulo)} · Tato Studio</title>
@@ -90,7 +98,7 @@ h3{font-size:1.05rem;margin:0 0 8px}
 .btn[disabled]{opacity:.6;cursor:wait}
 form{margin:0}
 label{display:block;font-weight:600;margin:14px 0 6px}
-input[type=text],input[type=password],input[type=url],input[type=date],input[type=number],select,textarea{width:100%;min-height:48px;padding:10px 13px;border:1.5px solid var(--line);border-radius:12px;background:#fff;color:var(--ink);font:inherit}
+input[type=text],input[type=password],input[type=url],input[type=email],input[type=tel],input[type=date],input[type=number],input:not([type]),select,textarea{width:100%;min-height:48px;padding:10px 13px;border:1.5px solid var(--line);border-radius:12px;background:#fff;color:var(--ink);font:inherit}
 textarea{min-height:96px;resize:vertical}
 input:focus,select:focus,textarea:focus{outline:2px solid var(--fucsia);outline-offset:1px;border-color:transparent}
 .acciones{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;align-items:center}
@@ -165,18 +173,42 @@ label.btn:focus-within{outline:2px solid var(--fucsia);outline-offset:3px}
 .perfil-paquetes .precio{font-size:1.35rem;font-weight:800;color:var(--fucsia-tinta)}
 .pedido-creador-cuerpo{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:16px;align-items:start}
 .pedido-creador-cuerpo>.caja{margin-top:0}.pedido-creador-cuerpo select{appearance:auto}
+.avance{list-style:none;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:16px}
+.avance li{border-top:4px solid var(--line);padding-top:8px;display:grid;gap:2px;font-size:14px}.avance li span{color:var(--soft);font-size:13px}
+.avance li.hecho{border-color:var(--ink)}.avance li.ahora{border-color:var(--fucsia)}.avance li.ahora b{color:var(--fucsia-tinta)}
+.pendientes .aviso{display:flex;flex-wrap:wrap;gap:6px 12px;justify-content:space-between;align-items:center;margin:8px 0}
+.negocio-ficha{display:grid;gap:6px;align-content:start}.negocio-ficha h3{margin:4px 0 0}.negocio-ficha .chip{justify-self:start}.negocio-ficha p{margin:0}
+.codigo-negocio{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}.codigo-negocio span{font-size:13px;color:var(--soft)}.codigo-negocio b{font-size:1.5rem;letter-spacing:.06em;color:var(--fucsia-tinta)}
+.pago-pendiente{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.pago-pendiente p{margin:4px 0 0}
+.hitos{margin:0;padding-left:20px;display:grid;gap:6px}
+.estudio-hero .btn.linea{color:#fff;border-color:rgba(255,255,255,.55);background:transparent}.estudio-hero .btn.linea:hover{border-color:#fff}
+.barra-avance{height:8px;border-radius:99px;background:var(--line);overflow:hidden;margin:10px 0}.barra-avance i{display:block;height:100%;background:var(--fucsia);border-radius:99px}
+.perfil-aviso{display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap;border-color:var(--fucsia)}.perfil-aviso>div{flex:1 1 320px}.perfil-aviso h2{margin:0 0 6px;font-size:1.25rem}.perfil-aviso p{margin:0}
+.perfil-form h2{font-size:1.2rem;margin:22px 0 4px}.perfil-form h2:first-child{margin-top:0}
+.perfil-form .dos{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+.perfil-form fieldset{border:0;padding:0;margin:14px 0 4px}.perfil-form legend{font-weight:700;margin-bottom:8px}
+.colores>div{display:flex;gap:10px;margin-bottom:8px}.colores input[type=color]{width:56px;height:44px;padding:2px;border:1px solid var(--line);border-radius:10px;background:#fff;cursor:pointer}
+.opciones{display:flex;flex-wrap:wrap;gap:8px 18px}.check{display:inline-flex;gap:8px;align-items:center;font-weight:400;margin:0}
+.logo-form{display:flex;gap:18px;align-items:center;flex-wrap:wrap}.logo-actual{width:110px;height:110px;border-radius:14px;border:1px dashed var(--line);display:grid;place-items:center;background:#fff;overflow:hidden;color:var(--soft);font-size:13px}.logo-actual img{max-width:100%;max-height:100%;object-fit:contain}
+@media(max-width:600px){.perfil-form .dos{grid-template-columns:1fr}}
+.vista-tato{position:sticky;top:0;z-index:9;background:var(--ink);color:#fff;padding:10px clamp(16px,4vw,32px);font:600 14px/1.4 var(--sans);display:flex;gap:12px;flex-wrap:wrap;justify-content:space-between}
+.vista-tato a{color:#fff}
+@media(max-width:880px){.avance{grid-template-columns:1fr 1fr}}
 @media(max-width:880px){.estudio{grid-template-columns:1fr;gap:14px}.estudio-nav{position:static;display:flex;flex-wrap:wrap;gap:2px}.estudio-nav strong{flex-basis:100%}}
 @media(max-width:640px){.estudio-kpi,.metricas-publicacion{grid-template-columns:repeat(2,minmax(0,1fr))}.estudio-doble,.publicacion-campos,.pedido-creador-cuerpo,.perfil-paquetes{grid-template-columns:1fr}}
 @media (max-width:520px){.tiles{grid-template-columns:1fr 1fr}.tiles div:last-child{grid-column:span 2}.pasos li{font-size:10px}dl.datos{grid-template-columns:1fr}dl.datos dt{margin-top:6px}}
 </style></head><body>
-<header class="top"><a class="logo" href="/cuenta/" aria-label="Tu cuenta en Tato Studio"><img src="/inicio/logo-tato-cabecera.webp" alt="Tato Studio" width="120" height="38"></a>
-${cuenta ? `<div class="quien"><span>${esc(cuenta.nombre)}</span><form method="post" action="/cuenta/salir"><button type="submit">Salir</button></form></div>` : ''}</header>
+${vista ? `<div class="vista-tato" role="note"><span>Vista de Tato: así ve ${esc(vista.quien)} su página. Aquí no se puede tocar nada.</span><a href="${esc(vista.volver)}">← Volver al panel</a></div>` : ''}
+<div${vista ? ' inert' : ''}>
+<header class="top"><a class="logo" href="${esc(inicio)}" aria-label="Tu cuenta en Tato Studio"><img src="/inicio/logo-tato-cabecera.webp" alt="Tato Studio" width="120" height="38"></a>
+${cuenta ? `<div class="quien"><span>${esc(cuenta.nombre)}</span><form method="post" action="${esc(salir)}"><button type="submit">Salir</button></form></div>` : ''}</header>
 <main${ancho ? ' class="ancho"' : cuenta ? '' : ' class="angosto"'}>
 ${aviso ? `<p class="aviso" role="status">${esc(aviso)}</p>` : ''}${error ? `<p class="aviso err" role="alert">${esc(error)}</p>` : ''}
 ${cuerpo}
 </main>
-${SCRIPT_CLAVE}
-${SCRIPT_MEDIOS}
+</div>
+${vista ? '' : `${SCRIPT_CLAVE}
+${SCRIPT_MEDIOS}`}
 </body></html>`;
 }
 

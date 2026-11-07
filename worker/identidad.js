@@ -9,6 +9,7 @@ import { leerCuenta, guardarCuenta, identidadDe, SUBIDAS_ABIERTAS } from './pedi
 import { guardarArchivo, borrarArchivo, servirArchivo } from './medios.js';
 import { cuentoAlAzar } from './cuentos.js';
 import { WHATSAPP_TATO, MENSAJES, fecha, pagina, respuesta, ir } from './portal.js';
+import { avisarTato } from './avisos.js';
 
 export const FOTOS = [
   ['cuerpo-frente', 'Cuerpo completo de frente', 'De pies a cabeza, de pie y derecho, con los brazos sueltos a los costados.'],
@@ -90,9 +91,11 @@ function paginaIdentidad(env, cuenta, id, { aviso, error }) {
   const estados = {
     incompleta: '<p class="aviso ojo">Antes de recibir pedidos, sube tus 4 fotos y graba tu voz. Te toma unos 10 minutos.</p>',
     rehacer: `<p class="aviso ojo">Tato te pide que rehagas: ${esc(id.rehacer.map((k) => NOMBRES[k].toLowerCase()).join(', '))}.${id.nota ? ` ${esc(id.nota)}` : ''}</p>`,
-    'en-revision': '<p class="aviso">Tato está revisando tus fotos y tu voz. Cuando las apruebe, empiezas a recibir solicitudes.</p>',
+    'en-revision': cuenta.alta
+      ? '<p class="aviso">Tato está revisando tus fotos, tu voz y tu ficha. Cuando las apruebe, tu perfil sale en el catálogo y empiezas a recibir solicitudes.</p>'
+      : '<p class="aviso">Tato está revisando tus fotos y tu voz. Cuando las apruebe, empiezas a recibir solicitudes.</p>',
     aprobada: cuenta.alta
-      ? '<p class="aviso">Completaste tu registro de fotos y voz. Puedes ver tu perfil y gestionar tus pedidos desde tu cuenta.</p>'
+      ? `<p class="aviso">Tato aprobó tu registro${id.revisada ? ` el ${esc(fecha(id.revisada))}` : ''}: tu perfil está en el catálogo. Si necesitas cambiar tus fotos o tu voz, <a href="https://wa.me/${WHATSAPP_TATO}?text=${encodeURIComponent('Hola Tato, quiero cambiar mis fotos o mi voz.')}" target="_blank" rel="noopener">escríbele a Tato</a>.</p>`
       : `<p class="aviso">Tu identidad está aprobada${id.revisada ? ` desde el ${esc(fecha(id.revisada))}` : ''}. Si necesitas cambiar algo, <a href="https://wa.me/${WHATSAPP_TATO}?text=${encodeURIComponent('Hola Tato, quiero cambiar mis fotos o mi voz.')}" target="_blank" rel="noopener">escríbele a Tato</a>.</p>`,
     borrada: '<p class="aviso ojo">Borraste tus fotos y tu voz. Para volver a recibir pedidos, súbelas de nuevo.</p>',
   };
@@ -143,8 +146,8 @@ function paginaIdentidad(env, cuenta, id, { aviso, error }) {
     ? `<form class="caja" method="post" action="/cuenta/identidad/enviar">
   <ul class="faltan" data-faltan${falta.length ? '' : ' hidden'}>${falta.map((k) => `<li data-falta="${k}">Falta: ${esc(NOMBRES[k].toLowerCase())}</li>`).join('')}</ul>
   <p class="nota" data-todo-listo${falta.length ? ' hidden' : ''}>Todo listo. Lee y marca para enviar.</p>
-  ${cuenta.alta ? '<p>Al terminar, tu nombre público, red, región y descripción aparecerán en el catálogo.</p>' : casillas}
-  <div class="acciones"><button class="btn fucsia" type="submit">${cuenta.alta ? 'Completar registro y publicar perfil' : 'Enviar a Tato'}</button></div>
+  ${cuenta.alta ? '<p>Al enviar, Tato revisa tus fotos, tu voz y tu ficha. Cuando las apruebe, tu nombre público, red, región y descripción salen en el catálogo.</p>' : casillas}
+  <div class="acciones"><button class="btn fucsia" type="submit">${cuenta.alta ? 'Enviar mi registro a revisión' : 'Enviar a Tato'}</button></div>
 </form>`
     : id.consentimiento
       ? `<div class="caja"><p class="nota">Autorizaste el ${esc(fecha(id.consentimiento.fecha, true))} (versión ${esc(id.consentimiento.version)}).</p></div>`
@@ -176,7 +179,7 @@ ${abierta ? '<ul class="consejos"><li>Con buena luz de frente y un fondo liso.</
 <div class="fotos">${tarjetas}</div>
 <h2 id="voz-t">2. Tu voz</h2>
 ${voz}
-<h2>3. ${cuenta.alta && abierta ? 'Publica tu perfil' : 'Tu autorización'}</h2>
+<h2>3. ${cuenta.alta && abierta ? 'Envía tu registro' : 'Tu autorización'}</h2>
 ${autorizacion}
 ${borrar}`}`,
   });
@@ -283,10 +286,13 @@ export async function handleIdentidad(request, env, url, path, cuenta, mensajes)
       return respuesta(paginaIdentidad(env, cuenta, id, { error: motivo }), 400);
     }
     if (cuenta.alta) {
+      // Registro en línea: Tato revisa las fotos, la voz y la ficha antes de que el perfil salga en el catálogo.
       await actualizar(env, cuenta.id, (i) => {
-        Object.assign(i, { fotos: id.fotos, voz: id.voz, cuento: id.cuento, estado: 'aprobada', enviada: ahora(), rehacer: [], nota: '' });
-        anotar(i, 'Completó los requisitos de registro automático.');
+        Object.assign(i, { fotos: id.fotos, voz: id.voz, cuento: id.cuento, estado: 'en-revision', enviada: ahora(), rehacer: [], nota: '' });
+        anotar(i, 'Completó su registro y lo mandó a revisión.');
       });
+      await Promise.all(CAPTURAS.map((k) => env.PEDIDOS_KV.delete(claveCaptura(cuenta, k))));
+      await avisarTato(env, { asunto: `Nuevo creador por revisar: ${cuenta.nombre}`, titulo: `${cuenta.nombre} terminó su registro`, parrafos: ['Revisa sus fotos, su voz y su ficha. Cuando lo apruebes, su perfil sale en el catálogo.'], ruta: `/panel/creador/?id=${cuenta.id}` });
       return ir('/cuenta/?m=alta-lista');
     }
     await actualizar(env, cuenta.id, (i) => {
@@ -295,6 +301,7 @@ export async function handleIdentidad(request, env, url, path, cuenta, mensajes)
       i.enviada = ahora();
       anotar(i, 'Mandó su identidad a revisión y dio su autorización.');
     });
+    await avisarTato(env, { asunto: `Identidad por revisar: ${cuenta.nombre}`, titulo: `${cuenta.nombre} mandó sus fotos y su voz`, parrafos: ['Revísalas para que pueda recibir solicitudes.'], ruta: `/panel/creador/?id=${cuenta.id}` });
     return ir('/cuenta/identidad/?m=identidad-enviada');
   }
 

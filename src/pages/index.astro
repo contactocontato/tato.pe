@@ -15,6 +15,7 @@ const HERO = {"n": 60, "fx": 0.593, "fy": 0.336};
 // Poses de Tato al costado: una o dos fotos por pose (la segunda es el cuadro alterno de los pasitos).
 // Las que terminan en _f son espejos con el logo del polo al derecho. Archivos en public/inicio/tato/.
 const FIG = { w: 362, h: 760, poses: {"camina": ["w_000", "w_012"], "camina-f": ["w_000_f", "w_012_f"], "senala": ["p_senala"], "celular": ["p_celular"], "celular-f": ["p_celular_f"], "saluda": ["p_saluda"], "saluda-f": ["p_saluda_f"]} };
+import Medicion from '../components/Medicion.astro';
 ---
 <!doctype html>
 <html lang="es-PE">
@@ -574,7 +575,7 @@ footer { background: var(--dark); color: var(--cream); padding: var(--section) 0
       <h2 class="h2" id="pedido-t">Arma tu <span class="fx">pedido</span></h2>
       <p class="lead">Elige lo que quieres y te respondo yo por WhatsApp. Te confirmo el precio antes de que pagues.</p>
       <div class="order__grid">
-        <form id="order-form" novalidate>
+        <form id="order-form" novalidate data-clarity-mask="true">
           <div class="field field--full"><label for="f-prod">Qué quieres</label><select id="f-prod" name="prod"></select></div>
           <div class="field"><label for="f-name">Tu nombre</label><input id="f-name" name="name" autocomplete="given-name" placeholder="Por ejemplo, Rosa"></div>
           <div class="field"><label for="f-city">Ciudad</label><select id="f-city" name="city"><option value="">Elige una</option><option>Huaraz</option><option>Ica</option><option>Lima</option><option>Otra ciudad</option></select></div>
@@ -949,5 +950,6 @@ footer { background: var(--dark); color: var(--cream); padding: var(--section) 0
 
 })();
 </script>
+<Medicion />
 </body>
 </html>

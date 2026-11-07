@@ -26,6 +26,7 @@ import { mpListo, crearLink, leerPago, comisiones, firmaValida, renovar } from '
 import { mismoOrigen, contar } from './seguridad.js';
 import { palabrasSospechosas } from './negocios.js';
 import { guardarArchivo, borrarArchivo } from './medios.js';
+import { eventosPedido, mandarAvisosPedido } from './avisos.js';
 
 export const sitio = (env) => (env.SITIO || 'https://tato.pe').replace(/\/+$/, '');
 const ahora = () => new Date().toISOString();
@@ -86,6 +87,21 @@ export async function guardarCuenta(env, c) {
     },
   });
 }
+
+// Correo del creador: se verifica con un código (worker/correo.js) y sirve para entrar, recuperar la
+// contraseña y recibir avisos. El índice correo-creador:<correo> → id permite entrar con el correo.
+/** El correo verificado de la cuenta, o ''. */
+export const correoDe = (c) => (c?.correo && c.correoVerificado ? c.correo : '');
+export const idPorCorreo = (env, correo) => (correo ? env.PEDIDOS_KV.get(`correo-creador:${correo}`) : null);
+/** Guarda el correo verificado y su verificación para entrar (`claveCorreo` ya cifrada). No guarda la cuenta. */
+export async function ponerCorreo(env, c, correo, claveCorreo) {
+  if (c.correo && c.correo !== correo && (await idPorCorreo(env, c.correo)) === c.id) await env.PEDIDOS_KV.delete(`correo-creador:${c.correo}`);
+  c.correo = correo;
+  c.correoVerificado = ahora();
+  if (claveCorreo) c.claveCorreo = claveCorreo;
+  await env.PEDIDOS_KV.put(`correo-creador:${correo}`, c.id);
+}
+
 /** Identidad del influencer (fotos y voz, ver worker/identidad.js), con valores por defecto. */
 export function identidadDe(c) {
   const i = c?.identidad || {};
@@ -168,9 +184,24 @@ export const leerPedido = (env, id) => (/^P-[A-Z2-9]{6}$/.test(String(id)) ? env
 
 export async function guardarPedido(env, p) {
   p.actualizado = ahora();
+  // Avisos por correo (worker/avisos.js): solo cuando cambia lo que le toca saber a cada uno.
+  // Un pedido de antes de los avisos (sin p.avisos) empieza a contar desde su estado actual, sin mandar nada.
+  const eventos = eventosPedido(p);
+  const nuevos = [];
+  if (!p.avisos) p.avisos = { creador: eventos.creador?.clave || '', negocio: eventos.negocio?.clave || '' };
+  else {
+    for (const quien of ['creador', 'negocio']) {
+      const e = eventos[quien];
+      if (e && e.clave !== p.avisos[quien]) {
+        p.avisos[quien] = e.clave;
+        nuevos.push([quien, e]);
+      }
+    }
+  }
   await env.PEDIDOS_KV.put(`pedido:${p.id}`, JSON.stringify(p), {
     metadata: { estado: p.estado, influencer: p.influencer.id, ruc: p.negocio.ruc, turno: turno(p), actualizado: p.actualizado },
   });
+  if (nuevos.length) await mandarAvisosPedido(env, p, nuevos);
 }
 
 /** Claves de los pedidos con su metadata (sin leer cada uno). */
@@ -551,7 +582,7 @@ export async function handlePedidoNuevo(request, env) {
       razonSocial: s.razonSocial || '',
       nombreComercial: negocio.negocio?.nombreComercial || '',
       rubro: negocio.negocio?.rubro || '',
-      contacto: { nombre: negocio.contacto?.nombre || '', whatsapp: negocio.contacto?.whatsapp || '' },
+      contacto: { nombre: negocio.contacto?.nombre || '', whatsapp: negocio.contacto?.whatsapp || '', correo: negocio.contacto?.correoVerificado ? negocio.contacto.correo : '' },
       sunat: { estado: s.estado || '', condicion: s.condicion || '', actividad: s.actividad || '' },
       verificado: negocio.decision?.fecha || negocio.creado || '',
     },
@@ -566,14 +597,15 @@ export async function handlePedidoNuevo(request, env) {
     pagoInfluencer: null,
     motivo: '',
     historial: [],
+    avisos: {},
   };
   anotar(p, 'negocio', 'Envió la solicitud.');
   await guardarPedido(env, p);
   const siguiente = paq.precio == null
     ? 'Primero te cotizamos por WhatsApp.'
     : cuentas(p.dinero).adelanto > 0
-      ? 'Cuando la acepte, te escribimos por WhatsApp con el link para pagar el adelanto.'
-      : 'Cuando la acepte, te escribimos por WhatsApp.';
+      ? 'Cuando la acepte, te avisamos con el link para pagar el adelanto. Sigue tu pedido en tato.pe/negocio.'
+      : 'Cuando la acepte, te avisamos. Sigue tu pedido en tato.pe/negocio.';
   return json({ numero: p.id, mensaje: `Listo: tu solicitud ${p.id} le llegó a ${inf.nombre}. ${siguiente}` });
 }
 
