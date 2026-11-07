@@ -21,3 +21,6 @@
 
 /inicio/*
   Cache-Control: public, max-age=31536000, immutable
+
+/fuentes/*
+  Cache-Control: public, max-age=31536000, immutable

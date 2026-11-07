@@ -141,6 +141,6 @@ export function verStorytelling(s, { compacto = false } = {}) {
 
 export const CSS_STORY = `.story{display:grid;gap:8px}.story h3{margin:0;font-size:1.2rem}.story p{margin:0}.story-idea{color:var(--soft,#555)}
 .story-datos{display:grid;grid-template-columns:110px 1fr;gap:4px 10px;margin:0;font-size:15px}.story-datos dt{color:var(--soft,#666)}.story-datos dd{margin:0}
-.story-escenas{list-style:none;margin:6px 0;padding:0;display:grid;gap:8px}.story-escenas li{display:grid;grid-template-columns:70px 1fr;gap:10px;padding:10px 12px;border:1px solid var(--line,#ddd);border-radius:12px;background:#fff}
+.story-escenas{list-style:none;margin:6px 0;padding:0;display:grid;gap:8px}.story-escenas li{display:grid;grid-template-columns:70px 1fr;gap:10px;padding:10px 12px;border:1px solid var(--line,#ddd);border-radius:0;background:#fff}
 .story-tiempo{font-weight:800;color:var(--fucsia-tinta,#b50265);font-variant-numeric:tabular-nums}.story-dice{font-style:italic}.story-falta{color:#8a5a00}
 @media(max-width:600px){.story-datos{grid-template-columns:1fr}.story-escenas li{grid-template-columns:1fr}}`;

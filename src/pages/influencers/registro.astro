@@ -5,13 +5,13 @@ import negocios from '../../data/negocios.json';
 import { site } from '../../lib/site';
 ---
 <Studio title="Registra tu negocio · Influencers · Tato Studio" description="Registra tu negocio con tu RUC para pedir videos con influencers." actual="influencers" noindex>
-  <div class="wrap">
-    <p class="migas"><a href="/influencers/">Influencers</a> / Registro</p>
-    <div class="registro">
+  <section class="cabeza" data-entra>
+    <img class="cabeza__tato" src="/inicio/tato/p_celular.webp" width="362" height="760" alt="">
+    <h1 class="h1">Registra tu negocio</h1>
+    <p class="lead">Con tu RUC lo verificamos en segundos. Confirmas tu correo con un código y, si hay que revisar tu RUC o tus permisos, te escribimos al WhatsApp que registres.</p>
+  </section>
+  <div class="registro">
       <div>
-        <h1 class="h1">Registra tu <span class="fx">negocio</span></h1>
-        <p class="lead">Completa los datos de tu negocio y de la persona de contacto. Confirmas tu correo con un código y, si necesitamos revisar tu RUC o tus permisos, te escribimos al WhatsApp que registres.</p>
-
         <form class="form" id="registro" method="post" action="/api/negocios/registro" novalidate data-clarity-mask="true">
           <div class="field">
             <label for="ruc">RUC</label>
@@ -89,7 +89,6 @@ import { site } from '../../lib/site';
         </ul>
         <p>No te pedimos ventas ni declaraciones de impuestos. ¿Dudas? Escríbeme al <a href={`https://wa.me/${site.whatsappNumber}`} target="_blank" rel="noopener">+51 961 662 512</a>.</p>
       </aside>
-    </div>
   </div>
 </Studio>
 
@@ -191,7 +190,7 @@ import { site } from '../../lib/site';
 </script>
 
 <style>
-  .correo-codigo { display: grid; gap: 10px; padding: 16px; border: 1px solid var(--card-line); border-radius: 14px; }
+  .correo-codigo { display: grid; gap: 10px; padding: 20px; background: var(--rosa); }
   .correo-codigo[hidden] { display: none; }
   .correo-codigo .btn { justify-self: start; }
   .correo-estado:empty { display: none; }

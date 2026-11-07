@@ -44,7 +44,7 @@ const MENSAJES = {
 export function fotosOrden(p, url) {
   const f = p.brief?.fotos;
   if (!f || !(f.negocio?.length || f.escenario?.length)) return '';
-  const fila = (lista, titulo) => (lista?.length ? `<p class="nota">${titulo}</p><div class="fotos-fila" style="display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 12px">${lista.map((c) => `<a href="${esc(url(c))}" target="_blank" rel="noopener"><img src="${esc(url(c))}" alt="${esc(titulo)}" loading="lazy" style="width:110px;height:110px;object-fit:cover;border-radius:12px;border:1px solid #ddd;background:#fff"></a>`).join('')}</div>` : '');
+  const fila = (lista, titulo) => (lista?.length ? `<p class="nota">${titulo}</p><div class="fotos-fila" style="display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 12px">${lista.map((c) => `<a href="${esc(url(c))}" target="_blank" rel="noopener"><img src="${esc(url(c))}" alt="${esc(titulo)}" loading="lazy" style="width:110px;height:110px;object-fit:cover;border-radius:0;border:1px solid #ddd;background:#fff"></a>`).join('')}</div>` : '');
   return `<h2>Fotos de la orden</h2><div class="caja">${fila(f.negocio, 'Negocio o producto')}${fila(f.escenario, 'Escenario')}</div>`;
 }
 

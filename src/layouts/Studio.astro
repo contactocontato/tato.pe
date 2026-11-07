@@ -1,6 +1,6 @@
 ---
 // Marco de las páginas de Tato Studio fuera de la portada (por ahora, /influencers/):
-// cabecera con el logo, pie y la misma identidad que la portada. Estilos en src/styles/studio.css.
+// cabecera con el logo sobre el fucsia, pie con foto y menú grande. Estilos en src/styles/studio.css.
 import '../styles/studio.css';
 import { site } from '../lib/site';
 
@@ -17,6 +17,13 @@ const { title, description, image = '/poster/transformacion.jpg', actual, noinde
 const canonical = new URL(Astro.url.pathname, Astro.site ?? site.url);
 const wa = `https://wa.me/${site.whatsappNumber}`;
 import Medicion from '../components/Medicion.astro';
+const menu = [
+  { label: 'Influencers', href: '/influencers/' },
+  { label: 'Precios', href: '/influencers/#precios' },
+  { label: 'Preguntas', href: '/influencers/#preguntas' },
+  { label: 'Soy influencer', href: '/influencers/unete/' },
+  { label: 'Mi panel', href: '/negocio/' },
+];
 ---
 <!doctype html>
 <html lang="es-PE">
@@ -27,35 +34,30 @@ import Medicion from '../components/Medicion.astro';
 <meta name="description" content={description}>
 <link rel="canonical" href={canonical}>
 {noindex && <meta name="robots" content="noindex">}
-<meta name="theme-color" content="#E9E4DD">
+<meta name="theme-color" content="#E2037E">
 <meta property="og:title" content={title}>
 <meta property="og:description" content={description}>
 <meta property="og:image" content={new URL(image, canonical)}>
 <meta property="og:type" content="website">
 <meta property="og:locale" content="es_PE">
 <meta name="twitter:card" content="summary_large_image">
+<script is:inline>document.documentElement.classList.add('js')</script>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="sitemap" href="/sitemap-index.xml">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="preload" href="/fuentes/archivo-latin-wdth.woff2" as="font" type="font/woff2" crossorigin>
 <meta name="generator" content={Astro.generator}>
 </head>
 <body>
-<div class="grain" aria-hidden="true"></div>
 <header class="top">
   <div class="wrap">
-    <a class="brand" href="/"><img src="/inicio/logo-tato-cabecera.webp" width="180" height="180" alt="Tato Studio"></a>
-    <nav aria-label="Principal">
-      <a href="/#oficina">Servicios</a>
-      <a href="/influencers/" aria-current={actual === 'influencers' ? 'page' : undefined}>Influencers</a>
-      <a href="/#videos">Videos</a>
-      <a href="/#pedido">Precios</a>
-      <a href="/#sobre-mi">Sobre mí</a>
-      <a href="/blog/">Blog</a>
-      <a href="/recarga/">Recarga</a>
+    <a class="brand" href="/"><img src="/inicio/logo-tato-cabecera.webp" width="180" height="180" alt="Tato Studio, ir al inicio"></a>
+    <nav aria-label="Influencers">
+      {menu.map((m) => <a href={m.href} aria-current={m.href === Astro.url.pathname ? 'page' : undefined}>{m.label}</a>)}
     </nav>
-    <a class="btn btn--fucsia" href={`${wa}?text=${encodeURIComponent('Hola Tato, vi tu web y quiero conversar.')}`} target="_blank" rel="noopener">Escríbeme</a>
+    <details class="menu">
+      <summary>Menú</summary>
+      <ul>{menu.map((m) => <li><a href={m.href}>{m.label}</a></li>)}<li><a href="/">Inicio de tato.pe</a></li></ul>
+    </details>
   </div>
 </header>
 
@@ -64,17 +66,35 @@ import Medicion from '../components/Medicion.astro';
 </main>
 
 <footer>
-  <div class="wrap">
-    <p class="foot__mark" aria-hidden="true">Tato <span>Studio</span></p>
-    <div class="foot__grid">
-      <div><h2>Escríbeme</h2><ul><li><a href={wa} target="_blank" rel="noopener">WhatsApp +51 961 662 512</a></li><li>{site.email}</li></ul></div>
-      <div><h2>Influencers</h2><ul><li><a href="/influencers/">Catálogo</a></li><li><a href="/influencers/registro/">Registra tu negocio</a></li><li><a href="/influencers/unete/">Súmate como influencer</a></li></ul></div>
-      <div><h2>Sígueme</h2><ul><li><a href={site.tiktok} target="_blank" rel="noopener">TikTok</a></li><li><a href={site.instagram} target="_blank" rel="noopener">Instagram</a></li><li><a href={site.facebook} target="_blank" rel="noopener">Facebook</a></li></ul></div>
-      <div><h2>Más en tato.pe</h2><ul><li><a href="/">Inicio</a></li><li><a href="/blog/">Blog</a></li><li><a href="/terminos/">Términos</a></li><li><a href="/privacidad/">Privacidad</a></li></ul></div>
+  <div class="pie__foto"><img src="/inicio/seq/d/f_000.webp" width="720" height="1280" alt="Tato camina en su estudio, con su polo negro con el logo bordado" loading="lazy" decoding="async"></div>
+  <div class="pie__menu">
+    <p class="pie__marca">Tato Studio</p>
+    <ul class="pie__nav">
+      <li><a href="/influencers/#catalogo">Influencers</a></li>
+      <li><a href="/influencers/#precios">Precios</a></li>
+      <li><a href="/influencers/#preguntas">Preguntas</a></li>
+      <li><a href="/influencers/registro/">Registra tu negocio</a></li>
+      <li><a href="/influencers/unete/">Súmate como influencer</a></li>
+      <li><a href="/">Inicio de tato.pe</a></li>
+    </ul>
+    <div class="pie__datos">
+      <div><h2>Escríbeme</h2><ul><li><a href={wa} target="_blank" rel="noopener">WhatsApp +51 961 662 512</a></li><li><a href={`mailto:${site.email}`}>{site.email}</a></li><li><a href="/negocio/">Panel de mi negocio</a></li><li><a href="/cuenta/">Cuenta de influencer</a></li></ul></div>
+      <div><h2>Sígueme</h2><ul><li><a href={site.tiktok} target="_blank" rel="noopener">TikTok</a></li><li><a href={site.instagram} target="_blank" rel="noopener">Instagram</a></li><li><a href={site.facebook} target="_blank" rel="noopener">Facebook</a></li><li><a href="/terminos/">Términos</a> · <a href="/privacidad/">Privacidad</a></li></ul></div>
     </div>
-    <p class="foot__legal">Hecho en Huaraz, Perú. Los videos de los influencers están hechos con IA, con su permiso, y cada uno aprueba sus guiones.</p>
+    <p class="pie__legal">Hecho en Huaraz, Perú. Los videos de los influencers están hechos con IA, con su permiso, y cada uno aprueba sus guiones.</p>
+    <slot name="creditos" />
   </div>
 </footer>
+<script>
+  // Cada sección entra una vez, cuando aparece en pantalla. Sin script, todo se ve igual.
+  const vistos = document.querySelectorAll('[data-entra], .cartel, .cartel__h, .verbo');
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver((entradas) => {
+      for (const e of entradas) if (e.isIntersecting) { e.target.classList.add('ver'); io.unobserve(e.target); }
+    }, { rootMargin: '0px 0px -12% 0px' });
+    vistos.forEach((el) => io.observe(el));
+  } else vistos.forEach((el) => el.classList.add('ver'));
+</script>
 <Medicion />
 </body>
 </html>

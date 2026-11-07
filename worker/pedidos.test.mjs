@@ -530,7 +530,7 @@ test('alta en línea: consentimiento, archivos privados, revisión de Tato, publ
   assert.match(pagina, /Creadora de prueba/);
   assert.doesNotMatch(pagina, /900000000|identidad\/|captura:/);
   const lista = async () => (await (await handleCreadores(env, new URL(B + '/api/influencers/creadores'))).json()).perfiles;
-  assert.deepEqual(await lista(), [{ id, nombre: datos.nombre, region: datos.region, desde: 299, telefonoVerificado: false }]);
+  assert.deepEqual(await lista(), [{ id, nombre: datos.nombre, region: datos.region, desde: 299, contenido: datos.contenido, telefonoVerificado: false }]);
   const pedido = await pedir(env, { influencer: id, paquete: 'Historia' });
   assert.equal(pedido.status, 200);
   assert.deepEqual((await leerPedido(env, pedido.r.numero)).dinero, { precio: 499, produccion: 200, porcentajeTato: 40 });

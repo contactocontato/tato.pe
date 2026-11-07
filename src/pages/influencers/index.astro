@@ -1,9 +1,11 @@
 ---
-// Catálogo de influencers con convenio. Las fichas están en src/content/influencers/.
+// Catálogo de influencers con convenio (fichas en src/content/influencers/) y creadores en línea
+// (los trae /api/influencers/creadores). Diseño de cartel: ver src/styles/studio.css.
 import Studio from '../../layouts/Studio.astro';
 import { influencersVisibles } from '../../lib/catalogo';
-import { rubroNombre, seguidores, soles, desde, comunidad, mesAnio, finConvenio, type RubroId } from '../../lib/influencers';
+import { rubroNombre, soles, desde, finConvenio, type RubroId } from '../../lib/influencers';
 import negocios from '../../data/negocios.json';
+import planes from '../../data/planes-influencer.json';
 
 const lista = await influencersVisibles();
 const rubros = [...new Set(lista.flatMap((i) => i.data.rubros))] as RubroId[];
@@ -11,28 +13,42 @@ const regiones = [...new Set(lista.flatMap((i) => i.data.regiones))].sort((a, b)
 const directo = negocios.rubros.filter((r) => r.nivel === 'permitido').map((r) => r.nombre);
 const conPermiso = negocios.rubros.filter((r) => r.nivel === 'permiso').map((r) => r.nombre);
 const noEntran = negocios.palabras.map((g) => g.motivo);
+const paquetes = planes.paquetes;
+// El precio más bajo que se puede pedir hoy: los planes en línea o una ficha con convenio.
+const minimo = Math.min(...paquetes.map((p) => p.precio), ...lista.map((i) => desde(i.data) ?? Infinity));
+const duracionPlan = (p: { segundos: number; videos: number }) => (p.videos > 1 ? `${p.videos} videos de ${p.segundos} s` : `1 video de ${p.segundos} s`);
+const dias = (p: { entrega: string }) => p.entrega.match(/^\d+/)?.[0];
+const mayus = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+const preguntas = [
+  { tema: 'Negocios', q: '¿Qué negocios pueden pedir un video?' },
+  { tema: 'Imagen IA', q: '¿El influencer graba el video?' },
+  { tema: 'Guion', q: '¿Quién escribe el guion?' },
+  { tema: 'Pagos', q: '¿Cómo y cuándo pago?' },
+  { tema: 'Entrega', q: '¿En cuánto tiempo lo recibo?' },
+  { tema: 'Publicar', q: '¿Cómo lo publico?' },
+];
 ---
-<Studio title="Influencers del Perú para tu negocio · Tato Studio" description="Videos para tu negocio con la imagen de influencers peruanos que me autorizaron su imagen. Los produzco con IA, cada influencer aprueba su guion y solo trabajamos con negocios verificados." actual="influencers">
-  <section class="ihero">
-    <div class="wrap">
-      <h1 class="h1">Influencers del Perú <span class="fx">para tu negocio</span></h1>
-      <p class="lead">Videos para tu negocio con la imagen y el estilo de influencers peruanos que me autorizaron su imagen. Los produzco con IA, cada influencer aprueba su guion y solo trabajamos con negocios verificados.</p>
-      <div class="actions">
-        <a class="btn btn--fucsia" href="/influencers/registro/">Registra tu negocio</a>
-        <a class="btn btn--line" href="/influencers/unete/">Soy influencer</a>
-        <a class="link" href="/cuenta/">Entrar a mi cuenta</a>
-      </div>
+<Studio title="Influencers del Perú para tu negocio · Tato Studio" description={`Videos verticales de 15 o 30 segundos para tu negocio, hechos con IA y con la imagen de influencers peruanos que aprueban cada guion. Desde ${soles(minimo)}. Solo para negocios verificados con su RUC.`} actual="influencers">
+  <section class="cartel" aria-labelledby="cartel-t">
+    <h1 class="cartel__h" id="cartel-t"><span class="l1"><span>Su imagen,</span></span><span class="l2"><span>tu negocio.</span></span></h1>
+    <img class="cartel__tato" src="/inicio/tato/p_senala.webp" width="362" height="760" alt="" fetchpriority="high">
+    <div class="cartel__pie">
+      <p>Videos de 15 o 30 segundos hechos con IA, con influencers peruanos que aprueban cada guion. Desde {soles(minimo)}.</p>
+      <a class="btn btn--ink" href="/influencers/registro/">Registra tu negocio</a>
     </div>
   </section>
 
-  <section class="sec" id="catalogo" aria-labelledby="catalogo-t" style="padding-top:0">
-    <div class="wrap">
-      <h2 class="sr-only" id="catalogo-t">Catálogo</h2>
-      {lista.length > 0 ? (
-        <Fragment>
+  <section class="lineup" id="catalogo" aria-labelledby="catalogo-t">
+    <div class="lineup__cab" data-entra>
+      <div>
+        <h2 class="h2" id="catalogo-t">Elige tu influencer</h2>
+        <p class="cuenta" aria-live="polite" data-cuenta>{lista.length === 1 ? '1 influencer con convenio' : lista.length ? `${lista.length} influencers con convenio` : ''}</p>
+      </div>
+      {(rubros.length > 1 || regiones.length > 1) && (
+        <div>
           {rubros.length > 1 && (
             <div class="filtros" role="group" aria-label="Filtrar por tipo de contenido">
-              <button class="chip" type="button" data-filtro="rubro" data-valor="" aria-pressed="true">Todos</button>
+              <button class="chip" type="button" data-filtro="rubro" data-valor="" aria-pressed="true">Todo</button>
               {rubros.map((r) => <button class="chip" type="button" data-filtro="rubro" data-valor={r} aria-pressed="false">{rubroNombre[r]}</button>)}
             </div>
           )}
@@ -42,88 +58,174 @@ const noEntran = negocios.palabras.map((g) => g.motivo);
               {regiones.map((r) => <button class="chip" type="button" data-filtro="region" data-valor={r} aria-pressed="false">{r}</button>)}
             </div>
           )}
-          <p class="cuenta" aria-live="polite" data-cuenta>{lista.length === 1 ? '1 influencer' : `${lista.length} influencers`}</p>
-          <ul class="igrid">
-            {lista.map((i) => {
-              const d = i.data;
-              const precio = desde(d);
-              return (
-                <li data-rubros={d.rubros.join(' ')} data-regiones={d.regiones.join('|')} data-fin={d.convenioHasta ? finConvenio(d) : undefined}>
-                  <a class="icard" href={`/influencers/${i.id}/`}>
-                    <div class="icard__foto"><img src={d.foto} alt={d.fotoAlt} width="720" height="900" loading="lazy" decoding="async" /></div>
-                    <div class="icard__body">
-                      <h3 class="icard__nombre">{d.nombre}</h3>
-                      <p class="icard__user">@{d.usuario} · {d.regiones.join(', ')}</p>
-                      <p class="icard__estilo">{d.estilo}</p>
-                      <p class="icard__datos">
-                        <span>{seguidores(comunidad(d))} seguidores <span class="sr-only">a {mesAnio(d.cifrasAl)}</span></span>
-                        <span class="icard__precio">{precio ? `Desde ${soles(precio)}` : 'A cotizar'}</span>
-                      </p>
-                    </div>
-                  </a>
-                </li>
-              );
-            })}
-          </ul>
-          <p class="vacio" hidden data-vacio>No hay influencers con esos filtros. Prueba con otro.</p>
-        </Fragment>
-      ) : (
-        <div class="pronto" id="creadores-vacio">
-          <h2 class="h3">Aquí aparecerán los creadores disponibles</h2>
-          <p>Puedes registrar tu negocio para pedir videos cuando haya perfiles disponibles.</p>
-          <a class="btn btn--fucsia" href="/influencers/registro/">Registra tu negocio</a>
         </div>
       )}
-      <section class="creadores-bloque" id="creadores-bloque" hidden aria-labelledby="creadores-t">
-        <h2 class="h3" id="creadores-t">Creadores disponibles</h2>
-        <ul class="creadores" id="creadores"></ul>
-      </section>
-      <button class="btn btn--line" type="button" id="mas-creadores" hidden>Ver más creadores</button>
     </div>
+    <ul class="tabla" id="tabla">
+      {lista.map((i) => {
+        const d = i.data;
+        const precio = desde(d);
+        return (
+          <li data-rubros={d.rubros.join(' ')} data-regiones={d.regiones.join('|')} data-fin={d.convenioHasta ? finConvenio(d) : undefined}>
+            <a class="tabla__fila" href={`/influencers/${i.id}/`}>
+              <b>{d.nombre}</b>
+              <span>{d.estilo}</span>
+              <span class="region">{d.regiones.join(', ')}</span>
+              <span class="precio">{precio ? soles(precio) : 'A cotizar'}</span>
+              <img class="tabla__foto" src={d.foto} alt="" width="180" height="225" loading="lazy" decoding="async">
+            </a>
+          </li>
+        );
+      })}
+    </ul>
+    <p class="vacio" hidden data-vacio>No hay influencers con esos filtros. Prueba con otro.</p>
+    <div class="pronto" id="creadores-vacio" hidden={lista.length > 0}>
+      <p>Aquí aparecen los influencers que ya puedes pedir. Registra tu negocio y te avisamos cuando haya uno para tu rubro.</p>
+      <a class="btn btn--fucsia" href="/influencers/registro/">Registra tu negocio</a>
+    </div>
+    <button class="btn btn--line mas" type="button" id="mas-creadores" hidden>Ver más influencers</button>
   </section>
 
-  <section class="sec" id="como-funciona" aria-labelledby="como-t" style="padding-top:0">
-    <div class="wrap">
-      <h2 class="h2" id="como-t">Cómo <span class="fx">funciona</span></h2>
-      <ol class="pasos">
-        <li><b>Registras tu negocio</b>Con tu RUC. Lo verificamos con SUNAT en segundos.</li>
-        <li><b>Eliges influencer y paquete</b>En su perfil ves sus videos, sus números y lo que no acepta, y le envías tu solicitud.</li>
-        <li><b>El influencer aprueba el guion</b>Armamos el guion para tu negocio y el influencer lo revisa. Sin su visto bueno no se hace nada.</li>
-        <li><b>Lo produzco con IA</b>Con la imagen y el estilo del influencer. Antes de entregártelo, el influencer aprueba el video.</li>
-        <li><b>Lo publicas</b>Con #Publicidad y la etiqueta de que está hecho con IA.</li>
+  <section class="banda-clips" aria-labelledby="clips-t">
+    <h2 class="h2" id="clips-t" data-entra><span>Así se ven</span></h2>
+    <div class="panel-clips">
+      <figure>
+        <video src="/inicio/clips/cuy.mp4" poster="/inicio/clips/cuy.jpg" muted loop playsinline autoplay preload="metadata" aria-label="Un cuy con chullo y poncho sonríe en la mesa de un restaurante"></video>
+        <p class="titulo">Hechos con IA en Tato Studio</p>
+      </figure>
+      <figure><video src="/inicio/clips/foodie.mp4" poster="/inicio/clips/foodie.jpg" muted loop playsinline autoplay preload="metadata" aria-label="Primer plano de una mano que lleva un pan relleno a la boca"></video><figcaption>Comida</figcaption></figure>
+      <figure><video src="/inicio/clips/huacachina.mp4" poster="/inicio/clips/huacachina.jpg" muted loop playsinline autoplay preload="metadata" aria-label="Un cuy y un chanchito pasean en bote bajo una sombrilla de paja al atardecer en Huacachina"></video><figcaption>Turismo</figcaption></figure>
+      <figure><video src="/inicio/clips/gym.mp4" poster="/inicio/clips/gym.jpg" muted loop playsinline autoplay preload="metadata" aria-label="Un hombre se prepara para levantar una barra en un gimnasio"></video><figcaption>Gimnasio</figcaption></figure>
+    </div>
+    <p class="pie">Videos verticales que hice para negocios del Perú. Los de cada influencer, hechos con su imagen y su permiso, están en su perfil.</p>
+  </section>
+
+  <section class="arma" id="arma" aria-labelledby="arma-t" style="margin-top:var(--sec)">
+    <div data-entra>
+      <h2 class="h2" id="arma-t">Arma tu video</h2>
+      <p>Escribe qué vendes y elige cuánto dura. Así se reparten los segundos de tu video.</p>
+      <form id="arma-form" onsubmit="return false">
+        <div><label for="arma-que">¿Qué vendes?</label><input type="text" id="arma-que" maxlength="40" placeholder="Ceviche de conchas negras" autocomplete="off"></div>
+        <fieldset><legend>Duración</legend>
+          <div class="opciones"><label><input type="radio" name="seg" value="15" checked><span>15 s</span></label><label><input type="radio" name="seg" value="30"><span>30 s</span></label></div>
+        </fieldset>
+        <fieldset><legend>Videos</legend>
+          <div class="opciones"><label><input type="radio" name="vid" value="1" checked><span>1</span></label><label><input type="radio" name="vid" value="2" disabled><span>2</span></label></div>
+        </fieldset>
+      </form>
+    </div>
+    <div class="guion" aria-live="polite" data-entra>
+      <div class="linea" id="arma-linea">
+        <div style="--s:3"><b>Gancho</b><span>0–3 s</span></div>
+        <div style="--s:8"><b>Muestra</b><span>3–11 s</span></div>
+        <div style="--s:4"><b>Cierre</b><span>11–15 s</span></div>
+      </div>
+      <ol class="escenas" id="arma-escenas">
+        <li><time>0–3 s</time><div><small>Se ve</small>El influencer con tu producto en la mano.</div><div><small>Dice</small>«¿Ya probaste tu producto?»</div></li>
+        <li><time>3–11 s</time><div><small>Se ve</small>Tu producto de cerca, en tu local.</div><div><small>Dice</small>Lo que tú cuentas de él en tu idea.</div></li>
+        <li><time>11–15 s</time><div><small>Se ve</small>Tu local o tu logo.</div><div><small>Dice</small>Dónde encontrarte.</div></li>
       </ol>
+      <div class="toca">
+        <p id="arma-plan">Te toca el plan <b>{paquetes[0].nombre}</b>: {soles(paquetes[0].precio)}, listo en {dias(paquetes[0])} días hábiles.</p>
+        <a class="btn btn--fucsia" href="/influencers/registro/">Pide este video</a>
+      </div>
+      <p class="nota">Es el esqueleto. Tu storytelling sale de tu idea y de las fotos que subas, lo apruebas tú y después el influencer.</p>
     </div>
   </section>
 
-  <section class="sec dark" aria-labelledby="reglas-t">
-    <div class="wrap">
-      <h2 class="h2" id="reglas-t">Qué negocios <span class="fx">aceptamos</span></h2>
-      <p class="lead">Así cuidamos a los influencers: solo prestan su imagen a negocios formales y a productos que se pueden mostrar sin mentir.</p>
-      <div class="reglas">
-        <div class="regla"><h3>Entran directo, con su RUC activo y habido</h3><ul>{directo.map((r) => <li>{r}</li>)}</ul></div>
-        <div class="regla"><h3>Entran mostrando sus permisos</h3><ul>{conPermiso.map((r) => <li>{r}</li>)}</ul></div>
-        <div class="regla regla--no"><h3>No entran</h3><ul>{noEntran.map((m) => <li>{m.charAt(0).toUpperCase() + m.slice(1)}</li>)}</ul></div>
-      </div>
+  <section class="planes" id="precios" aria-labelledby="precios-t">
+    <div class="planes__cab" data-entra>
+      <h2 class="h2" id="precios-t">Paga por segundos</h2>
+      <p>Precios de los influencers que se registran en línea. Si alguno cobra distinto, lo ves en su perfil.</p>
+    </div>
+    {paquetes.map((p) => (
+      <a class="plan-t" href="/influencers/registro/">
+        <div>
+          <h3>{p.nombre}</h3>
+          <p class="precio">{soles(p.precio)}</p>
+          <p class="seg">{duracionPlan(p)}</p>
+          <p>{p.descripcion}</p>
+          <p>Listo en {p.entrega}.</p>
+          <p>Uso: {p.uso.charAt(0).toLowerCase() + p.uso.slice(1)}.</p>
+        </div>
+        <span class="ir">Pedir {p.nombre} <span aria-hidden="true">↗</span></span>
+      </a>
+    ))}
+    <p class="aviso">Pagas un adelanto para la producción cuando el influencer acepta tu pedido, y el resto cuando el video está listo.</p>
+  </section>
+
+  <section class="verbos" aria-labelledby="como-t">
+    <h2 class="sr-only" id="como-t">Cómo funciona</h2>
+    <div class="verbo">
+      <img src="/found/jr-ucayali-centro-de-lima-17.jpg" alt="Una casona amarilla con balcones de madera en el jirón Ucayali, en el centro de Lima" width="1920" height="2560" loading="lazy" decoding="async">
+      <div class="verbo__p"><h3>Regístrate</h3></div>
+      <p>Con tu RUC. Lo verificamos con SUNAT en segundos y creas tu usuario y tu contraseña.</p>
+    </div>
+    <div class="verbo">
+      <img src="/inicio/clips/foodie.jpg" alt="Primer plano de una mano que sostiene un pan relleno" width="540" height="960" loading="lazy" decoding="async">
+      <div class="verbo__p"><h3>Pide</h3></div>
+      <p>Eliges influencer y plan, subes fotos de tu negocio y del escenario, y cuentas tu idea o tu guion.</p>
+    </div>
+    <div class="verbo">
+      <img src="/inicio/clips/cuy.jpg" alt="Un cuy con chullo y poncho, hecho con IA, en la mesa de un restaurante" width="540" height="960" loading="lazy" decoding="async">
+      <div class="verbo__p"><h3>Aprueba</h3></div>
+      <p>La IA convierte tu idea en un storytelling: lo apruebas o pides otra versión. Después lo aprueba el influencer.</p>
+    </div>
+    <div class="verbo">
+      <img src="/found/atardecer-en-huacachina-2.jpg" alt="Una persona en lo alto de una duna de Huacachina al atardecer" width="1920" height="3140" loading="lazy" decoding="async">
+      <div class="verbo__p"><h3>Publica</h3></div>
+      <p>Recibes tu video y lo subes a tus redes con #Publicidad y la etiqueta de que está hecho con IA.<small>Fotos: <a href="https://commons.wikimedia.org/w/index.php?curid=62470721" target="_blank" rel="noopener">«Jr Ucayali, centro de Lima 17»</a>, Ibrehaut, y <a href="https://commons.wikimedia.org/w/index.php?curid=73284273" target="_blank" rel="noopener">«Atardecer en Huacachina 2»</a>, Kevo287, ambas <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener">CC BY-SA 4.0</a>, vía Wikimedia Commons.</small></p>
     </div>
   </section>
 
-  <section class="sec" aria-labelledby="unete-t">
-    <div class="wrap banda">
-      <div>
-        <h2 class="h2" id="unete-t">¿Eres <span class="fx">influencer</span>?</h2>
-        <p>Súmate al convenio: tu imagen trabaja con negocios verificados, tú apruebas cada guion y el ingreso es para ti.</p>
-      </div>
-      <a class="btn btn--ink" href="/influencers/unete/">Quiero sumarme</a>
+  <section class="fichero" id="preguntas" aria-labelledby="preguntas-t">
+    <h2 class="h2" id="preguntas-t" data-entra><span>Lo que nos preguntan</span></h2>
+    <div class="fichas">
+      {preguntas.map((x, n) => (
+        <div class="ficha" style={`--i:${n}`}>
+          <span class="ficha__pest" aria-hidden="true">{x.tema}</span>
+          <h3><button type="button" aria-expanded={n === 0 ? 'true' : 'false'} aria-controls={`r-${n}`} id={`q-${n}`}>{x.q}</button></h3>
+          <div class="ficha__r" id={`r-${n}`} role="region" aria-labelledby={`q-${n}`} hidden={n !== 0}>
+            {n === 0 && <Fragment>
+              <p>Negocios formales, con RUC activo y habido en SUNAT. Así cuidamos a los influencers: solo prestan su imagen a productos que se pueden mostrar sin mentir.</p>
+              <h4>Entran directo</h4><p>{directo.join(', ')}.</p>
+              <h4>Entran mostrando sus permisos</h4><p>{conPermiso.join(', ')}.</p>
+              <h4>No entran</h4><p>{mayus(noEntran.join(', '))}.</p>
+            </Fragment>}
+            {n === 1 && <p>No. El video se hace con IA, con la imagen y la voz del influencer y con su autorización. Su forma de actuar, su personalidad y su voz en el video pueden no ser idénticas a las de la persona real. El influencer aprueba el guion y el video antes de que te lo entreguemos.</p>}
+            {n === 2 && <p>Tú cuentas tu idea o traes tu guion final, con fotos de tu negocio y del escenario. La IA lo desarrolla en un storytelling escena por escena, y tú lo apruebas o pides otra versión. Solo usa lo que tú le das: no inventa precios, promociones ni datos.</p>}
+            {n === 3 && <p>Cuando el influencer acepta tu pedido pagas el adelanto de producción, y el resto cuando el video está listo. Pagas desde tu pedido, en tu panel.</p>}
+            {n === 4 && <p>{paquetes.map((p) => `${p.nombre}: ${p.entrega}`).join('. ')}.</p>}
+            {n === 5 && <p>Con #Publicidad y con la etiqueta de que está hecho con IA, solo donde y por el tiempo que acordamos en tu plan, y sin editarlo para decir otra cosa.</p>}
+          </div>
+        </div>
+      ))}
     </div>
   </section>
+
+  <script type="application/json" id="planes-datos" set:html={JSON.stringify(paquetes.map(({ nombre, segundos, videos, precio, entrega }) => ({ nombre, segundos, videos, precio, entrega })))} />
+
+  <a class="pidelo" href="/influencers/registro/">
+    <p>Registra tu negocio con tu RUC. Lo verificamos en segundos y armas tu primer pedido.</p>
+    <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M12 36 36 12M16 12h20v20" fill="none" stroke="currentColor" stroke-width="5"/></svg>
+    <strong>Pídelo</strong>
+  </a>
 </Studio>
 
 <script>
-  const creadores = document.querySelector<HTMLUListElement>('#creadores')!;
-  const bloque = document.querySelector<HTMLElement>('#creadores-bloque')!;
-  const vacioCatalogo = document.querySelector<HTMLElement>('#creadores-vacio');
+  // Creadores que se registraron en línea: se suman a la misma tabla.
+  const tabla = document.querySelector<HTMLUListElement>('#tabla')!;
+  const vacioCatalogo = document.querySelector<HTMLElement>('#creadores-vacio')!;
   const mas = document.querySelector<HTMLButtonElement>('#mas-creadores')!;
+  const cuentaEl = document.querySelector<HTMLElement>('[data-cuenta]');
   let cursor = '';
+  let enLinea = 0;
+  const celda = (tag: string, texto: string, clase = '') => {
+    const el = document.createElement(tag);
+    el.textContent = texto;
+    if (clase) el.className = clase;
+    return el;
+  };
   async function cargarCreadores() {
     mas.disabled = true;
     try {
@@ -132,66 +234,109 @@ const noEntran = negocios.palabras.map((g) => g.motivo);
       const datos = await respuesta.json();
       for (const perfil of datos.perfiles) {
         const li = document.createElement('li');
-        const link = document.createElement('a');
-        link.href = '/influencers/perfil/' + encodeURIComponent(perfil.id) + '/';
-        link.className = 'icard creador-card';
-        const cabecera = document.createElement('div');
-        cabecera.className = 'creador-card__marca';
-        const iniciales = document.createElement('span');
-        iniciales.setAttribute('aria-hidden', 'true');
-        iniciales.textContent = perfil.nombre.trim().split(/\s+/).slice(0, 2).map((palabra: string) => Array.from(palabra)[0]).join('').toUpperCase();
-        const sello = document.createElement('small');
-        sello.textContent = perfil.telefonoVerificado ? 'WhatsApp verificado' : 'Creador Tato Studio';
-        cabecera.append(iniciales, sello);
-        const titulo = document.createElement('h3');
-        titulo.textContent = perfil.nombre;
-        const descripcion = document.createElement('p');
-        descripcion.textContent = perfil.region;
-        const pie = document.createElement('div');
-        pie.className = 'creador-card__pie';
-        const precio = document.createElement('b');
-        precio.textContent = 'Desde S/ ' + perfil.desde;
-        const cta = document.createElement('span');
-        cta.textContent = 'Ver perfil ↗';
-        pie.append(precio, cta);
-        link.append(cabecera, titulo, descripcion, pie);
-        li.append(link);
-        creadores.append(li);
+        li.dataset.enLinea = '1';
+        const fila = document.createElement('a');
+        fila.className = 'tabla__fila';
+        fila.href = '/influencers/perfil/' + encodeURIComponent(perfil.id) + '/';
+        fila.append(
+          celda('b', perfil.nombre),
+          celda('span', perfil.contenido || (perfil.telefonoVerificado ? 'WhatsApp verificado' : 'Creador verificado por Tato')),
+          celda('span', perfil.region || 'Perú', 'region'),
+          celda('span', 'S/ ' + Number(perfil.desde).toLocaleString('en-US'), 'precio'),
+        );
+        li.append(fila);
+        tabla.append(li);
+        enLinea++;
       }
       cursor = datos.siguiente || '';
       mas.hidden = !cursor;
-      if (creadores.childElementCount) {
-        bloque.hidden = false;
-        if (vacioCatalogo) vacioCatalogo.hidden = true;
+      if (tabla.childElementCount) {
+        vacioCatalogo.hidden = true;
+        if (cuentaEl) cuentaEl.textContent = tabla.childElementCount === 1 ? '1 influencer' : `${tabla.childElementCount} influencers`;
       }
-    } catch { /* El catálogo estático queda disponible. */ }
+    } catch { /* La lista de la página queda como está. */ }
     finally { mas.disabled = false; }
   }
   mas.addEventListener('click', cargarCreadores);
   void cargarCreadores();
+
+  // Preguntas: una ficha abierta a la vez.
+  const botones = [...document.querySelectorAll<HTMLButtonElement>('.ficha button')];
+  for (const b of botones) b.addEventListener('click', () => {
+    for (const otro of botones) {
+      const abre = otro === b && otro.getAttribute('aria-expanded') !== 'true';
+      otro.setAttribute('aria-expanded', String(abre));
+      document.getElementById(otro.getAttribute('aria-controls')!)!.hidden = !abre;
+    }
+  });
+
+  // Arma tu video: reparte los segundos con lo que el negocio escribe.
+  const planes: { nombre: string; segundos: number; videos: number; precio: number; entrega: string }[] = JSON.parse(document.getElementById('planes-datos')!.textContent || '[]');
+  const form = document.querySelector<HTMLFormElement>('#arma-form')!;
+  const que = document.querySelector<HTMLInputElement>('#arma-que')!;
+  const linea = document.querySelector<HTMLElement>('#arma-linea')!;
+  const escenas = document.querySelector<HTMLElement>('#arma-escenas')!;
+  const plan = document.querySelector<HTMLElement>('#arma-plan')!;
+  const dos = form.querySelector<HTMLInputElement>('input[name=vid][value="2"]')!;
+  const ESQUELETO: Record<string, [string, number, number, string, string][]> = {
+    15: [
+      ['Gancho', 0, 3, 'El influencer con {p} en la mano.', '«¿Ya probaste {p}?»'],
+      ['Muestra', 3, 11, '{P} de cerca, en tu local.', 'Lo que tú cuentas en tu idea.'],
+      ['Cierre', 11, 15, 'Tu local o tu logo.', 'Dónde encontrarte.'],
+    ],
+    30: [
+      ['Gancho', 0, 3, 'El influencer con {p} en la mano.', '«¿Ya probaste {p}?»'],
+      ['Escenario', 3, 12, 'El lugar de tu foto del escenario, con el influencer.', 'Por qué vino a tu negocio.'],
+      ['Muestra', 12, 24, '{P} de cerca, cómo se usa o se sirve.', 'Lo que tú cuentas en tu idea.'],
+      ['Cierre', 24, 30, 'Tu local o tu logo.', 'Dónde encontrarte y cómo pedir.'],
+    ],
+  };
+  function pintar() {
+    const seg = (form.querySelector<HTMLInputElement>('input[name=seg]:checked')!).value;
+    dos.disabled = seg !== '30';
+    if (dos.disabled && dos.checked) form.querySelector<HTMLInputElement>('input[name=vid][value="1"]')!.checked = true;
+    const vid = Number((form.querySelector<HTMLInputElement>('input[name=vid]:checked')!).value);
+    const p = que.value.trim() || 'tu producto';
+    const P = p.charAt(0).toUpperCase() + p.slice(1);
+    const llenar = (t: string) => t.replaceAll('{p}', p).replaceAll('{P}', P);
+    linea.replaceChildren(...ESQUELETO[seg].map(([n, a, b]) => {
+      const d = document.createElement('div');
+      d.style.setProperty('--s', String(b - a));
+      d.append(celda('b', n), celda('span', `${a}–${b} s`));
+      return d;
+    }));
+    escenas.replaceChildren(...ESQUELETO[seg].map(([, a, b, ve, dice]) => {
+      const li = document.createElement('li');
+      const t = celda('time', `${a}–${b} s`);
+      const v = document.createElement('div'); v.append(celda('small', 'Se ve'), llenar(ve));
+      const di = document.createElement('div'); di.append(celda('small', 'Dice'), llenar(dice));
+      li.append(t, v, di);
+      return li;
+    }));
+    const elegido = planes.find((x) => x.segundos === Number(seg) && x.videos === vid) || planes[0];
+    plan.replaceChildren('Te toca el plan ', celda('b', elegido.nombre), `: S/ ${elegido.precio}, listo en ${elegido.entrega.match(/^\d+/)?.[0]} días hábiles.`);
+  }
+  form.addEventListener('input', pintar);
+  form.addEventListener('change', pintar);
 </script>
 
-
 <script>
-  // Si un convenio venció después de publicar la web, su tarjeta ya no se muestra.
-  const vencidas = [...document.querySelectorAll<HTMLElement>('.igrid > li[data-fin]')].filter((li) => Number(li.dataset.fin) < Date.now());
+  // Si un convenio venció después de publicar la web, su fila ya no se muestra.
+  const vencidas = [...document.querySelectorAll<HTMLElement>('#tabla > li[data-fin]')].filter((li) => Number(li.dataset.fin) < Date.now());
   vencidas.forEach((li) => li.remove());
 
-  // Filtros del catálogo: por tipo de contenido y por región, a la vez.
+  // Filtros del catálogo: por tipo de contenido y por región, a la vez (solo las fichas con convenio).
   const elegido = { rubro: '', region: '' };
-  const items = [...document.querySelectorAll<HTMLElement>('.igrid > li')];
-  const cuenta = document.querySelector<HTMLElement>('[data-cuenta]');
+  const items = [...document.querySelectorAll<HTMLElement>('#tabla > li:not([data-en-linea])')];
   const vacio = document.querySelector<HTMLElement>('[data-vacio]');
-  if (vacio && items.length === 0) vacio.textContent = 'Por ahora no hay influencers disponibles.';
   function aplicar() {
     let n = 0;
-    for (const li of items) {
+    for (const li of document.querySelectorAll<HTMLElement>('#tabla > li')) {
       const ok = (!elegido.rubro || (li.dataset.rubros || '').split(' ').includes(elegido.rubro)) && (!elegido.region || (li.dataset.regiones || '').split('|').includes(elegido.region));
       li.hidden = !ok;
       if (ok) n++;
     }
-    if (cuenta) cuenta.textContent = n === 1 ? '1 influencer' : `${n} influencers`;
-    if (vacio) vacio.hidden = n > 0;
+    if (vacio) vacio.hidden = n > 0 || items.length === 0;
   }
   document.querySelectorAll<HTMLButtonElement>('[data-filtro]').forEach((b) => b.addEventListener('click', () => {
     const tipo = b.dataset.filtro as 'rubro' | 'region';

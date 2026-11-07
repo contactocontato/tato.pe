@@ -164,12 +164,12 @@ ${SCRIPT_ORDEN}`,
 
 const CSS_ORDEN = `.orden-form h2,.caja>h2{margin-top:0}.apagada{opacity:.6}
 .paquetes-op{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
-.paquete-op{display:flex;gap:10px;align-items:flex-start;border:1.5px solid var(--line);border-radius:14px;padding:12px 14px;background:#fff;cursor:pointer;font-weight:400}
+.paquete-op{display:flex;gap:10px;align-items:flex-start;border:1.5px solid var(--line);border-radius:0;padding:12px 14px;background:#fff;cursor:pointer;font-weight:400}
 .paquete-op:has(input:checked){border-color:var(--fucsia);box-shadow:0 0 0 2px rgba(226,3,126,.15)}.paquete-op input{margin-top:5px}
 .paquete-op>span{display:grid;gap:3px}.paquete-op .precio{color:var(--fucsia-tinta);font-weight:800}.paquete-op .segundos{font-weight:700}
 .fotos-orden{border:0;padding:0;margin:16px 0 4px}.fotos-orden legend{font-weight:700}
 .fotos-fila{display:flex;gap:10px;flex-wrap:wrap;margin:8px 0}.foto-orden{margin:0;width:110px;display:grid;gap:4px}
-.foto-orden img{width:110px;height:110px;object-fit:cover;border-radius:12px;border:1px solid var(--line);background:#fff}
+.foto-orden img{width:110px;height:110px;object-fit:cover;border-radius:0;border:1px solid var(--line);background:#fff}
 .foto-orden .quitar{font:inherit;font-size:13px;background:none;border:0;color:var(--fucsia-tinta);text-decoration:underline;cursor:pointer;padding:0}
 .check.bloque{display:flex;align-items:flex-start;gap:10px;margin:10px 0;line-height:1.45}.check.bloque input{margin-top:4px;flex:none}
 .aprobado{border-color:#1f7a3f}.otra{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
