@@ -61,6 +61,8 @@ const influencers = defineCollection({
     paquetes: z.array(z.object({
       nombre: z.string(),
       precio: z.number().optional(),           // en soles; sin precio sale «A cotizar»
+      segundos: z.number().int().positive().optional(), // duración de cada video (la orden de servicio la muestra)
+      videos: z.number().int().positive().optional(),   // cuántos videos incluye (1 si no se pone)
       incluye: z.array(z.string()).min(1),
       entrega: z.string(),
       uso: z.string(),                         // dónde y por cuánto tiempo puede usar el video el negocio

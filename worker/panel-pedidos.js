@@ -16,6 +16,9 @@ import { servirArchivo } from './medios.js';
 import { FOTOS, ITEMS, NOMBRES, decidirIdentidad } from './identidad.js';
 import { telefonoConfirmado } from './verificacion.js';
 import { avisar } from './avisos.js';
+import { duracion } from './orden.js';
+import { verStorytelling, CSS_STORY } from './storytelling.js';
+import { fotosOrden } from './portal-negocio.js';
 
 const fecha = (s) => (s ? new Date(s).toLocaleString('es-PE', { timeZone: 'America/Lima', dateStyle: 'medium', timeStyle: 'short' }) : '');
 const wa = (numero, textoMsj) => `https://wa.me/51${String(numero || '').replace(/\D/g, '').slice(-9)}?text=${encodeURIComponent(textoMsj)}`;
@@ -133,8 +136,11 @@ function bloquePedido(env, p, aj, cuentaInf, abierto) {
     ${mensajes.length ? `<p>${mensajes.join(' · ')}</p>` : ''}
     <dl>
       <dt>Promocionar</dt><dd>${esc(p.brief.promociona)}</dd>
-      ${p.brief.detalle ? `<dt>Detalles</dt><dd>${esc(p.brief.detalle).replace(/\n/g, '<br>')}</dd>` : ''}
+      ${p.brief.segundos ? `<dt>Duración</dt><dd>${esc(duracion({ segundos: p.brief.segundos, videos: p.brief.videos || 1 }))}</dd>` : ''}
+      ${p.brief.detalle ? `<dt>${p.brief.tipo === 'guion' ? 'Su guion' : p.brief.orden ? 'Su idea' : 'Detalles'}</dt><dd>${esc(p.brief.detalle).replace(/\n/g, '<br>')}</dd>` : ''}
+      ${p.brief.accion ? `<dt>Qué hace el influencer</dt><dd>${esc(p.brief.accion).replace(/\n/g, '<br>')}</dd>` : ''}
       ${p.brief.fecha ? `<dt>Para cuándo</dt><dd>${esc(p.brief.fecha)}</dd>` : ''}
+      ${p.brief.aceptaIA ? `<dt>Aceptó</dt><dd>${esc(p.brief.aceptaIA.texto)} (${esc(fecha(p.brief.aceptaIA.fecha))})</dd>` : ''}
       <dt>Negocio</dt><dd><a href="/panel/negocio/?ruc=${esc(n.ruc)}">${esc(n.razonSocial || n.nombreComercial)}</a> · RUC ${esc(n.ruc)} · código ${esc(n.codigo)}</dd>
       <dt>Contacto</dt><dd>${esc(n.contacto?.nombre)} · ${esc(n.contacto?.whatsapp)}${n.contacto?.correo ? ` · ${esc(n.contacto.correo)}` : ''}</dd>
       <dt>Creador</dt><dd><a href="/panel/creador/?id=${esc(p.influencer.id)}">${esc(p.influencer.nombre)}</a></dd>
@@ -144,6 +150,8 @@ function bloquePedido(env, p, aj, cuentaInf, abierto) {
       ${pagos.length ? `<dt>Pagos</dt><dd>${pagos.join('<br>')}</dd>` : ''}
       ${p.motivo ? `<dt>Motivo</dt><dd>${esc(p.motivo)}</dd>` : ''}
     </dl>
+    ${p.brief.storytelling ? `<details open><summary><b>Storytelling aprobado por el negocio</b>${p.brief.versiones > 1 ? ` (después de ${p.brief.versiones} versiones)` : ''}</summary><style>${CSS_STORY}</style>${verStorytelling(p.brief.storytelling)}</details>` : p.brief.orden ? '<p class="muted">Orden sin storytelling de IA: ármalo con el negocio.</p>' : ''}
+    ${fotosOrden(p, (k) => `/panel/archivo?clave=${encodeURIComponent(k)}`)}
     ${tablaCuentas(c, p)}
     ${p.estado === 'entregado' ? `<p><a class="btn" href="/panel/publicaciones/?pedido=${esc(p.id)}">Ver y registrar publicaciones</a></p>` : ''}
     <details><summary class="muted">Historial</summary><ol class="muted">${(p.historial || []).map((h) => `<li>${esc(fecha(h.fecha))} · ${esc(h.quien)}: ${esc(h.que)}</li>`).join('')}</ol></details>

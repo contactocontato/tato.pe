@@ -16,6 +16,8 @@ import {
 } from './pedidos.js';
 import { configCorreo, correoValido, correoOculto, pedirCodigo, comprobarCodigoCorreo } from './correo.js';
 import { handleIdentidad } from './identidad.js';
+import { duracion } from './orden.js';
+import { verStorytelling, CSS_STORY } from './storytelling.js';
 import { servirArchivo } from './medios.js';
 import { json } from './ui.js';
 import { mpListo, urlConexion, canjearCodigo } from './mercadopago.js';
@@ -437,12 +439,15 @@ ${bloque}
 <h2>Qué quiere el negocio</h2>
 <div class="caja"><dl class="datos">
   <dt>Promocionar</dt><dd>${esc(p.brief.promociona)}</dd>
-  ${p.brief.detalle ? `<dt>Detalles</dt><dd>${multilinea(p.brief.detalle)}</dd>` : ''}
+  ${p.brief.segundos ? `<dt>Duración</dt><dd>${esc(duracion({ segundos: p.brief.segundos, videos: p.brief.videos || 1 }))}</dd>` : ''}
+  ${p.brief.detalle ? `<dt>${p.brief.tipo === 'guion' ? 'Su guion' : p.brief.orden ? 'Su idea' : 'Detalles'}</dt><dd>${multilinea(p.brief.detalle)}</dd>` : ''}
+  ${p.brief.accion ? `<dt>Qué quiere que hagas</dt><dd>${multilinea(p.brief.accion)}</dd>` : ''}
   ${p.brief.fecha ? `<dt>Para cuándo</dt><dd>${esc(fechaDia(p.brief.fecha))}</dd>` : ''}
   <dt>Paquete</dt><dd>${esc(p.paquete.nombre)}</dd>
   <dt>Entrega</dt><dd>${esc(p.paquete.entrega)}</dd>
   <dt>Uso del video</dt><dd>${esc(p.paquete.uso)}</dd>
 </dl></div>
+${p.brief.storytelling ? `<h2>El storytelling que aprobó el negocio</h2><div class="caja"><style>${CSS_STORY}</style>${verStorytelling(p.brief.storytelling)}<p class="nota">El video usa tu imagen y tu voz recreadas con IA. Tato escribe el guion final a partir de este storytelling y tú lo apruebas.</p></div>` : ''}
 <h2>El negocio</h2>
 <div class="caja"><dl class="datos">
   ${n.razonSocial ? `<dt>Razón social</dt><dd>${esc(n.razonSocial)}</dd>` : ''}

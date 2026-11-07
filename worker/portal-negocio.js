@@ -1,21 +1,29 @@
-// Portal del negocio en tato.pe/negocio/: entra con un código que le llega a su correo verificado
-// (el que confirmó al registrar su negocio) y ve sus pedidos, lo que le toca pagar y en qué va cada video.
+// Panel del negocio en tato.pe/negocio/: entra con su usuario y su contraseña (worker/cuenta-negocio.js),
+// que elige después de registrar su negocio. Ve sus pedidos, lo que le toca pagar y en qué va cada video,
+// completa el perfil de su marca y pide videos con la orden de servicio (worker/orden.js).
 //
 //   /negocio/                inicio (o la página para entrar)
-//   /negocio/entrar          POST: correo → código → sesión
+//   /negocio/entrar          POST: usuario y contraseña; o un código al correo; o RUC + DNI + WhatsApp
+//   /negocio/acceso/?t=      crear el usuario y la contraseña, o cambiar la contraseña
+//   /negocio/clave           POST: pide cambiar la contraseña (ya dentro)
 //   /negocio/salir           POST: cierra la sesión
 //   /negocio/pedido/<id>/    un pedido
+//   /negocio/pedir/<id>/     la orden de servicio para un influencer
+//   /negocio/perfil/         el perfil de la marca
 //
-// La sesión es otra cookie (tato_negocio, ver worker/seguridad.js); en ella solo va el correo.
+// La sesión es otra cookie (tato_negocio, ver worker/seguridad.js); en ella va el usuario.
 // Al abrir el inicio, el código y el RUC de su negocio verificado quedan en el navegador (localStorage
-// «tato-negocio», el mismo que usa el registro), así el formulario de pedido de cada influencer se llena solo.
+// «tato-negocio», el mismo que usa el registro).
 
 import { esc } from './ui.js';
-import { crearSesionNegocio, leerSesionNegocio, cerrarSesionNegocio, mismoOrigen, contar, aleatorio } from './seguridad.js';
+import { crearSesionNegocio, leerSesionNegocio, cerrarSesionNegocio, mismoOrigen, contar } from './seguridad.js';
 import { configCorreo, correoValido, correoOculto, pedirCodigo, comprobarCodigoCorreo } from './correo.js';
-import { negociosDeCorreo, confirmarCorreoNegocios, negocioPorContacto, ponerCorreoNegocio, migrarIndiceCorreos, guardarNegocio } from './negocios.js';
+import { negociosDeCorreo, confirmarCorreoNegocios, negocioPorContacto, migrarIndiceCorreos, guardarNegocio } from './negocios.js';
+import { handleAcceso, entrarConClave, cuentaDeRuc, tokenAcceso, leerCuentaNegocio, negociosDeCuenta } from './cuenta-negocio.js';
 import { servirArchivo } from './medios.js';
-import { leerPedido, listarPedidos, cuentas, soles, ESTADOS, PASOS, ACTIVOS } from './pedidos.js';
+import { handleOrden, duracion, paqueteCompleto } from './orden.js';
+import { verStorytelling, CSS_STORY } from './storytelling.js';
+import { leerPedido, listarPedidos, cuentas, soles, ESTADOS, PASOS, ACTIVOS, influencerPublicado } from './pedidos.js';
 import { listarPublicaciones, METRICAS } from './publicaciones.js';
 import { WHATSAPP_TATO, fecha, fechaDia, multilinea, pagina, respuesta, ir } from './portal.js';
 
@@ -25,11 +33,20 @@ const perfilDe = (p) => (/^creador-[0-9a-f]{32}$/.test(p.influencer.id) ? `/infl
 const wa = (texto) => `https://wa.me/${WHATSAPP_TATO}?text=${encodeURIComponent(texto)}`;
 
 const MENSAJES = {
-  bienvenida: 'Listo: tu correo quedó confirmado. Desde ahora entras con él.',
+  bienvenida: 'Listo: ya tienes tu acceso. Desde ahora entras con tu usuario y tu contraseña.',
+  clave: 'Guardamos tu contraseña nueva.',
   sesion: 'Tu sesión se cerró. Vuelve a entrar.',
   origen: 'No pudimos confirmar que el envío venga de tato.pe. Recarga la página.',
   salir: 'Cerraste tu sesión.',
 };
+
+/** Las fotos de la orden de servicio (negocio y escenario), con la ruta que sirve cada archivo. */
+export function fotosOrden(p, url) {
+  const f = p.brief?.fotos;
+  if (!f || !(f.negocio?.length || f.escenario?.length)) return '';
+  const fila = (lista, titulo) => (lista?.length ? `<p class="nota">${titulo}</p><div class="fotos-fila" style="display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 12px">${lista.map((c) => `<a href="${esc(url(c))}" target="_blank" rel="noopener"><img src="${esc(url(c))}" alt="${esc(titulo)}" loading="lazy" style="width:110px;height:110px;object-fit:cover;border-radius:12px;border:1px solid #ddd;background:#fff"></a>`).join('')}</div>` : '');
+  return `<h2>Fotos de la orden</h2><div class="caja">${fila(f.negocio, 'Negocio o producto')}${fila(f.escenario, 'Escenario')}</div>`;
+}
 
 /** Lo que tiene que pagar el negocio ahora, o null. */
 export function pagoPendiente(p) {
@@ -188,7 +205,7 @@ function paginaPerfil(sesion, negocios, n, { error = '', aviso = '', vista = nul
     : '';
   return pagina({
     titulo: 'Perfil de tu marca',
-    cuenta: { nombre: n.contacto?.nombre || sesion.correo },
+    cuenta: { nombre: n.contacto?.nombre || sesion.usuario },
     salir: '/negocio/salir',
     inicio: '/negocio/',
     error,
@@ -230,44 +247,42 @@ ${elegir}
 
 // ---------- Páginas ----------
 
-function paginaEntrar({ paso = 'correo', correo = '', desafio = '', token = '', error = '', aviso = '', listo = true, ruc = '' }) {
-  const codigo = (siguiente, extra = '') => `<form class="caja" method="post" action="/negocio/entrar">
-  <input type="hidden" name="paso" value="${siguiente}"><input type="hidden" name="correo" value="${esc(correo)}"><input type="hidden" name="desafio" value="${esc(desafio)}">${extra}
-  <p>${siguiente === 'codigo' ? `Si <b>${esc(correoOculto(correo))}</b> está registrado, le llegó` : `Le mandamos a <b>${esc(correo)}</b>`} un código de 6 números. Vence en 15 minutos.</p>
+function paginaEntrar({ paso = '', correo = '', desafio = '', error = '', aviso = '', listo = true, ruc = '', usuario = '', volver = '/negocio/' }) {
+  const v = `<input type="hidden" name="volver" value="${esc(volver)}">`;
+  let form;
+  if (paso === 'codigo') {
+    form = `<form class="caja" method="post" action="/negocio/entrar">
+  <input type="hidden" name="paso" value="codigo"><input type="hidden" name="correo" value="${esc(correo)}"><input type="hidden" name="desafio" value="${esc(desafio)}">${v}
+  <p>Si <b>${esc(correoOculto(correo))}</b> está registrado, le llegó un código de 6 números. Vence en 15 minutos.</p>
   <label for="codigo">Código</label>
   <input id="codigo" name="codigo" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus>
   <div class="acciones"><button class="btn fucsia" type="submit">Entrar</button><a class="btn linea" href="/negocio/">Volver</a></div>
 </form>`;
-  let form;
-  if (!listo) {
-    form = '<p class="aviso ojo">El ingreso con código por correo todavía no está disponible. Escríbenos por WhatsApp para saber de tu pedido.</p>';
-  } else if (paso === 'codigo') {
-    form = codigo('codigo');
-  } else if (paso === 'reclamo-codigo') {
-    form = codigo('reclamo-codigo', `<input type="hidden" name="token" value="${esc(token)}">`);
-  } else if (paso === 'reclamo-correo') {
-    form = `<form class="caja" method="post" action="/negocio/entrar">
-  <input type="hidden" name="paso" value="reclamo-correo"><input type="hidden" name="token" value="${esc(token)}">
-  <p>Encontramos tu negocio. Escribe el correo con el que vas a entrar desde ahora: te mandamos un código para confirmarlo.</p>
-  <label for="correo">Tu correo</label>
-  <input id="correo" name="correo" type="email" autocomplete="email" required maxlength="160" value="${esc(correo)}">
-  <div class="acciones"><button class="btn fucsia" type="submit">Mandarme el código</button></div>
-</form>`;
   } else {
-    form = `<form class="caja" method="post" action="/negocio/entrar">
-  <input type="hidden" name="paso" value="correo">
+    form = `<form class="caja" method="post" action="/negocio/entrar" data-clave data-prefijo="negocio-">
+  <input type="hidden" name="paso" value="clave">${v}
+  <label for="id">Tu usuario</label>
+  <input id="id" name="id" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required maxlength="30" value="${esc(usuario)}">
+  <label for="clave">Tu contraseña</label>
+  <input id="clave" type="password" autocomplete="current-password" required data-hash="clave"><input type="hidden" name="clave">
+  <p class="aviso err" data-aviso-clave hidden></p>
+  <div class="acciones"><button class="btn fucsia" type="submit">Entrar</button></div>
+</form>
+${listo ? `<details class="caja"${paso === 'correo' ? ' open' : ''}><summary><b>¿Olvidaste tu contraseña?</b> Entra con un código a tu correo</summary>
+<form method="post" action="/negocio/entrar" style="margin-top:12px">
+  <input type="hidden" name="paso" value="correo">${v}
   <label for="correo">El correo de tu negocio</label>
   <input id="correo" name="correo" type="email" autocomplete="email" required maxlength="160" value="${esc(correo)}">
-  <p class="nota">Te mandamos un código. No necesitas contraseña.</p>
-  <div class="acciones"><button class="btn fucsia" type="submit">Mandarme el código</button></div>
-</form>
-<details class="caja"${paso === 'ruc' ? ' open' : ''}><summary><b>¿Registraste tu negocio sin correo?</b> Entra con tu RUC</summary>
+  <p class="nota">Después cambias tu contraseña desde tu panel.</p>
+  <div class="acciones"><button class="btn linea" type="submit">Mandarme el código</button></div>
+</form></details>` : `<p class="nota">¿Olvidaste tu contraseña? <a href="${esc(wa('Hola Tato, olvidé la contraseña del panel de mi negocio.'))}" target="_blank" rel="noopener">Escríbele a Tato por WhatsApp</a> y te manda un enlace para crear otra.</p>`}
+<details class="caja"${paso === 'ruc' ? ' open' : ''}><summary><b>¿Ya registraste tu negocio y no tienes usuario?</b> Créalo con tu RUC</summary>
 <form method="post" action="/negocio/entrar" style="margin-top:12px">
-  <input type="hidden" name="paso" value="ruc">
-  <p class="nota">Escribe los datos tal como los pusiste al registrarte. Después agregas tu correo una sola vez.</p>
+  <input type="hidden" name="paso" value="ruc">${v}
+  <p class="nota">Escribe los datos tal como los pusiste al registrarte. Después eliges tu usuario y tu contraseña.</p>
   <label for="ruc">RUC</label><input id="ruc" name="ruc" inputmode="numeric" maxlength="11" pattern="[0-9]{11}" required value="${esc(ruc)}">
   <label for="dni">DNI de la persona de contacto</label><input id="dni" name="dni" inputmode="numeric" maxlength="8" pattern="[0-9]{8}" required>
-  <label for="whatsapp">WhatsApp que registraste</label><input id="whatsapp" name="whatsapp" inputmode="tel" maxlength="15" required>
+  <label for="whatsapp">WhatsApp que registraste</label><input id="whatsapp" name="whatsapp" type="tel" inputmode="tel" maxlength="15" required>
   <div class="acciones"><button class="btn linea" type="submit">Buscar mi negocio</button></div>
 </form></details>`;
   }
@@ -277,15 +292,15 @@ function paginaEntrar({ paso = 'correo', correo = '', desafio = '', token = '', 
     aviso,
     inicio: '/negocio/',
     cuerpo: `<h1>El panel de tu <span class="fx">negocio</span></h1>
-<p class="sub">Sigue tus pedidos de videos con influencers, paga cada parte y mira en qué va cada video.</p>
+<p class="sub">Pide videos con influencers, aprueba tu storytelling, paga cada parte y mira en qué va cada video.</p>
 ${form}
-<p class="nota">¿Todavía no registras tu negocio? <a href="/influencers/registro/">Regístralo con tu RUC</a>: al terminar entras directo a tu panel.</p>
+<p class="nota">¿Todavía no registras tu negocio? <a href="/influencers/registro/">Regístralo con tu RUC</a> y crea tu usuario al terminar.</p>
 <p class="nota">¿Eres creador? Tu cuenta está en <a href="/cuenta/">tato.pe/cuenta</a>.</p>`,
   });
 }
 
 /** Inicio del portal. `vista` la usa el panel de Tato para ver lo que ve el negocio. */
-export async function paginaInicioNegocio(env, { correo, negocios }, { aviso = '', error = '', vista = null } = {}) {
+export async function paginaInicioNegocio(env, { usuario, negocios }, { aviso = '', error = '', vista = null } = {}) {
   const rucs = negocios.map((n) => n.ruc);
   const pedidos = await listarPedidos(env, (k) => rucs.includes(k.metadata?.ruc), 300);
   const toca = pedidos.filter((p) => pagoPendiente(p));
@@ -304,9 +319,13 @@ export async function paginaInicioNegocio(env, { correo, negocios }, { aviso = '
 <a class="btn fucsia" href="/negocio/perfil/${negocios.length > 1 ? `?ruc=${esc(porCompletar[0].ruc)}` : ''}">${porCompletar[1] ? 'Seguir completando' : 'Completar mi perfil'}</a></section>`
     : '';
   const lista = (items, vacio) => (items.length ? `<ul class="lista">${items.map(tarjeta).join('')}</ul>` : `<p class="vacio">${vacio}</p>`);
+  // Órdenes de servicio a medio armar (worker/orden.js)
+  const borradores = vista ? [] : (await env.PEDIDOS_KV.list({ prefix: `orden:${usuario}:` })).keys.map((k) => k.name.split(':')[2]);
+  const nombresInf = await Promise.all(borradores.map(async (id) => [id, (await influencerPublicado(env, id))?.nombre]));
+  const enPreparacion = nombresInf.filter(([, nombre]) => nombre);
   return pagina({
     titulo: 'Tu panel',
-    cuenta: { nombre: contacto || correo },
+    cuenta: { nombre: contacto || usuario },
     salir: '/negocio/salir',
     inicio: '/negocio/',
     ancho: true,
@@ -325,16 +344,18 @@ export async function paginaInicioNegocio(env, { correo, negocios }, { aviso = '
   <div><span>Pagado en total</span><b>${soles(pagado)}</b></div>
 </div>
 ${perfilCard}
+${enPreparacion.length ? `<section class="estudio-seccion"><h2>Órdenes por terminar</h2><ul class="lista">${enPreparacion.map(([id, nombre]) => `<li><a class="ped toca" href="/negocio/pedir/${esc(id)}/"><span class="chip toca">Sin enviar</span><b>Video con ${esc(nombre)}</b><span>Sigue armando tu orden: tu idea, tus fotos y tu storytelling.</span></a></li>`).join('')}</ul></section>` : ''}
 ${toca.length ? `<section class="estudio-seccion"><h2>Te toca pagar</h2><ul class="lista">${toca.map((p) => `<li class="caja toca pago-pendiente"><div><b>${esc(p.id)} · Video con ${esc(p.influencer.nombre)}</b><p>${esc(situacionNegocio(p))}</p></div><div class="acciones">${botonPago(p)}<a class="btn linea chico" href="/negocio/pedido/${esc(p.id)}/">Ver el pedido</a></div></li>`).join('')}</ul></section>` : ''}
 <section class="estudio-seccion"><h2>Pedidos en curso</h2>${lista(curso, verificado ? `No tienes ${toca.length ? 'otros ' : ''}pedidos en curso. Elige un influencer del catálogo para pedir un video.` : 'Cuando tu negocio esté verificado, pides videos desde el catálogo.')}</section>
 ${fin.length ? `<section class="estudio-seccion"><h2>Historial</h2>${lista(fin, '')}</section>` : ''}
 <section class="estudio-seccion"><h2>${negocios.length === 1 ? 'Tu negocio' : 'Tus negocios'}</h2><div class="estudio-doble">${negocios.map(tarjetaNegocio).join('')}</div>
-<p class="nota">Entras con ${esc(correo)}. ¿Algún dato cambió? <a href="${esc(wa('Hola Tato, quiero actualizar los datos de mi negocio.'))}" target="_blank" rel="noopener">Escríbenos por WhatsApp</a>.</p></section>
+<p class="nota">Entras con tu usuario <b>${esc(usuario)}</b>. ¿Algún dato cambió? <a href="${esc(wa('Hola Tato, quiero actualizar los datos de mi negocio.'))}" target="_blank" rel="noopener">Escríbenos por WhatsApp</a>.</p>
+${vista ? '' : '<form method="post" action="/negocio/clave"><button class="btn linea chico" type="submit">Cambiar mi contraseña</button></form>'}</section>
 ${recordar && !vista ? `<script>try{localStorage.setItem('tato-negocio',${JSON.stringify(JSON.stringify(recordar)).replace(/</g, '\\u003c')})}catch(e){}</script>` : ''}`,
   });
 }
 
-export async function paginaPedidoNegocio(env, sesion, p, { vista = null } = {}) {
+export async function paginaPedidoNegocio(env, sesion, p, { vista = null, aviso = '' } = {}) {
   const c = cuentas(p.dinero);
   const idx = (estado) => (estado === 'entrega' ? 5 : PASOS.findIndex(([k]) => k === estado));
   const actual = idx(p.estado);
@@ -353,7 +374,8 @@ export async function paginaPedidoNegocio(env, sesion, p, { vista = null } = {})
 <p class="nota">El adelanto cubre la producción (créditos de IA y edición). El saldo se paga cuando ${esc(p.influencer.nombre)} aprueba el video.</p>`;
   return pagina({
     titulo: `Pedido ${p.id}`,
-    cuenta: { nombre: p.negocio.contacto?.nombre || sesion.correo },
+    aviso,
+    cuenta: { nombre: p.negocio.contacto?.nombre || sesion.usuario },
     salir: '/negocio/salir',
     inicio: '/negocio/',
     vista,
@@ -365,7 +387,9 @@ ${pasos}
 <h2>Lo que pediste</h2>
 <div class="caja"><dl class="datos">
   <dt>Promocionar</dt><dd>${esc(p.brief.promociona)}</dd>
-  ${p.brief.detalle ? `<dt>Detalles</dt><dd>${multilinea(p.brief.detalle)}</dd>` : ''}
+  ${p.brief.segundos ? `<dt>Duración</dt><dd>${esc(duracion({ segundos: p.brief.segundos, videos: p.brief.videos || 1 }))}</dd>` : ''}
+  ${p.brief.detalle ? `<dt>${p.brief.tipo === 'guion' ? 'Tu guion' : p.brief.orden ? 'Tu idea' : 'Detalles'}</dt><dd>${multilinea(p.brief.detalle)}</dd>` : ''}
+  ${p.brief.accion ? `<dt>Qué hace ${esc(p.influencer.nombre.split(' ')[0])}</dt><dd>${multilinea(p.brief.accion)}</dd>` : ''}
   ${p.brief.fecha ? `<dt>Para cuándo</dt><dd>${esc(fechaDia(p.brief.fecha))}</dd>` : ''}
   <dt>Influencer</dt><dd><a href="${esc(perfilDe(p))}">${esc(p.influencer.nombre)}</a></dd>
   <dt>Paquete</dt><dd>${esc(p.paquete.nombre)}</dd>
@@ -373,6 +397,8 @@ ${pasos}
   <dt>Uso del video</dt><dd>${esc(p.paquete.uso)}</dd>
   <dt>Negocio</dt><dd>${esc(p.negocio.nombreComercial || p.negocio.razonSocial)} · RUC <span class="mono">${esc(p.negocio.ruc)}</span></dd>
 </dl></div>
+${p.brief.storytelling ? `<h2>Tu storytelling aprobado</h2><div class="caja"><style>${CSS_STORY}</style>${verStorytelling(p.brief.storytelling)}<p class="nota">El equipo creativo lo coordina contigo y escribe el guion final a partir de él.</p></div>` : ''}
+${fotosOrden(p, (c) => `/negocio/archivo?clave=${encodeURIComponent(c)}`)}
 ${p.guion?.estado === 'aprobado' ? `<details class="caja"><summary>Guion aprobado</summary><div class="guion">${esc(p.guion.texto)}</div></details>` : ''}
 <h2>Pagos</h2>
 <div class="caja">${plata}</div>
@@ -392,73 +418,90 @@ export async function handleNegocio(request, env, url, path) {
   const listo = configCorreo(env).listo;
 
   if (path === '/negocio/salir' && post) return ir('/negocio/?m=salir', await cerrarSesionNegocio(env, request));
+  if (path === '/negocio/acceso') return handleAcceso(request, env, url);
   if (path === '/negocio/entrar') {
     if (!post) return ir('/negocio/');
-    if (!listo) return respuesta(paginaEntrar({ listo }), 503);
     const f = await request.formData();
     const paso = String(f.get('paso') || '');
+    const volver = /^\/negocio\/[A-Za-z0-9/_?=&.-]*$/.test(String(f.get('volver') || '')) ? String(f.get('volver')) : '/negocio/';
     const correo = correoValido(f.get('correo'));
     const desafio = String(f.get('desafio') || '');
     const ip = request.headers.get('CF-Connecting-IP') || 'local';
+    /** Ya probó que el negocio es suyo: entra a su cuenta, o crea su acceso si todavía no tiene. */
+    const adentro = async (regs, nombre, correoOk) => {
+      for (const n of regs) {
+        const usuario = await cuentaDeRuc(env, n.ruc);
+        if (usuario) return ir(volver, await crearSesionNegocio(env, request, usuario));
+      }
+      const t = await tokenAcceso(env, { modo: 'crear', rucs: regs.map((n) => n.ruc), nombre, correo: correoOk });
+      return ir(`/negocio/acceso/?t=${t}&volver=${encodeURIComponent(volver)}`);
+    };
 
-    if (paso === 'codigo') {
-      const r = await comprobarCodigoCorreo(env, { desafio, codigo: f.get('codigo'), correo, proposito: 'entrar-negocio', titular: `negocio:${correo}` });
-      if (r.error) return respuesta(paginaEntrar({ paso: 'codigo', correo, desafio, error: r.error }), 400);
-      await confirmarCorreoNegocios(env, correo); // si lo escribió al registrarse y nunca lo confirmó, ya quedó confirmado
-      if (!(await negociosDeCorreo(env, correo)).length) return respuesta(paginaEntrar({ correo, error: 'Ese correo no tiene un negocio registrado.' }), 404);
-      return ir('/negocio/', await crearSesionNegocio(env, request, correo));
+    if (paso === 'clave') {
+      const r = await entrarConClave(env, request, f.get('id'), String(f.get('clave') || ''));
+      if (r.error) return respuesta(paginaEntrar({ listo, usuario: String(f.get('id') || ''), volver, error: r.error }), 400);
+      return ir(volver, await crearSesionNegocio(env, request, r.usuario));
     }
-
-    // Registrados sin correo: RUC + DNI + WhatsApp, y después su correo con un código.
+    if (paso === 'codigo') {
+      if (!listo) return ir('/negocio/');
+      const r = await comprobarCodigoCorreo(env, { desafio, codigo: f.get('codigo'), correo, proposito: 'entrar-negocio', titular: `negocio:${correo}` });
+      if (r.error) return respuesta(paginaEntrar({ paso: 'codigo', correo, desafio, volver, error: r.error }), 400);
+      await confirmarCorreoNegocios(env, correo); // si lo escribió al registrarse y nunca lo confirmó, ya quedó confirmado
+      const regs = await negociosDeCorreo(env, correo);
+      if (!regs.length) return respuesta(paginaEntrar({ listo, volver, error: 'Ese correo no tiene un negocio registrado.' }), 404);
+      return adentro(regs, regs[0].contacto?.nombre || '', correo);
+    }
+    if (paso === 'correo') {
+      if (!listo) return ir('/negocio/');
+      if (!correo) return respuesta(paginaEntrar({ paso: 'correo', listo, volver, error: 'Revisa tu correo: parece que le falta algo.' }), 400);
+      await migrarIndiceCorreos(env); // una sola vez: los negocios registrados antes del panel
+      const tiene = (await negociosDeCorreo(env, correo, { todos: true })).length > 0;
+      const r = await pedirCodigo(env, request, { correo, proposito: 'entrar-negocio', titular: `negocio:${correo}`, enviar: tiene });
+      if (r.error) return respuesta(paginaEntrar({ paso: 'correo', listo, correo, volver, error: r.error }), r.status || 400);
+      return respuesta(paginaEntrar({ paso: 'codigo', correo, desafio: r.desafio, volver }));
+    }
     if (paso === 'ruc') {
       const ruc = String(f.get('ruc') || '').replace(/\D/g, '');
       if ((await contar(env, `negocio-ruc-ip:${ip}`, 3600)) > 10 || (await contar(env, `negocio-ruc:${ruc}`, 3600)) > 5) {
-        return respuesta(paginaEntrar({ paso: 'ruc', ruc, error: 'Probaste muchas veces. Vuelve a intentarlo en una hora o escríbenos por WhatsApp.' }), 429);
+        return respuesta(paginaEntrar({ paso: 'ruc', listo, ruc, volver, error: 'Probaste muchas veces. Vuelve a intentarlo en una hora o escríbenos por WhatsApp.' }), 429);
       }
       const n = await negocioPorContacto(env, { ruc, dni: f.get('dni'), whatsapp: f.get('whatsapp') });
-      if (!n) return respuesta(paginaEntrar({ paso: 'ruc', ruc, error: 'Esos datos no coinciden con un negocio registrado. Revísalos o escríbenos por WhatsApp.' }), 404);
-      if (n.contacto?.correoVerificado) return respuesta(paginaEntrar({ correo: '', error: `Tu negocio ya entra con su correo (${correoOculto(n.contacto.correo)}). Escríbelo arriba y te mandamos el código.` }), 409);
-      const token = aleatorio(24);
-      await env.PEDIDOS_KV.put(`reclamo-negocio:${token}`, n.ruc, { expirationTtl: 900 });
-      return respuesta(paginaEntrar({ paso: 'reclamo-correo', token, correo: n.contacto?.correo || '' }));
+      if (!n) return respuesta(paginaEntrar({ paso: 'ruc', listo, ruc, volver, error: 'Esos datos no coinciden con un negocio registrado. Revísalos o escríbenos por WhatsApp.' }), 404);
+      const usuario = await cuentaDeRuc(env, n.ruc);
+      if (usuario) return respuesta(paginaEntrar({ listo, usuario, volver, error: `Tu negocio ya tiene acceso con el usuario «${usuario}». Entra con él${listo ? ' o pide un código a tu correo si olvidaste la contraseña' : ''}.` }), 409);
+      return adentro([n], n.contacto?.nombre || '', n.contacto?.correoVerificado ? n.contacto.correo : '');
     }
-    if (paso === 'reclamo-correo' || paso === 'reclamo-codigo') {
-      const token = String(f.get('token') || '');
-      const ruc = /^[A-Za-z0-9_-]{32}$/.test(token) ? await env.PEDIDOS_KV.get(`reclamo-negocio:${token}`) : null;
-      if (!ruc) return respuesta(paginaEntrar({ paso: 'ruc', error: 'Pasaron más de 15 minutos. Vuelve a buscar tu negocio.' }), 400);
-      if (!correo) return respuesta(paginaEntrar({ paso: 'reclamo-correo', token, error: 'Revisa tu correo: parece que le falta algo.' }), 400);
-      if (paso === 'reclamo-correo') {
-        const r = await pedirCodigo(env, request, { correo, proposito: 'entrar-negocio', titular: `reclamo:${token}` });
-        if (r.error) return respuesta(paginaEntrar({ paso: 'reclamo-correo', token, correo, error: r.error }), r.status || 400);
-        return respuesta(paginaEntrar({ paso: 'reclamo-codigo', token, correo, desafio: r.desafio }));
-      }
-      const r = await comprobarCodigoCorreo(env, { desafio, codigo: f.get('codigo'), correo, proposito: 'entrar-negocio', titular: `reclamo:${token}` });
-      if (r.error) return respuesta(paginaEntrar({ paso: 'reclamo-codigo', token, correo, desafio, error: r.error }), 400);
-      const n = await env.NEGOCIOS_KV.get(`negocio:${ruc}`, 'json');
-      if (!n) return respuesta(paginaEntrar({ error: 'No encontramos tu negocio. Escríbenos por WhatsApp.' }), 404);
-      await ponerCorreoNegocio(env, n, correo);
-      await env.PEDIDOS_KV.delete(`reclamo-negocio:${token}`);
-      return ir('/negocio/?m=bienvenida', await crearSesionNegocio(env, request, correo));
-    }
-
-    if (!correo) return respuesta(paginaEntrar({ error: 'Revisa tu correo: parece que le falta algo.' }), 400);
-    await migrarIndiceCorreos(env); // una sola vez: los negocios registrados antes del portal
-    const tiene = (await negociosDeCorreo(env, correo, { todos: true })).length > 0;
-    const r = await pedirCodigo(env, request, { correo, proposito: 'entrar-negocio', titular: `negocio:${correo}`, enviar: tiene });
-    if (r.error) return respuesta(paginaEntrar({ correo, error: r.error }), r.status || 400);
-    return respuesta(paginaEntrar({ paso: 'codigo', correo, desafio: r.desafio }));
+    return ir('/negocio/');
   }
 
   const sesion = await leerSesionNegocio(env, request);
-  const negocios = sesion ? await negociosDeCorreo(env, sesion.correo) : [];
+  const cuentaNeg = sesion?.usuario ? await leerCuentaNegocio(env, sesion.usuario) : null;
+  const negocios = await negociosDeCuenta(env, cuentaNeg);
+  const volverAqui = `${path}/${url.search}`.replace(/\/\/$/, '/');
 
-  if (!sesion || !negocios.length) {
-    if (path !== '/negocio') return ir('/negocio/?e=sesion', sesion ? await cerrarSesionNegocio(env, request) : undefined);
-    return respuesta(paginaEntrar({ listo, error: MENSAJES[url.searchParams.get('e')] || '', aviso: MENSAJES[url.searchParams.get('m')] || '' }));
+  if (!cuentaNeg || !negocios.length) {
+    if (path !== '/negocio') return ir(`/negocio/?volver=${encodeURIComponent(volverAqui)}`, sesion ? await cerrarSesionNegocio(env, request) : undefined);
+    const volver = /^\/negocio\/[A-Za-z0-9/_?=&.-]*$/.test(url.searchParams.get('volver') || '') ? url.searchParams.get('volver') : '/negocio/';
+    return respuesta(paginaEntrar({ listo, volver, error: MENSAJES[url.searchParams.get('e')] || '', aviso: MENSAJES[url.searchParams.get('m')] || '' }), 200, sesion ? { 'Set-Cookie': await cerrarSesionNegocio(env, request) } : undefined);
+  }
+  sesion.cuenta = cuentaNeg;
+
+  if (path === '/negocio/clave' && post) {
+    const t = await tokenAcceso(env, { modo: 'cambiar', usuario: cuentaNeg.usuario });
+    return ir(`/negocio/acceso/?t=${t}`);
   }
 
   if (path === '/negocio' && !post) {
-    return respuesta(await paginaInicioNegocio(env, { correo: sesion.correo, negocios }, { aviso: MENSAJES[url.searchParams.get('m')] || PERFIL_MENSAJES[url.searchParams.get('m')] || '' }));
+    return respuesta(await paginaInicioNegocio(env, { usuario: cuentaNeg.usuario, negocios }, { aviso: MENSAJES[url.searchParams.get('m')] || PERFIL_MENSAJES[url.searchParams.get('m')] || '' }));
+  }
+
+  const pedir = path.match(/^\/negocio\/pedir\/([a-z0-9-]{2,80})$/);
+  if (pedir) return handleOrden(request, env, url, { cuenta: cuentaNeg, negocios, influencerId: pedir[1] });
+  if (path === '/negocio/archivo') {
+    // Fotos que subió el negocio (logo y fotos de sus órdenes): solo las de sus propios RUC.
+    const clave = String(url.searchParams.get('clave') || '');
+    const ok = /^negocios\/\d{11}\/[A-Za-z0-9.-]+$/.test(clave) && negocios.some((n) => clave.startsWith(`negocios/${n.ruc}/`));
+    return ok ? servirArchivo(env, request, clave) : new Response('No encontrado', { status: 404 });
   }
 
   if (path === '/negocio/perfil' || path === '/negocio/logo') {
@@ -491,9 +534,9 @@ export async function handleNegocio(request, env, url, path) {
     if ((await contar(env, `negocio-ver:${sesion.token.slice(0, 16)}`, 60)) > 120) return new Response('Espera un momento.', { status: 429 });
     const p = await leerPedido(env, m[1]);
     if (!p || !negocios.some((n) => n.ruc === p.negocio.ruc)) {
-      return respuesta(pagina({ titulo: 'No encontrado', cuenta: { nombre: sesion.correo }, salir: '/negocio/salir', inicio: '/negocio/', cuerpo: '<h1>No encontramos ese pedido</h1><p><a class="volver" href="/negocio/">← Tu panel</a></p>' }), 404);
+      return respuesta(pagina({ titulo: 'No encontrado', cuenta: { nombre: sesion.usuario }, salir: '/negocio/salir', inicio: '/negocio/', cuerpo: '<h1>No encontramos ese pedido</h1><p><a class="volver" href="/negocio/">← Tu panel</a></p>' }), 404);
     }
-    return respuesta(await paginaPedidoNegocio(env, sesion, p));
+    return respuesta(await paginaPedidoNegocio(env, sesion, p, { aviso: url.searchParams.get('m') === 'orden' ? `Listo: tu orden ${p.id} le llegó a ${p.influencer.nombre} y al equipo creativo. Te avisamos cuando la acepte.` : '' }));
   }
-  return respuesta(pagina({ titulo: 'No encontrado', cuenta: { nombre: sesion.correo }, salir: '/negocio/salir', inicio: '/negocio/', cuerpo: '<h1>Esta página no existe</h1><p><a class="volver" href="/negocio/">← Tu panel</a></p>' }), 404);
+  return respuesta(pagina({ titulo: 'No encontrado', cuenta: { nombre: sesion.usuario }, salir: '/negocio/salir', inicio: '/negocio/', cuerpo: '<h1>Esta página no existe</h1><p><a class="volver" href="/negocio/">← Tu panel</a></p>' }), 404);
 }

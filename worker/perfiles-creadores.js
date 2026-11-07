@@ -1,6 +1,7 @@
 import { influencerPublicado, leerCuenta, recibePedidos, soles } from './pedidos.js';
 import { esc, json } from './ui.js';
 import { pagina, respuesta } from './portal.js';
+import { paqueteCompleto, duracion } from './orden.js';
 
 export async function handleCreadores(env, url) {
   const lote = await env.PEDIDOS_KV.list({
@@ -17,66 +18,20 @@ export async function handlePerfilCreador(env, url, id) {
   const volver = '<a class="volver" href="/influencers/">← Catálogo de influencers</a>';
   if (!p) return respuesta(pagina({ titulo: 'Perfil no disponible', cuerpo: volver + '<h1>Este perfil no está disponible</h1>' }), 404);
   const disponible = recibePedidos(await leerCuenta(env, id));
-  const elegido = url.searchParams.get('paquete');
-  const paquetes = p.paquetes.map((paq) => `<article class="caja">
+  const paquetes = p.paquetes.map((x) => paqueteCompleto(x)).map((paq) => `<article class="caja">
 <h3>${esc(paq.nombre)}</h3><p class="precio">${soles(paq.precio)}</p><p>${esc(paq.descripcion)}</p>
-<p class="nota">${esc(paq.entrega)}. ${esc(paq.uso)}.</p>${disponible ? `<div class="acciones"><a class="btn linea chico" href="?paquete=${encodeURIComponent(paq.nombre)}#pedir">Elegir ${esc(paq.nombre)}</a></div>` : ''}</article>`).join('');
-  const formulario = disponible ? `<section id="pedir" class="estudio-seccion"><h2>Pide un video</h2>
-<div class="pedido-creador-cuerpo">
-<form id="pedido-creador" class="caja" method="post" action="/api/pedidos">
-<input type="hidden" name="influencer" value="${esc(id)}">
-<label for="paquete">Paquete</label><select id="paquete" name="paquete" required>
-${p.paquetes.map((paq) => `<option value="${esc(paq.nombre)}" data-precio="${soles(paq.precio)}"${elegido === paq.nombre ? ' selected' : ''}>${esc(paq.nombre)} · ${soles(paq.precio)}</option>`).join('')}</select>
-<div class="publicacion-campos">
-<div><label for="ruc">RUC del negocio</label><input id="ruc" name="ruc" type="text" inputmode="numeric" maxlength="11" pattern="[0-9]{11}" required></div>
-<div><label for="codigo">Código del negocio</label><input id="codigo" name="codigo" type="text" maxlength="8" placeholder="TS-XXXXX" required></div>
-</div>
-<label for="promociona">¿Qué quieres promocionar?</label><input id="promociona" name="promociona" type="text" minlength="10" maxlength="300" required>
-<label for="detalle">Detalles (opcional)</label><textarea id="detalle" name="detalle" maxlength="1000"></textarea>
-<p class="aviso err" id="pedido-error" role="alert" hidden></p>
-<div class="acciones"><button class="btn fucsia" disabled>Enviar solicitud</button></div></form>
-<aside class="caja"><h3>Antes de enviar</h3><p>Precio del paquete <b id="precio-pedido"></b></p>
-<p>Usa el RUC y el código de tu negocio. El creador revisará la solicitud en su intranet.</p>
-<p class="nota">Envía tu idea para que el creador la evalúe. El pago se coordina después de la aceptación.</p>
-<a class="btn linea chico" href="/influencers/registro/?para=${esc(id)}">Registrar mi negocio</a></aside>
-</div>
-<p class="aviso" id="pedido-recibo" tabindex="-1" hidden></p>
-</section>
-<script>
-const form = document.querySelector('#pedido-creador');
-const boton = form.querySelector('button');
-const error = document.querySelector('#pedido-error');
-const recibo = document.querySelector('#pedido-recibo');
-const mostrarPrecio = () => { document.querySelector('#precio-pedido').textContent = form.elements.paquete.selectedOptions[0]?.dataset.precio || ''; };
-form.elements.paquete.addEventListener('change', mostrarPrecio);
-mostrarPrecio();
-boton.disabled = false;
-try {
-  const negocio = JSON.parse(localStorage.getItem('tato-negocio') || '{}');
-  form.elements.ruc.value = negocio.ruc || '';
-  form.elements.codigo.value = negocio.codigo || '';
-} catch {}
-form.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  boton.disabled = true;
-  error.hidden = true;
-  try {
-    const res = await fetch(form.action, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(Object.fromEntries(new FormData(form))),
-    });
-    const r = await res.json();
-    if (!res.ok) throw new Error(r.error || 'No se pudo enviar la solicitud.');
-    form.hidden = true;
-    recibo.textContent = r.mensaje;
-    recibo.hidden = false;
-    recibo.focus();
-  } catch (err) {
-    error.textContent = err.message || 'Vuelve a intentarlo.';
-    error.hidden = false;
-  } finally { boton.disabled = false; }
-});
-</script>` : '<p class="aviso ojo">Este creador ha pausado los pedidos nuevos.</p>';
+<p><b>${esc(duracion(paq))}</b></p>
+<p class="nota">${esc(paq.entrega)}. ${esc(paq.uso)}.</p>${disponible ? `<div class="acciones"><a class="btn fucsia chico" href="/negocio/pedir/${esc(id)}/?paquete=${encodeURIComponent(paq.nombre)}">Pedir ${esc(paq.nombre)}</a></div>` : ''}</article>`).join('');
+  const formulario = disponible ? `<section id="pedir" class="estudio-seccion"><h2>Cómo pides tu video</h2>
+<ol class="avance caja" aria-label="Cómo pides">
+  <li><b>Registra tu negocio</b><span>Lo verificamos con tu RUC y creas tu usuario.</span></li>
+  <li><b>Arma tu orden</b><span>Eliges el paquete, subes fotos de tu negocio y del escenario, y cuentas tu idea.</span></li>
+  <li><b>Aprueba tu storytelling</b><span>La IA desarrolla tu idea; tú la apruebas o pides otra versión.</span></li>
+  <li><b>Producimos</b><span>${esc(p.nombre.split(' ')[0])} acepta, pagas el adelanto y el equipo creativo empieza.</span></li>
+</ol>
+<div class="acciones"><a class="btn fucsia" href="/negocio/pedir/${esc(id)}/">Pedir un video a ${esc(p.nombre.split(' ')[0])}</a><a class="btn linea" href="/influencers/registro/?para=${esc(id)}">Registrar mi negocio</a></div>
+<p class="nota">Si ya tienes usuario, entras a tu panel y la orden se arma ahí.</p>
+</section>` : '';
   return respuesta(pagina({ titulo: p.nombre, ancho: true, cuerpo: `${volver}<section class="perfil-hero"><p class="mono">TATO STUDIO / CREADORES DEL PERÚ</p>
 <h1>${esc(p.nombre)}</h1><p class="sub">${esc(p.region)} · ${esc(p.redes)}</p><p class="presentacion">${esc(p.contenido)}</p>
 ${p.telefonoVerificado ? '<p><strong>WhatsApp verificado</strong></p>' : ''}

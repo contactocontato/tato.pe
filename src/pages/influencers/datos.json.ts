@@ -16,7 +16,7 @@ export const GET: APIRoute = async () => {
       nombre: i.data.nombre,
       usuario: i.data.usuario,
       fin: Number.isFinite(fin) ? fin : null,
-      paquetes: i.data.paquetes.map((p) => ({ nombre: p.nombre, precio: p.precio ?? null, entrega: p.entrega, uso: p.uso })),
+      paquetes: i.data.paquetes.map((p) => ({ nombre: p.nombre, precio: p.precio ?? null, entrega: p.entrega, uso: p.uso, segundos: p.segundos ?? null, videos: p.videos ?? 1, descripcion: p.incluye.join(' · ') })),
     };
   });
   return new Response(JSON.stringify({ influencers }), { headers: { 'Content-Type': 'application/json; charset=utf-8' } });

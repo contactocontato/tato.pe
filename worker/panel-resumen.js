@@ -8,6 +8,7 @@
 // Usa el mismo acceso que el resto del panel (usuario «tato» + PANEL_PASSWORD).
 
 import { page, html, esc } from './ui.js';
+import { mismoOrigen } from './seguridad.js';
 import {
   listarPedidos, leerCuenta, ajustes, cuentasDe, metodoSaldo, identidadDe, correoDe, turno, soles, r2,
   ESTADOS, ACTIVOS, catalogo,
@@ -19,6 +20,7 @@ import { bloqueIdentidad } from './panel-pedidos.js';
 import { paginaInicio } from './cuenta.js';
 import { paginaInicioNegocio, situacionNegocio, pagoPendiente, avancePerfil, OBJETIVOS, PRESUPUESTOS } from './portal-negocio.js';
 import { listarPublicaciones } from './publicaciones.js';
+import { cuentaDeRuc, tokenAcceso } from './cuenta-negocio.js';
 import { respuesta } from './portal.js';
 
 const ETIQUETA_NEG = { verde: 'Verificado', amarillo: 'En revisión', rojo: 'No entra', pausado: 'Pausado' };
@@ -252,6 +254,15 @@ export async function handlePanelFichaNegocio(request, env, url) {
   const ruc = String(url.searchParams.get('ruc') || '').replace(/\D/g, '');
   const n = /^\d{11}$/.test(ruc) ? await env.NEGOCIOS_KV.get(`negocio:${ruc}`, 'json') : null;
   if (!n) return html(page('Ficha del negocio', '<p class="err">No encontré ese negocio.</p><p><a href="/panel/negocios/">← Negocios</a></p>'), 404);
+  const usuarioNeg = await cuentaDeRuc(env, ruc);
+  // Enlace de acceso: crear su usuario (si no tiene) o una contraseña nueva. Tato se lo manda por WhatsApp.
+  if (request.method === 'POST') {
+    if (!mismoOrigen(request)) return new Response('Origen no permitido', { status: 403 });
+    const t = await tokenAcceso(env, usuarioNeg ? { modo: 'cambiar', usuario: usuarioNeg } : { modo: 'crear', rucs: [ruc], nombre: n.contacto?.nombre || '', correo: n.contacto?.correoVerificado ? n.contacto.correo : '' });
+    return Response.redirect(`${url.origin}/panel/negocio/?ruc=${ruc}&enlace=${t}`, 303);
+  }
+  const enlaceToken = /^[A-Za-z0-9_-]{32}$/.test(url.searchParams.get('enlace') || '') ? url.searchParams.get('enlace') : '';
+  const enlace = enlaceToken ? `${(env.SITIO || url.origin).replace(/\/+$/, '')}/negocio/acceso/?t=${enlaceToken}` : '';
   const [pedidos, aj] = await Promise.all([listarPedidos(env, (k) => k.metadata?.ruc === ruc, 200), ajustes(env)]);
   const cuentasPorId = new Map();
   for (const id of new Set(pedidos.map((p) => p.influencer.id))) cuentasPorId.set(id, await leerCuenta(env, id));
@@ -271,12 +282,15 @@ export async function handlePanelFichaNegocio(request, env, url) {
   <dt>Web o redes</dt><dd>${esc(n.negocio?.redes || '—')}</dd>
   <dt>Contacto</dt><dd>${esc(n.contacto?.nombre)} · DNI ${esc(n.contacto?.dni)} · <a href="${esc(wa(n.contacto?.whatsapp))}" target="_blank" rel="noopener">WhatsApp ${esc(n.contacto?.whatsapp)}</a></dd>
   <dt>Correo</dt><dd>${n.contacto?.correo ? `${esc(n.contacto.correo)} · ${n.contacto.correoVerificado ? `verificado el ${esc(fecha(n.contacto.correoVerificado, false))} (entra a su portal)` : 'sin verificar (no puede entrar a su portal)'}` : 'Sin correo'}</dd>
+  <dt>Acceso al panel</dt><dd>${usuarioNeg ? `Usuario <b>${esc(usuarioNeg)}</b>` : 'Todavía no crea su usuario'}</dd>
   <dt>Registro</dt><dd>${esc(fecha(n.creado))} · última vez ${esc(fecha(n.actualizado))}</dd>
   ${n.motivos?.length ? `<dt>Motivos</dt><dd>${n.motivos.map(esc).join('<br>')}</dd>` : ''}
   ${n.notas?.length ? `<dt>Notas</dt><dd>${n.notas.map(esc).join('<br>')}</dd>` : ''}
   ${n.intentos?.length ? `<dt>Otros contactos</dt><dd>${n.intentos.map((x) => `${esc(fecha(x.fecha))}: ${esc(x.contacto.nombre)} · DNI ${esc(x.contacto.dni)} · ${esc(x.contacto.whatsapp)}`).join('<br>')}</dd>` : ''}
 </dl>
-<div class="botones"><a class="fuerte" href="/panel/vista/negocio/?ruc=${esc(n.ruc)}">Ver su portal como lo ve</a><a href="${esc(wa(n.contacto?.whatsapp, `Hola ${String(n.contacto?.nombre || '').split(' ')[0]}, te escribo de Tato Studio.`))}" target="_blank" rel="noopener">Escribirle por WhatsApp</a></div>
+${enlace ? `<p class="notice">Enlace para ${usuarioNeg ? 'crear una contraseña nueva' : 'crear su usuario y su contraseña'} (vale 1 hora): <code style="overflow-wrap:anywhere">${esc(enlace)}</code><br><a href="${esc(wa(n.contacto?.whatsapp, `Hola ${String(n.contacto?.nombre || '').split(' ')[0]}, este es tu enlace para ${usuarioNeg ? 'crear una contraseña nueva' : 'crear tu usuario'} en el panel de tu negocio de Tato Studio: ${enlace}`))}" target="_blank" rel="noopener">Mandárselo por WhatsApp</a></p>` : ''}
+<form method="post" class="acciones"><button class="pausa">${usuarioNeg ? 'Enlace para una contraseña nueva' : 'Enlace para crear su usuario'}</button></form>
+<div class="botones"><a class="fuerte" href="/panel/vista/negocio/?ruc=${esc(n.ruc)}">Ver su panel como lo ve</a><a href="${esc(wa(n.contacto?.whatsapp, `Hola ${String(n.contacto?.nombre || '').split(' ')[0]}, te escribo de Tato Studio.`))}" target="_blank" rel="noopener">Escribirle por WhatsApp</a></div>
 <form class="acciones" method="post" action="/panel/negocios/decidir"><input type="hidden" name="ruc" value="${esc(n.ruc)}"><input type="hidden" name="volver" value="ficha">
   <input name="nota" placeholder="Nota (opcional): qué revisaste" maxlength="300">
   <button class="ok" name="decision" value="aprobar">Aprobar</button><button class="no" name="decision" value="rechazar">No entra</button><button class="pausa" name="decision" value="pausar">Pausar</button></form>
@@ -365,6 +379,7 @@ export async function handlePanelVista(request, env, url, path) {
   const ruc = String(url.searchParams.get('ruc') || '').replace(/\D/g, '');
   const n = /^\d{11}$/.test(ruc) ? await env.NEGOCIOS_KV.get(`negocio:${ruc}`, 'json') : null;
   if (!n) return html(page('Ficha del negocio', '<p class="err">No encontré ese negocio.</p>'), 404);
-  return respuesta(await paginaInicioNegocio(env, { correo: n.contacto?.correo || 'sin correo', negocios: [n] }, { vista: { quien: nombreNegocio(n), volver: `/panel/negocio/?ruc=${ruc}` } }));
+  const usuario = (await cuentaDeRuc(env, ruc)) || 'sin usuario todavía';
+  return respuesta(await paginaInicioNegocio(env, { usuario, negocios: [n] }, { vista: { quien: nombreNegocio(n), volver: `/panel/negocio/?ruc=${ruc}` } }));
 }
 

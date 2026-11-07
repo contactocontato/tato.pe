@@ -531,6 +531,60 @@ export async function registrarPagoMP(env, p, parte, pago) {
 // ---------- API pública ----------
 
 /** POST /api/pedidos: un negocio verificado le pide un video a un influencer. */
+/**
+ * Crea un pedido de un negocio verificado (`negocio` es su registro) para un influencer publicado.
+ * `brief` es lo que pide: { promociona, detalle, fecha } y, desde la orden de servicio, también tipo, accion,
+ * segundos, videos, storytelling, fotos y aceptaIA. Devuelve { p, inf } o { error, status }.
+ */
+export async function crearPedido(env, { negocio, influencerId, paquete, brief }) {
+  if (negocio?.semaforo !== 'verde') return { error: 'Tu negocio no está verificado en este momento. Escríbenos por WhatsApp.', status: 403 };
+  const ruc = negocio.ruc;
+  const id = influencerId;
+  const inf = await influencerPublicado(env, id);
+  if (!inf) return { error: 'Ese influencer ya no está en el catálogo.', status: 404 };
+  const paq = inf.paquetes.find((x) => x.nombre === paquete);
+  if (!paq) return { error: 'Elige uno de sus paquetes.', status: 400 };
+  const cuenta = await leerCuenta(env, id);
+  if (!recibePedidos(cuenta)) return { error: `${inf.nombre} no está tomando pedidos por ahora.`, status: 409 };
+  const abiertos = (await metasPedidos(env)).filter((k) => k.metadata?.ruc === ruc && ACTIVOS.includes(k.metadata?.estado)).length;
+  if (abiertos >= 5) return { error: 'Ya tienes 5 pedidos en curso. Cuando avance alguno, puedes pedir otro.', status: 429 };
+
+  const aj = await ajustes(env);
+  const produccion = Number(paq.produccion ?? cuenta.produccion?.[paq.nombre] ?? aj.produccion ?? 0);
+  const s = negocio.sunat || {};
+  const p = {
+    id: await idLibre(env),
+    creado: ahora(),
+    estado: 'solicitud',
+    influencer: { id, nombre: inf.nombre },
+    negocio: {
+      ruc,
+      codigo: negocio.codigo,
+      razonSocial: s.razonSocial || '',
+      nombreComercial: negocio.negocio?.nombreComercial || '',
+      rubro: negocio.negocio?.rubro || '',
+      contacto: { nombre: negocio.contacto?.nombre || '', whatsapp: negocio.contacto?.whatsapp || '', correo: negocio.contacto?.correoVerificado ? negocio.contacto.correo : '' },
+      sunat: { estado: s.estado || '', condicion: s.condicion || '', actividad: s.actividad || '' },
+      verificado: negocio.decision?.fecha || negocio.creado || '',
+    },
+    paquete: { nombre: paq.nombre, entrega: paq.entrega, uso: paq.uso },
+    brief,
+    alertas: palabrasSospechosas(`${brief.promociona} ${brief.detalle || ''} ${brief.accion || ''}`),
+    dinero: { precio: paq.precio, produccion: paq.precio == null ? produccion : Math.min(produccion, paq.precio), porcentajeTato: porcentajeDe(cuenta, aj) },
+    pagos: {},
+    links: {},
+    guion: null,
+    video: null,
+    pagoInfluencer: null,
+    motivo: '',
+    historial: [],
+    avisos: {},
+  };
+  anotar(p, 'negocio', brief.storytelling ? 'Envió la orden de servicio con su storytelling aprobado.' : 'Envió la solicitud.');
+  await guardarPedido(env, p);
+  return { p, inf };
+}
+
 export async function handlePedidoNuevo(request, env) {
   if (request.method !== 'POST') return json({ error: 'Envía la solicitud desde el perfil del influencer.' }, 405);
   if (!mismoOrigen(request)) return json({ error: 'Origen no permitido.' }, 403);
@@ -559,49 +613,10 @@ export async function handlePedidoNuevo(request, env) {
   const negocio = await env.NEGOCIOS_KV.get(`negocio:${ruc}`, 'json');
   if (negocio?.semaforo !== 'verde') return json({ error: 'Tu negocio no está verificado en este momento. Escríbenos por WhatsApp.' }, 403);
 
-  const inf = await influencerPublicado(env, id);
-  if (!inf) return json({ error: 'Ese influencer ya no está en el catálogo.' }, 404);
-  const paq = inf.paquetes.find((x) => x.nombre === b.paquete);
-  if (!paq) return json({ error: 'Elige uno de sus paquetes.' }, 400);
-  const cuenta = await leerCuenta(env, id);
-  if (!recibePedidos(cuenta)) return json({ error: `${inf.nombre} no está tomando pedidos por ahora.` }, 409);
-  const abiertos = (await metasPedidos(env)).filter((k) => k.metadata?.ruc === ruc && ACTIVOS.includes(k.metadata?.estado)).length;
-  if (abiertos >= 5) return json({ error: 'Ya tienes 5 pedidos en curso. Cuando avance alguno, puedes pedir otro.' }, 429);
-
-  const aj = await ajustes(env);
-  const produccion = Number(paq.produccion ?? cuenta.produccion?.[paq.nombre] ?? aj.produccion ?? 0);
-  const s = negocio.sunat || {};
-  const p = {
-    id: await idLibre(env),
-    creado: ahora(),
-    estado: 'solicitud',
-    influencer: { id, nombre: inf.nombre },
-    negocio: {
-      ruc,
-      codigo,
-      razonSocial: s.razonSocial || '',
-      nombreComercial: negocio.negocio?.nombreComercial || '',
-      rubro: negocio.negocio?.rubro || '',
-      contacto: { nombre: negocio.contacto?.nombre || '', whatsapp: negocio.contacto?.whatsapp || '', correo: negocio.contacto?.correoVerificado ? negocio.contacto.correo : '' },
-      sunat: { estado: s.estado || '', condicion: s.condicion || '', actividad: s.actividad || '' },
-      verificado: negocio.decision?.fecha || negocio.creado || '',
-    },
-    paquete: { nombre: paq.nombre, entrega: paq.entrega, uso: paq.uso },
-    brief: { promociona, detalle, fecha },
-    alertas: palabrasSospechosas(`${promociona} ${detalle}`),
-    dinero: { precio: paq.precio, produccion: paq.precio == null ? produccion : Math.min(produccion, paq.precio), porcentajeTato: porcentajeDe(cuenta, aj) },
-    pagos: {},
-    links: {},
-    guion: null,
-    video: null,
-    pagoInfluencer: null,
-    motivo: '',
-    historial: [],
-    avisos: {},
-  };
-  anotar(p, 'negocio', 'Envió la solicitud.');
-  await guardarPedido(env, p);
-  const siguiente = paq.precio == null
+  const r = await crearPedido(env, { negocio, influencerId: id, paquete: b.paquete, brief: { promociona, detalle, fecha } });
+  if (r.error) return json({ error: r.error }, r.status);
+  const { p, inf } = r;
+  const siguiente = p.dinero.precio == null
     ? 'Primero te cotizamos por WhatsApp.'
     : cuentas(p.dinero).adelanto > 0
       ? 'Cuando la acepte, te avisamos con el link para pagar el adelanto. Sigue tu pedido en tato.pe/negocio.'
