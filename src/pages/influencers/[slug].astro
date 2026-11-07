@@ -15,8 +15,7 @@ const { Content } = await render(i);
 const fecha = (x: Date) => x.toLocaleDateString('es-PE', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
 ---
 <Studio title={`${d.nombre} · Influencers · Tato Studio`} description={`Videos para tu negocio con la imagen de ${d.nombre} (@${d.usuario}), hechos con IA y con su permiso. ${d.estilo}.`} image={d.foto} actual="influencers">
-  <div class="wrap">
-    <p class="migas"><a href="/influencers/">Influencers</a> / {d.nombre}</p>
+  <section class="sec">
     <article class="perfil" data-influencer={d.nombre} data-id={i.id} data-fin={d.convenioHasta ? finConvenio(d) : undefined}>
       <div class="perfil__foto"><img src={d.foto} alt={d.fotoAlt} width="720" height="900" fetchpriority="high" /></div>
       <div>
@@ -37,12 +36,12 @@ const fecha = (x: Date) => x.toLocaleDateString('es-PE', { day: 'numeric', month
         )}
       </div>
     </article>
-  </div>
+  </section>
 
   {d.muestras.length > 0 && (
-    <section class="sec" aria-labelledby="muestras-t" style="padding-top:0">
+    <section class="sec negro" aria-labelledby="muestras-t">
       <div class="wrap">
-        <h2 class="h2" id="muestras-t">Videos <span class="fx">de muestra</span></h2>
+        <h2 class="h2" id="muestras-t">Videos de muestra</h2>
         <div class="muestras">
           {d.muestras.map((m) => (
             <figure>
@@ -55,9 +54,9 @@ const fecha = (x: Date) => x.toLocaleDateString('es-PE', { day: 'numeric', month
     </section>
   )}
 
-  <section class="sec" aria-labelledby="paquetes-t" style="padding-top:0">
+  <section class="sec" aria-labelledby="paquetes-t">
     <div class="wrap">
-      <h2 class="h2" id="paquetes-t">Pide tu video con <span class="fx">{d.nombre}</span></h2>
+      <h2 class="h2" id="paquetes-t">Pide tu video con {d.nombre}</h2>
       <div class="paquetes">
         {d.paquetes.map((p) => (
           <div class="paq">

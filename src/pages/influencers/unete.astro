@@ -4,18 +4,16 @@ import planes from '../../data/planes-influencer.json';
 import { cuentas, soles } from '../../../worker/pedidos.js';
 ---
 <Studio title="Súmate como influencer · Tato Studio" description="Tu imagen en videos con IA para negocios verificados del Perú. Tú apruebas cada guion y cada video, y la mayor parte de lo que se cobra es para ti." actual="influencers">
-  <section class="ihero">
-    <div class="wrap">
-      <p class="migas" style="padding-top:0;margin-bottom:24px"><a href="/influencers/">Influencers</a> / Súmate</p>
-      <h1 class="h1">Tu imagen trabaja, <span class="fx">tú decides</span></h1>
-      <p class="lead">Crea tu cuenta, configura tu perfil y completa tus fotos y voz en la web. Tato revisa tu registro antes de publicarlo. Tú decides qué pedidos aceptas y apruebas cada guion y video antes de su entrega.</p>
-      <div class="actions"><a class="btn btn--fucsia" href="#planes">Ver planes y ganancias</a><a class="btn btn--line" href="/cuenta/">Ya tengo una cuenta</a></div>
-    </div>
+  <section class="cabeza" data-entra>
+    <img class="cabeza__tato" src="/inicio/tato/p_saluda.webp" width="362" height="760" alt="">
+    <h1 class="h1">Tu imagen, tus reglas</h1>
+    <p class="lead">Crea tu cuenta y completa tus fotos y tu voz en la web. Tato revisa tu registro antes de publicarlo, y tú apruebas cada guion y cada video.</p>
+    <div class="actions"><a class="btn btn--ink" href="#planes">Ver planes y ganancias</a><a class="btn btn--line" href="/cuenta/">Ya tengo una cuenta</a></div>
   </section>
 
   <section class="sec dark" id="planes" aria-labelledby="planes-t">
-    <div class="wrap">
-      <h2 class="h2" id="planes-t">Planes para <span class="fx">tus videos</span></h2>
+    <div class="wrap" data-entra>
+      <h2 class="h2" id="planes-t">Planes para tus videos</h2>
       <p class="lead">El negocio paga un adelanto para producción y el resto cuando el video está listo. Del saldo, después de descontar la comisión del medio de pago cuando aplique, recibes el <strong>{100 - planes.porcentajeTato} %</strong> y Tato Studio recibe el <strong>{planes.porcentajeTato} %</strong>.</p>
       <div class="reglas">
         {planes.paquetes.map((p) => {
@@ -34,14 +32,28 @@ import { cuentas, soles } from '../../../worker/pedidos.js';
     </div>
   </section>
 
-  <section class="wrap registro" id="postular" aria-labelledby="postular-t">
+  <section class="banda-clips" aria-labelledby="clips-t">
+    <h2 class="h2" id="clips-t" data-entra><span>Así se ven</span></h2>
+    <div class="panel-clips">
+      <figure>
+        <video src="/inicio/clips/foodie.mp4" poster="/inicio/clips/foodie.jpg" muted loop playsinline autoplay preload="metadata" aria-label="Primer plano de una mano que lleva un pan relleno a la boca"></video>
+        <p class="titulo">Videos que hice con IA para negocios</p>
+      </figure>
+      <figure><video src="/inicio/clips/cuy.mp4" poster="/inicio/clips/cuy.jpg" muted loop playsinline autoplay preload="metadata" aria-label="Un cuy con chullo y poncho sonríe en la mesa de un restaurante"></video><figcaption>Restaurante</figcaption></figure>
+      <figure><video src="/inicio/clips/gym.mp4" poster="/inicio/clips/gym.jpg" muted loop playsinline autoplay preload="metadata" aria-label="Un hombre se prepara para levantar una barra en un gimnasio"></video><figcaption>Gimnasio</figcaption></figure>
+      <figure><video src="/inicio/clips/huacachina.mp4" poster="/inicio/clips/huacachina.jpg" muted loop playsinline autoplay preload="metadata" aria-label="Un cuy y un chanchito pasean en bote bajo una sombrilla de paja al atardecer en Huacachina"></video><figcaption>Turismo</figcaption></figure>
+    </div>
+    <p class="pie">Con tu imagen y tu voz, los videos se hacen igual: tú apruebas el guion y el video antes de la entrega.</p>
+  </section>
+
+  <section class="registro" id="postular" aria-labelledby="postular-t">
     <div>
-      <h2 class="h2" id="postular-t">Regístrate como <span class="fx">influencer</span></h2>
+      <h2 class="h2" id="postular-t">Regístrate como influencer</h2>
       <p class="lead">Crea tu acceso y escribe cómo quieres aparecer en el catálogo. Todos los campos son obligatorios.</p>
       <form class="form alta-form" id="postulacion" method="post" action="/api/influencers/alta" data-verificacion="alta" data-clarity-mask="true">
         <input type="hidden" name="version" value={planes.version}>
         <input type="hidden" name="token">
-        <div class="alta-etapa field--full"><span>01</span><div><h3>Tu perfil público</h3><p>Así te encontrarán las marcas en el catálogo.</p></div></div>
+        <div class="alta-etapa field--full"><span>1</span><div><h3>Tu perfil público</h3><p>Así te encontrarán las marcas en el catálogo.</p></div></div>
         <div class="field">
           <label for="nombre">Tu nombre público</label>
           <input id="nombre" name="nombre" autocomplete="nickname" maxlength="80" required>
@@ -63,7 +75,7 @@ import { cuentas, soles } from '../../../worker/pedidos.js';
           <label for="contenido">¿Qué contenido haces?</label>
           <textarea id="contenido" name="contenido" maxlength="500" required placeholder="Cuéntanos de tus temas y del tipo de negocios con los que te gustaría trabajar"></textarea>
         </div>
-        <div class="alta-etapa field--full"><span>02</span><div><h3>Protege tu acceso</h3><p>Entras con tu correo y una contraseña que no utilices en otras cuentas.</p></div></div>
+        <div class="alta-etapa field--full"><span>2</span><div><h3>Protege tu acceso</h3><p>Entras con tu correo y una contraseña que no utilices en otras cuentas.</p></div></div>
         <div class="field field--full">
           <label for="correo">Tu correo</label>
           <input id="correo" name="correo" type="email" autocomplete="email" maxlength="160" required placeholder="tucorreo@gmail.com" autocapitalize="none" spellcheck="false">
@@ -127,7 +139,7 @@ import { cuentas, soles } from '../../../worker/pedidos.js';
 
   <section class="sec dark" aria-labelledby="perfil-t">
     <div class="wrap">
-      <h2 class="h2" id="perfil-t">Lo que va en <span class="fx">tu perfil</span></h2>
+      <h2 class="h2" id="perfil-t">Lo que va en tu perfil</h2>
       <p class="lead">Así te ven los negocios. Tu WhatsApp, contraseña, fotos de identidad y grabación de voz quedan en privado.</p>
       <div class="reglas">
         <div class="regla"><h3>Quién eres</h3><p>Tu nombre público, región, red principal y la descripción de tu contenido.</p></div>
@@ -224,21 +236,20 @@ import { cuentas, soles } from '../../../worker/pedidos.js';
 </script>
 
 <style>
-  #postular, #planes { scroll-margin-top: 6rem; }
+  #postular, #planes { scroll-margin-top: 1rem; }
   #postulacion[hidden] { display: none; }
   .lado ol { padding-inline-start: 1.25rem; }
-  .lado li { margin-bottom: .65rem; }
   .plan { display: grid; gap: .5rem; align-content: start; }
-  .precio-plan { font-size: 1.6rem; font-weight: 800; }
+  .precio-plan { font-size: var(--t4); font-weight: 900; font-stretch: 72%; font-variation-settings: "wdth" 72; line-height: 1; }
   .plan dl { display: grid; grid-template-columns: 1fr auto; gap: .3rem .8rem; margin: .65rem 0 0; }
   .plan dd { margin: 0; }
-  .alta-form { background: var(--card); border: 1px solid var(--card-line); border-radius: 22px; padding: clamp(16px, 3vw, 30px); gap: 18px 14px; }
-  .alta-form .field input, .alta-form textarea { background: var(--paper); }
-  .alta-etapa { display: flex; align-items: flex-start; gap: 12px; border-bottom: 1px solid var(--card-line); padding-bottom: 12px; }
-  .alta-etapa span { background: var(--dark); color: var(--cream); border-radius: 8px; font: 500 14px var(--mono); padding: 5px 8px; }
-  .alta-etapa h3 { font-size: 1.05rem; font-weight: 800; }
-  .alta-etapa p, .alta-otp p { font-size: .9rem; color: var(--ink-soft); }
-  .alta-otp { display: grid; gap: 10px; padding: 16px; border: 1px solid var(--card-line); border-radius: 14px; }
+  .alta-form { gap: 20px 16px; }
+  .alta-etapa { display: flex; align-items: center; gap: 14px; margin-top: 12px; }
+  .alta-etapa span { display: grid; place-items: center; width: 48px; height: 48px; flex: none; background: var(--fucsia); color: var(--blanco); font-size: var(--t3); font-weight: 900; }
+  .alta-etapa h3 { font-size: var(--t3); font-weight: 900; }
+  .alta-etapa p, .alta-otp p { font-size: var(--t1); }
+  .alta-otp { display: grid; gap: 10px; padding: 20px; background: var(--rosa); }
   .alta-otp[hidden] { display: none; }
-  .alta-otp h4 { font-weight: 800; }
+  .alta-otp h4 { font-weight: 900; }
+  #planes > .wrap > p:not(.lead) { margin-top: 20px; max-width: 70ch; }
 </style>

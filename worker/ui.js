@@ -1,5 +1,8 @@
 // Páginas y respuestas del Worker: el HTML sencillo de los paneles privados y las respuestas JSON.
 
+// La letra de tato.pe (Archivo, servida desde /fuentes/). La misma de src/styles/studio.css.
+export const FUENTE = '@font-face{font-family:"Archivo";font-style:normal;font-display:swap;font-weight:100 900;font-stretch:62% 125%;src:url(/fuentes/archivo-latin-wdth.woff2) format("woff2-variations"),url(/fuentes/archivo-latin-wdth.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}@font-face{font-family:"Archivo";font-style:normal;font-display:swap;font-weight:100 900;font-stretch:62% 125%;src:url(/fuentes/archivo-latin-ext-wdth.woff2) format("woff2-variations"),url(/fuentes/archivo-latin-ext-wdth.woff2) format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1E00-1E9F,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}';
+
 const NAV = [['/panel/', 'Resumen'], ['/panel/pedidos/', 'Pedidos'], ['/panel/influencers/', 'Influencers'], ['/panel/negocios/', 'Negocios'], ['/panel/postulaciones/', 'Postulaciones'], ['/panel/ajustes/', 'Ajustes'], ['/panel/tiktok/', 'TikTok']];
 // Páginas que no están en el menú pero cuelgan de una sección (para marcarla en el menú).
 const SECCION = { 'Ficha del negocio': 'Negocios', 'Ficha del creador': 'Influencers' };
@@ -9,16 +12,17 @@ export function page(title, body, nav = true) {
 <meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow">
 <title>${esc(title)} · Tato Studio</title>
 <style>
-  :root{--fucsia:#E2037E;--fucsia-tinta:#B50265;--ink:#141414;--soft:#5f5f5a;--line:#e3ded6;--paper:#f6f3ee}
-  body{font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;margin:0;color:#111;background:var(--paper)}
+  ${FUENTE}
+  :root{--fucsia:#E2037E;--fucsia-tinta:#B50265;--ink:#000;--soft:#555;--line:#dadada;--paper:#fff}
+  body{font:16px/1.5 "Archivo",system-ui,-apple-system,"Segoe UI",sans-serif;margin:0;color:#000;background:var(--paper)}
   main{max-width:1180px;margin:0 auto;padding:20px clamp(14px,3vw,28px) 48px}
-  h1{font-size:28px;margin:0 0 16px;letter-spacing:-.01em}
+  h1{font-size:40px;font-weight:900;font-stretch:72%;font-variation-settings:"wdth" 72;line-height:.95;margin:0 0 16px;letter-spacing:-.02em}
   :focus-visible{outline:2px solid var(--fucsia);outline-offset:2px}
-  .barra{background:#141414;color:#fff}
+  .barra{background:#000;color:#fff}
   .barra .dentro{max-width:1180px;margin:0 auto;padding:10px clamp(14px,3vw,28px);display:flex;gap:6px 18px;align-items:center;flex-wrap:wrap}
   .barra .marca{font-weight:800;letter-spacing:.04em;color:var(--fucsia);text-decoration:none;margin-right:6px}
   a{color:inherit}
-  .btn{display:inline-block;background:#111;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:600}
+  .btn{display:inline-block;background:#000;color:#fff;padding:13px 20px;border-radius:0;text-decoration:none;font-weight:800}.btn:hover{background:var(--fucsia)}
   .muted{color:#666;font-size:14px}
   .notice{background:#eef6ee;border:1px solid #cfe5cf;padding:10px 14px;border-radius:8px}
   .err{background:#fdeeee;border:1px solid #f3cccc;padding:10px 14px;border-radius:8px}

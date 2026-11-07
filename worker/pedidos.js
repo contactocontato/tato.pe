@@ -82,6 +82,8 @@ export async function guardarCuenta(env, c) {
       nombre: c.nombre, activa: c.activa !== false, mp: Boolean(c.mp?.accessToken),
       publico: c.alta && recibePedidos(c)
         ? { nombre: c.nombre, region: c.alta.perfil.region, desde: Math.min(...c.alta.paquetes.map((p) => p.precio)),
+          // Para la columna «Contenido» del catálogo; corto, porque la metadata de KV tiene límite.
+          contenido: String(c.alta.perfil.contenido || '').replace(/\s+/g, ' ').slice(0, 80),
           telefonoVerificado: Boolean(c.whatsappVerificado?.fecha && c.whatsappVerificado.numero === c.whatsapp) }
         : null,
     },

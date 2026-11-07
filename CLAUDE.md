@@ -61,7 +61,8 @@ Catálogo en `/influencers/`. Cada influencer con convenio tiene una ficha en `s
 - No inventes seguidores, precios, fechas ni temas que no acepta: pídeselos a Tato. `cifrasAl` es el día en que se contaron los seguidores. Un paquete sin `precio` sale «A cotizar».
 - `borrador: true` solo se ve con `npm run dev`. `activo: false` lo saca de la web (convenio pausado). Con `convenioHasta`, la ficha deja de publicarse cuando vence, y si vence entre una publicación y otra, su página deja de tomar pedidos ese mismo día. Para sacar a alguien al toque: `activo: false` y publicar.
 - El link «Influencers» de la portada y el botón del catálogo en su tarjeta aparecen solos cuando hay al menos un influencer publicado.
-- Estas páginas usan `src/layouts/Studio.astro` y `src/styles/studio.css`, que repite los colores de la portada (`--fucsia` y los demás): si cambian en `index.astro`, cámbialos también ahí. Mismos colores que la portada: fucsia, negro y blanco, sin rojo.
+- Estas páginas usan `src/layouts/Studio.astro` y `src/styles/studio.css`, con estilo de cartel: fucsia (#E2037E), negro y blanco planos, sin rojo; la letra Archivo (servida desde `public/fuentes/`, angosta y en 900 para los títulos); esquinas rectas; sin sombras, degradados ni líneas finas; títulos de dos líneas como máximo; ninguna palabra resaltada en un título. Si el fucsia cambia en `index.astro`, cámbialo también ahí. Los paneles privados (`worker/portal.js` y `worker/ui.js`) usan los mismos colores y la misma letra (`FUENTE` en `worker/ui.js`).
+- En la portada de `/influencers/`, «Arma tu video» reparte los segundos con los planes de `src/data/planes-influencer.json`: si cambian los planes, revisa que el esqueleto siga cuadrando. Los clips de «Así se ven» son de Tato; nada con personajes de la TV.
 
 ### Registro de negocios
 
