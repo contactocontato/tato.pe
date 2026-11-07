@@ -367,3 +367,14 @@ test('creador con convenio: invitación por correo, elige su contraseña y entra
   const entra = await enCuenta(post('/cuenta/entrar', { id: 'rosa@perez.pe', clave: await claveDelNavegador('rosa@perez.pe', 'clave-de-rosa-1') }, { json: false }));
   assert.equal(entra.headers.get('Location'), '/cuenta/');
 });
+
+test('buzón local: solo con CORREO_LOCAL=1 y en localhost', async () => {
+  const { handleCorreosLocales, enviarCorreo } = await import('./correo.js');
+  const env = { PEDIDOS_KV: new KVFalso(), CORREO_LOCAL: '1' };
+  assert.equal(configCorreo(env).listo, true);
+  assert.equal(await enviarCorreo(env, { para: 'a@b.pe', asunto: '123456 es tu código', texto: 'Tu código: 123456', html: '' }), true);
+  const local = await handleCorreosLocales(new Request('http://localhost:8787/dev/correos/'), env);
+  assert.match(await local.text(), /123456 es tu código/);
+  assert.equal((await handleCorreosLocales(new Request('https://tato.pe/dev/correos/'), env)).status, 404, 'nunca en tato.pe');
+  assert.equal((await handleCorreosLocales(new Request('http://localhost:8787/dev/correos/'), { PEDIDOS_KV: env.PEDIDOS_KV })).status, 404, 'sin la variable no existe');
+});

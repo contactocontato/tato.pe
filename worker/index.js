@@ -40,7 +40,7 @@ import { handleCreadores, handlePerfilCreador } from './perfiles-creadores.js';
 import { configVerificacion, enviarCodigo } from './verificacion.js';
 import { handlePanelPublicaciones } from './publicaciones.js';
 import { handlePanelPedidos, handlePanelPedidoAccion, handlePanelInfluencers, handlePanelInfluencerAccion, handlePanelAjustes, handlePanelArchivo } from './panel-pedidos.js';
-import { estadoCorreo, handleCodigoCorreo } from './correo.js';
+import { estadoCorreo, handleCodigoCorreo, handleCorreosLocales } from './correo.js';
 import { handleNegocio } from './portal-negocio.js';
 import { handlePanelResumen, handlePanelFichaNegocio, handlePanelFichaCreador, handlePanelVista } from './panel-resumen.js';
 
@@ -76,6 +76,7 @@ export default {
       if (estado) return await handleEstadoInfluencer(env, estado[1]);
       if (path === '/api/mp/webhook') return request.method === 'POST' ? await handleWebhook(request, env, url) : new Response('ok');
       if (path === '/api/mp/conectado') return await handleMpConectado(request, env, url);
+      if (path === '/dev/correos') return await handleCorreosLocales(request, env);
       if (path === '/api/correo/estado') return estadoCorreo(env);
       if (path === '/api/correo/codigo') return await handleCodigoCorreo(request, env);
       if (path === '/cuenta' || path.startsWith('/cuenta/')) return await handleCuenta(request, env, url, path);
@@ -156,7 +157,7 @@ export default {
 // Quita espacios o saltos de línea que se cuelan al copiar y pegar las claves en Cloudflare.
 function cleanEnv(env) {
   const out = Object.create(env);
-  for (const k of ['TIKTOK_CLIENT_KEY', 'TIKTOK_CLIENT_SECRET', 'PANEL_PASSWORD', 'RUC_API_TOKEN', 'RUC_API_URL', 'ANTHROPIC_API_KEY', 'MP_CLIENT_ID', 'MP_CLIENT_SECRET', 'MP_ACCESS_TOKEN', 'MP_WEBHOOK_SECRET', 'RESEND_API_KEY', 'CORREO_REMITENTE', 'CORREO_TATO']) {
+  for (const k of ['TIKTOK_CLIENT_KEY', 'TIKTOK_CLIENT_SECRET', 'PANEL_PASSWORD', 'RUC_API_TOKEN', 'RUC_API_URL', 'ANTHROPIC_API_KEY', 'MP_CLIENT_ID', 'MP_CLIENT_SECRET', 'MP_ACCESS_TOKEN', 'MP_WEBHOOK_SECRET', 'RESEND_API_KEY', 'CORREO_REMITENTE', 'CORREO_TATO', 'CORREO_LOCAL']) {
     if (typeof env[k] === 'string') out[k] = env[k].trim();
   }
   return out;

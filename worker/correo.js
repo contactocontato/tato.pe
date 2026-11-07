@@ -35,8 +35,25 @@ const remitente = (env) => {
 };
 
 export function configCorreo(env) {
+  // CORREO_LOCAL=1 (solo en .dev.vars, para probar en tu PC): los correos no salen; se ven en /dev/correos/.
+  if (env.CORREO_LOCAL === '1') return { listo: true, via: 'local', remitente: 'Tato Studio <prueba@localhost>' };
   const via = env.EMAIL && typeof env.EMAIL.send === 'function' ? 'cloudflare' : env.RESEND_API_KEY ? 'resend' : null;
   return { listo: Boolean(via && remitente(env)), via, remitente: remitente(env) };
+}
+
+const esLocal = (request) => ['localhost', '127.0.0.1', '[::1]'].includes(new URL(request.url).hostname);
+
+/** /dev/correos/: los correos de prueba (solo con CORREO_LOCAL=1 y abriendo la web en localhost). */
+export async function handleCorreosLocales(request, env) {
+  if (env.CORREO_LOCAL !== '1' || !esLocal(request)) return new Response('No encontrado', { status: 404 });
+  const lista = await env.PEDIDOS_KV.list({ prefix: 'correo-local:' });
+  const correos = (await Promise.all(lista.keys.map((k) => env.PEDIDOS_KV.get(k.name, 'json')))).filter(Boolean).reverse().slice(0, 50);
+  const fila = (c) => `<article style="background:#fff;border:1px solid #ddd;border-radius:12px;padding:14px 16px;margin:0 0 12px">
+<p style="margin:0;color:#666;font-size:13px">${esc(new Date(c.fecha).toLocaleString('es-PE', { timeZone: 'America/Lima' }))} · para <b>${esc(c.para)}</b></p>
+<h2 style="margin:6px 0;font-size:18px">${esc(c.asunto)}</h2><pre style="white-space:pre-wrap;font:15px/1.5 system-ui;margin:0">${esc(c.texto).replace(/(https?:\/\/[^\s]+)/g, '<a href="$1">$1</a>')}</pre></article>`;
+  return new Response(`<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Correos de prueba</title><meta http-equiv="refresh" content="5">
+<body style="font:16px system-ui;background:#f4f1ec;margin:0;padding:20px;max-width:760px;margin:auto"><h1>Correos de prueba</h1><p style="color:#666">Aquí llegan los códigos y avisos mientras pruebas en tu PC. La página se actualiza sola cada 5 segundos.</p>
+${correos.length ? correos.map(fila).join('') : '<p>Todavía no hay correos.</p>'}</body></html>`, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } });
 }
 
 /** Manda un correo. Devuelve true si el proveedor lo aceptó. Nunca lanza error. */
@@ -45,6 +62,11 @@ export async function enviarCorreo(env, { para, asunto, texto, html }) {
   const destino = correoValido(para);
   if (!cfg.listo || !destino) return false;
   try {
+    if (cfg.via === 'local') {
+      const fecha = new Date().toISOString();
+      await env.PEDIDOS_KV.put(`correo-local:${fecha}:${crypto.randomUUID().slice(0, 8)}`, JSON.stringify({ para: destino, asunto, texto, fecha }), { expirationTtl: 86400 });
+      return true;
+    }
     if (cfg.via === 'cloudflare') {
       await env.EMAIL.send({ from: cfg.remitente, to: destino, subject: asunto, text: texto, html });
       return true;

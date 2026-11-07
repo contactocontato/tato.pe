@@ -157,6 +157,28 @@ La web se publica como el Worker `tato-pe` (cuenta de Cloudflare de Tato). Cada 
 - **Resumen del panel:** `https://tato.pe/panel/` (`worker/panel-resumen.js`). Junta a los creadores y a los negocios: lo que te toca (creadores y negocios por revisar, pedidos que esperan algo de ti, cobros sin link), cifras del mes, pedidos por paso, actividad reciente y las listas de creadores y negocios. Cada uno tiene su ficha (`/panel/creador/?id=`, `/panel/negocio/?ruc=`) con sus pedidos, su dinero y el botón para ver su página tal como la ve él (sin poder tocar nada).
 - **Pruebas:** `worker/correo.test.mjs` usa un servicio de correo falso. Para el Worker en local, `.dev.vars` acepta `CORREO_API` apuntando a un servicio falso con la forma de la API de Resend.
 
+## Probar en tu PC (creadores, negocios y panel)
+
+1. `git fetch && git checkout <rama>` y `npm install`.
+2. Crea `.dev.vars` (no se sube al repo) con:
+
+   ```
+   PANEL_PASSWORD=prueba
+   CORREO_LOCAL=1
+   VOZ_MIN_SEGUNDOS=5
+   SITIO=http://localhost:8787
+   ```
+
+   `CORREO_LOCAL=1` hace que los correos no salgan: los códigos y avisos se ven en http://localhost:8787/dev/correos/ (solo existe en tu PC). `VOZ_MIN_SEGUNDOS` acorta la grabación de voz para probar.
+3. `npm run build:cf` y luego `npx wrangler dev` (deja la terminal abierta).
+4. Abre:
+   - Creadores: http://localhost:8787/influencers/unete/ (registro) y http://localhost:8787/cuenta/
+   - Negocios: http://localhost:8787/influencers/registro/ (registro) y http://localhost:8787/negocio/
+   - Tu panel: http://localhost:8787/panel/ (usuario `tato`, contraseña la de `PANEL_PASSWORD`)
+   - Correos de prueba: http://localhost:8787/dev/correos/
+
+Sin `RUC_API_TOKEN`, cada negocio queda «en revisión»: apruébalo en el panel. Los datos de prueba viven en `.wrangler/state` y no tocan los de tato.pe; para empezar de cero, borra esa carpeta.
+
 ## Antes de publicar
 
 ### Medición con Microsoft Clarity

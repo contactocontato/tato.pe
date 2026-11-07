@@ -98,7 +98,7 @@ function estadoConfig(env) {
   const correo = configCorreo(env);
   const whatsapp = configVerificacion(env).estado;
   const items = [
-    [correo.listo, correo.listo ? `Correos: listos (${correo.via === 'cloudflare' ? 'Cloudflare' : 'Resend'})` : 'Correos: falta configurar (sin códigos ni avisos)'],
+    [correo.listo, correo.listo ? `Correos: listos (${{ cloudflare: 'Cloudflare', resend: 'Resend', local: 'buzón de prueba' }[correo.via]})` : 'Correos: falta configurar (sin códigos ni avisos)'],
     [mpListo(env), mpListo(env) ? 'Mercado Pago: listo' : 'Mercado Pago: cobros a mano'],
     [Boolean(env.MEDIOS), env.MEDIOS ? 'Fotos y voz (R2): listo' : 'Fotos y voz (R2): falta activar'],
     [Boolean(env.RUC_API_TOKEN), env.RUC_API_TOKEN ? 'Consulta de RUC: lista' : 'Consulta de RUC: falta el token'],
